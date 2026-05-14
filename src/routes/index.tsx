@@ -4,7 +4,6 @@ import MainLayout from '@/layouts/MainLayout'
 import ProtectedRoute from './ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
-import DashboardPage from '@/pages/dashboard/DashboardPage'
 import PortPage from '@/pages/resources/PortPage'
 import AttractionPage from '@/pages/resources/AttractionPage'
 import RoutePage from '@/pages/resources/RoutePage'
@@ -41,7 +40,6 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      // { path: '/dashboard', element: <DashboardPage /> },
       { path: '/resources/ports', element: <PortPage /> },
       { path: '/resources/attractions', element: <AttractionPage /> },
       { path: '/resources/routes', element: <RoutePage /> },
@@ -60,4 +58,6 @@ export const router = createBrowserRouter([
       { path: '/system/dictionaries', element: <DictionaryPage /> },
     ],
   },
-])
+], {
+  basename: '/cruise-management',
+})
