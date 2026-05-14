@@ -1,0 +1,55 @@
+import { useLocation, Link } from 'react-router-dom'
+import { ChevronRight, Home } from 'lucide-react'
+
+const routeLabels: Record<string, string> = {
+  '/dashboard': '数据看板',
+  '/resources': '资源',
+  '/resources/ports': '港口管理',
+  '/resources/attractions': '景点管理',
+  '/resources/routes': '航线管理',
+  '/system': '系统设置',
+  '/system/users': '用户管理',
+  '/system/roles': '角色管理',
+  '/system/menus': '菜单管理',
+  '/system/dictionaries': '数据字典',
+}
+
+export default function Breadcrumb() {
+  const location = useLocation()
+  const parts = location.pathname.split('/').filter(Boolean)
+
+  const crumbs: { label: string; path?: string }[] = [{ label: '首页', path: '/dashboard' }]
+
+  let current = ''
+  for (const part of parts) {
+    current += '/' + part
+    const label = routeLabels[current]
+    if (label) {
+      crumbs.push({ label, path: current })
+    }
+  }
+
+  // 去重（同一路径不重复显示）
+  const unique = crumbs.filter((c, i, arr) => i === 0 || c.path !== arr[i - 1].path)
+
+  return (
+    <nav className="flex items-center gap-1.5 text-sm text-gray-400 py-2">
+      {unique.map((crumb, i) => (
+        <span key={crumb.path || i} className="flex items-center gap-1.5">
+          {i > 0 && <ChevronRight className="w-3.5 h-3.5" />}
+          {i === 0 ? (
+            <Home className="w-3.5 h-3.5" />
+          ) : i === unique.length - 1 ? (
+            <span className="text-gray-700 font-medium">{crumb.label}</span>
+          ) : crumb.path ? (
+            <Link to={crumb.path} className="hover:text-gray-600 transition-colors">
+              {crumb.label}
+            </Link>
+          ) : (
+            <span>{crumb.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  )
+}

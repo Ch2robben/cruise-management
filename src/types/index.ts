@@ -1,0 +1,635 @@
+// ========== 通用类型 ==========
+export type Status = 'enabled' | 'disabled'
+
+export interface BaseEntity {
+  id: string
+  status: Status
+  createdAt: string
+  updatedAt: string
+  updatedBy: string
+}
+
+// ========== 用户相关 ==========
+export interface User {
+  id: string
+  account: string
+  name: string
+  phone: string
+  email: string
+  roleId: string
+  roleName: string
+  status: Status
+  lastLoginAt: string
+  createdAt: string
+}
+
+export interface LoginForm {
+  account: string
+  password: string
+}
+
+export interface RegisterForm {
+  companyName: string
+  name: string
+  phone: string
+  password: string
+  confirmPassword: string
+}
+
+export interface AuthUser {
+  id: string
+  account: string
+  name: string
+  roleName: string
+  token: string
+}
+
+// ========== 角色 ==========
+export interface Role {
+  id: string
+  code: string
+  name: string
+  description: string
+  status: Status
+  createdAt: string
+}
+
+// ========== 菜单 ==========
+export interface Menu {
+  id: string
+  name: string
+  code: string
+  parentId: string | null
+  parentName: string
+  route: string
+  type: 'menu' | 'button'
+  sort: number
+  icon: string
+  permission: string
+  status: Status
+}
+
+// ========== 数据字典 ==========
+export interface Dictionary {
+  id: string
+  dictCode: string
+  dictName: string
+  itemCode: string
+  itemName: string
+  sort: number
+  status: Status
+  remark: string
+}
+
+// ========== 码头 ==========
+export interface Pier {
+  id: string
+  portId: string
+  name: string
+  nameEn: string
+  sort: number
+}
+
+// ========== 港口 ==========
+export interface Port {
+  id: string
+  name: string
+  nameEn: string
+  code: string
+  city: string
+  province: string
+  sort: number
+  piers: Pier[]
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface PortForm {
+  name: string
+  nameEn: string
+  code: string
+  city: string
+  sort: number
+  piers: Omit<Pier, 'id' | 'portId'>[]
+}
+
+// ========== 景点 ==========
+export interface Attraction {
+  id: string
+  name: string
+  nameEn: string
+  portId: string
+  portName: string
+  city: string
+  visitDuration: string
+  description: string
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface AttractionForm {
+  name: string
+  nameEn: string
+  portId: string
+  visitDuration: string
+  description: string
+}
+
+// ========== 航线 ==========
+export interface RouteStop {
+  id: string
+  portId: string
+  portName: string
+  day: number
+  pierId: string
+  pierName: string
+  sailTime: string
+  distance: number
+  type: 'start' | 'middle' | 'end'
+}
+
+export interface Route {
+  id: string
+  code: string
+  name: string
+  type: 'upstream' | 'downstream'
+  days: number
+  nights: number
+  ports: string
+  duration: string
+  stops: RouteStop[]
+  image: string
+  remark: string
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface RouteForm {
+  code: string
+  name: string
+  type: 'upstream' | 'downstream'
+  stops: Omit<RouteStop, 'id'>[]
+  image: string
+  remark: string
+}
+
+// ========== 甲板设施 ==========
+export interface DeckFacility {
+  id: string
+  name: string
+  hours: string
+  enabled: boolean
+}
+
+// ========== 船舱 ==========
+export interface Cabin {
+  id: string
+  name: string
+  nameEn: string
+  image: string
+  cabinCount: number
+  bedCount: number
+  extraBed: number
+  capacity: number
+  area: number
+  balconyArea: number
+  premiumDiff: number
+  floorFee: number
+  height: number
+  description: string
+  sort: number
+  sellByRoom: boolean
+  mergeTourPlan: boolean
+}
+
+// ========== 甲板 ==========
+export interface Deck {
+  id: string
+  floorNum: number
+  name: string
+  nameEn: string
+  area: number
+  image: string
+  remark: string
+  facilities: DeckFacility[]
+  cabins: Cabin[]
+}
+
+// ========== 船舶 ==========
+export interface Ship {
+  id: string
+  code: string
+  name: string
+  nameEn: string
+  series: string
+  realNameId: string
+  shipClass: string
+  starLevel: string
+  capacity: number
+  floors: number
+  length: number
+  width: number
+  depth: number
+  speed: number
+  voltage: number
+  acSystem: string
+  factoryDate: string
+  lastRenovation: string
+  maidenVoyage: string
+  renovationContent: string
+  contact: string
+  contactPhone: string
+  cabinCount: number
+  level: string
+  cabinTypes: string[]
+  decks: Deck[]
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface ShipForm {
+  name: string
+  nameEn: string
+  code: string
+  series: string
+  realNameId: string
+  shipClass: string
+  starLevel: string
+  capacity: number
+  floors: number
+  length: number
+  width: number
+  depth: number
+  speed: number
+  voltage: number
+  acSystem: string
+  factoryDate: string
+  lastRenovation: string
+  maidenVoyage: string
+  renovationContent: string
+  contact: string
+  contactPhone: string
+  decks: (Omit<Deck, 'id' | 'facilities' | 'cabins'> & { facilities: Omit<DeckFacility, 'id'>[]; cabins: Omit<Cabin, 'id'>[] })[]
+}
+
+// ========== 产品 ==========
+export interface ProductSegment {
+  id: string
+  startPort: string
+  endPort: string
+  days: number
+  mileage: number
+  status: Status
+}
+
+export interface PricingRow {
+  segmentKey: string
+  startPort: string
+  endPort: string
+  cabinType: string
+  costPrice: number
+  basePrice: number
+}
+
+export interface Product {
+  id: string
+  name: string
+  routeId: string
+  routeName: string
+  routeType: 'upstream' | 'downstream'
+  shipId: string
+  shipName: string
+  shipLevel: string
+  startPort: string
+  endPort: string
+  days: number
+  nights: number
+  mileage: number
+  duration: string
+  icon: string
+  images: string[]
+  description: string
+  segments: ProductSegment[]
+  pricing: PricingRow[]
+  approvalStatus?: string
+  approvalTimeline?: ApprovalStep[]
+  publishStatus?: 'published' | 'unpublished'
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface ProductForm {
+  name: string
+  routeId: string
+  shipId: string
+  icon: string
+  images: string[]
+  description: string
+  segments: Omit<ProductSegment, 'id'>[]
+}
+
+// ========== 通用API类型 ==========
+export interface PaginatedResult<T> {
+  data: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface SearchParams {
+  keyword?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  pageSize?: number
+  [key: string]: unknown
+}
+
+// ========== 航次状态 ==========
+export type VoyageStatus = 'ticketing' | 'suspended' | 'chartered' | 'deadhead' | 'pending' | 'transfer'
+
+// ========== 审批步骤 ==========
+export interface ApprovalStep {
+  nodeName: string
+  approver: string
+  status: 'approved' | 'pending' | 'rejected'
+  duration: string
+  plan: string
+  time: string
+}
+
+// ========== 航次 ==========
+export interface Voyage {
+  id: string
+  voyageNo: string
+  shipName: string
+  routeName: string
+  productName: string
+  templateName: string
+  templateId: string
+  days: number
+  startDate: string
+  endDate: string
+  status: VoyageStatus
+  approvalStatus: string
+  approvalTimeline: ApprovalStep[]
+  direction: 'upstream' | 'downstream'
+  totalCabins: number
+  soldCabins: number
+  availableCabins: number
+  shipId: string
+  routeId: string
+  productId: string
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+// ========== 航次模板 ==========
+export interface TemplateInventory {
+  id: string
+  cabinName: string
+  totalBeds: number
+  released: number
+  status: 'open' | 'closed'
+}
+
+export interface TemplateItinerary {
+  id: string
+  portName: string
+  day: number
+  arrivalTime: string
+  departureTime: string
+  theme: string
+  startTime: string
+  endTime: string
+  description: string
+  agency: string
+  attraction: string
+}
+
+export interface TemplateDeposit {
+  id: string
+  marketCategory: string
+  deposit: number
+}
+
+export interface VoyageTemplate {
+  id: string
+  code: string
+  name: string
+  productId: string
+  productName: string
+  shipName: string
+  voyageEndTime: string
+  voyageStartTime: string
+  sailType: string
+  sailDay: string
+  sailTime: string
+  totalDays: number
+  inventory: TemplateInventory[]
+  itinerary: TemplateItinerary[]
+  deposits: TemplateDeposit[]
+  basePriceRef: number
+  surchargeStrategy: string[]
+  settlementRule: string
+  earlyBirdDiscount: number
+  presaleDays: number
+  cutoffDays: number
+  refundPolicy: string
+  materialReq: string[]
+  status: 'draft' | 'enabled' | 'disabled'
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+// ========== 票类管理 ==========
+export type GuestType = 'adult' | 'baby' | 'child'
+export type PriceAdjustType = 'amount' | 'percent'
+export type AdjustDirection = 'increase' | 'decrease'
+
+export interface Ticket {
+  id: string
+  name: string
+  guestType: GuestType
+  priceCoefficient: number
+  shareRoomType: PriceAdjustType
+  shareRoomDirection: AdjustDirection
+  shareRoomValue: number
+  extraBedType: PriceAdjustType
+  extraBedDirection: AdjustDirection
+  extraBedValue: number
+  tipType: string
+  tipValue: number
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface TicketForm {
+  name: string
+  guestType: GuestType
+  priceCoefficient: number
+  shareRoomType: PriceAdjustType
+  shareRoomDirection: AdjustDirection
+  shareRoomValue: number
+  extraBedType: PriceAdjustType
+  extraBedDirection: AdjustDirection
+  extraBedValue: number
+  tipType: string
+  tipValue: number
+}
+
+// ========== 数据看板 ==========
+// ========== 游轮设施 ==========
+export type FacilityCategory = 'dining' | 'entertainment' | 'leisure' | 'sports' | 'service'
+export type FacilityBizStatus = 'open' | 'closed' | 'maintenance'
+export type FacilityChargeType = 'free' | 'per_time' | 'per_hour'
+
+export interface ShipFacility {
+  id: string
+  code: string
+  name: string
+  category: FacilityCategory
+  maxCapacity: number
+  bizStatus: FacilityBizStatus
+  chargeType: FacilityChargeType
+  chargeAmount: number
+  mainImage: string
+  images: string[]
+  description: string
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface FacilityForm {
+  code: string
+  name: string
+  category: FacilityCategory
+  maxCapacity: number
+  bizStatus: FacilityBizStatus
+  chargeType: FacilityChargeType
+  chargeAmount: number
+  mainImage: string
+  images: string[]
+  description: string
+}
+
+// ========== 房间管理 ==========
+export type RoomStatus = 'available' | 'maintenance' | 'locked'
+export type RoomPosition = 'bow' | 'mid' | 'stern'
+
+export interface Room {
+  id: string
+  roomNo: string
+  shipId: string
+  shipName: string
+  cabinTypeId: string
+  cabinTypeName: string
+  deckId: string
+  deckName: string
+  floorNum: number
+  position: RoomPosition
+  connected: boolean
+  connectedRoomNo: string
+  accessible: boolean
+  obstructed: boolean
+  obstructedNote: string
+  status: RoomStatus
+  maintenanceNote: string
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface RoomForm {
+  roomNo: string
+  shipId: string
+  cabinTypeId: string
+  deckId: string
+  position: RoomPosition
+  connected: boolean
+  connectedRoomNo: string
+  accessible: boolean
+  obstructed: boolean
+  obstructedNote: string
+  status: RoomStatus
+  maintenanceNote: string
+}
+
+// ========== 航次库存 ==========
+export interface VoyageInventory {
+  id: string
+  voyageId: string
+  voyageNo: string
+  shipName: string
+  cabinTypeName: string
+  physicalCapacity: number
+  totalRooms: number
+  sold: number
+  locked: number
+  maintenance: number
+  emergencyStock: number
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+// ========== 航次价格 ==========
+export interface VoyagePrice {
+  id: string
+  voyageId: string
+  voyageNo: string
+  cabinTypeName: string
+  date: string
+  basePrice: number
+  adultPrice: number
+  childPrice: number
+  babyPrice: number
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+// ========== 产品库存设置 ==========
+export interface ProductInventory {
+  id: string
+  productId: string
+  segmentKey: string
+  cabinTypeName: string
+  physicalCapacity: number
+  totalAvailable: number
+  locked: number
+  emergencyStock: number
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface DashboardData {
+  todaySales: number
+  todayPurchase: number
+  skuCount: number
+  alertCount: number
+  pendingPurchaseOrders: number
+  pendingSalesOrders: number
+  salesTrend: { date: string; amount: number }[]
+  purchaseTrend: { date: string; amount: number }[]
+  alertList: { name: string; stock: number; minStock: number }[]
+}
