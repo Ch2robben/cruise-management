@@ -35,7 +35,7 @@ export function createCrudApi<T extends { id: string; status: string }>(
       }
 
       // 分类筛选 (通用)
-      for (const key of ['type', 'category', 'region', 'brand', 'org', 'roleId', 'dictCode', 'level', 'shipClass', 'starLevel'] as const) {
+      for (const key of ['type', 'category', 'region', 'brand', 'org', 'roleId', 'dictCode', 'level'] as const) {
         if (params[key] && params[key] !== 'all') {
           const itemVal = (item as Record<string, unknown>)[key]
           if (itemVal !== params[key]) return false

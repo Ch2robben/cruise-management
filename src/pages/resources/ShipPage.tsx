@@ -11,8 +11,6 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
 // ========== 常量 ==========
-const shipClasses = ['豪华游轮', '高级游轮', '标准游轮']
-const starLevels = ['五星级', '四星级', '三星级']
 const facilityOptions = ['餐厅', '咖啡厅', '酒吧', '健身房', 'SPA中心', '游泳池', '棋牌室', '电影院', 'KTV', '商店', '医务室', '儿童乐园', '洗衣房']
 const facilityHoursOptions = ['24小时', '06:00-22:00', '07:00-21:00', '08:00-20:00', '09:00-21:00', '10:00-22:00', '18:00-02:00']
 
@@ -20,7 +18,7 @@ const STEP_LABELS = ['基本信息', '甲板信息', '舱房管理']
 
 const emptyForm: ShipForm = {
   name: '', nameEn: '', code: '', series: '', realNameId: '',
-  shipClass: '', starLevel: '', capacity: 0, floors: 0,
+  capacity: 0, floors: 0,
   length: 0, width: 0, depth: 0, speed: 0,
   voltage: 220, acSystem: '', factoryDate: '', lastRenovation: '',
   maidenVoyage: '', renovationContent: '', contact: '', contactPhone: '',
@@ -85,7 +83,6 @@ export default function ShipPage() {
     setForm({
       name: record.name, nameEn: record.nameEn, code: record.code,
       series: record.series, realNameId: record.realNameId,
-      shipClass: record.shipClass, starLevel: record.starLevel,
       capacity: record.capacity, floors: record.floors,
       length: record.length, width: record.width, depth: record.depth, speed: record.speed,
       voltage: record.voltage, acSystem: record.acSystem,
@@ -111,7 +108,7 @@ export default function ShipPage() {
 
   // 步骤校验
   const canNext = (): boolean => {
-    if (step === 0) return !!form.name.trim() && !!form.nameEn.trim() && !!form.code.trim() && !!form.shipClass && !!form.starLevel && form.capacity > 0 && form.floors > 0 && !!form.factoryDate.trim()
+    if (step === 0) return !!form.name.trim() && !!form.nameEn.trim() && !!form.code.trim() && form.capacity > 0 && form.floors > 0 && !!form.factoryDate.trim()
     return true
   }
 
@@ -213,13 +210,11 @@ export default function ShipPage() {
     const now = new Date().toISOString()
     // 计算总船舱数
     const cabinCount = form.decks.reduce((sum, d) => sum + d.facilities.length * 20, 0)
-    // 根据星级推断 level（兼容产品模块）
-    const level = form.starLevel
 
     const shipData = {
       ...form,
       cabinCount,
-      level,
+      level: '',
       cabinTypes: ['suite', 'balcony', 'window', 'inside'],
       decks: form.decks.map((d) => ({
         ...d,
@@ -267,14 +262,6 @@ export default function ShipPage() {
     { key: 'code', title: '游轮代码', render: (r: Ship) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '游轮名称', dataIndex: 'name' as keyof Ship },
     { key: 'series', title: '游轮系列', dataIndex: 'series' as keyof Ship },
-    { key: 'shipClass', title: '船级', dataIndex: 'shipClass' as keyof Ship },
-    { key: 'starLevel', title: '星级', render: (r: Ship) => (
-      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-        r.starLevel === '五星级' ? 'bg-amber-50 text-amber-700' :
-        r.starLevel === '四星级' ? 'bg-blue-50 text-blue-700' :
-        'bg-gray-100 text-gray-600'
-      }`}>{r.starLevel}</span>
-    )},
     { key: 'capacity', title: '载客量', render: (r: Ship) => `${r.capacity}人` },
     { key: 'cabinCount', title: '船舱数量', render: (r: Ship) => `${r.cabinCount}间` },
     { key: 'floors', title: '层数', render: (r: Ship) => `${r.floors}层` },
@@ -305,8 +292,6 @@ export default function ShipPage() {
           <div><label className="block text-sm text-gray-700 mb-1">游轮代码 <span className="text-red-500">*</span></label><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" /></div>
           <div><label className="block text-sm text-gray-700 mb-1">实名制ID <span className="text-red-500">*</span></label><input value={form.realNameId} onChange={(e) => setForm({ ...form, realNameId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" /></div>
           <div><label className="block text-sm text-gray-700 mb-1">游轮系列</label><input value={form.series} onChange={(e) => setForm({ ...form, series: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-          <div><label className="block text-sm text-gray-700 mb-1">船级 <span className="text-red-500">*</span></label><select value={form.shipClass} onChange={(e) => setForm({ ...form, shipClass: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="">请选择</option>{shipClasses.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
-          <div><label className="block text-sm text-gray-700 mb-1">星级 <span className="text-red-500">*</span></label><select value={form.starLevel} onChange={(e) => setForm({ ...form, starLevel: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="">请选择</option>{starLevels.map((l) => <option key={l} value={l}>{l}</option>)}</select></div>
         </div>
       </div>
       <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">物理规格信息</h4>
@@ -656,8 +641,6 @@ export default function ShipPage() {
               <DetailRow label="游轮代码" value={detail.code} mono />
               <DetailRow label="实名制ID" value={detail.realNameId} mono />
               <DetailRow label="游轮系列" value={detail.series || '-'} />
-              <DetailRow label="船级" value={detail.shipClass} />
-              <DetailRow label="星级" value={detail.starLevel} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
             </DetailCard>
             <DetailCard title="物理规格">

@@ -150,6 +150,7 @@ export interface RouteStop {
   sailTime: string
   distance: number
   type: 'start' | 'middle' | 'end'
+  embarkDisembark?: boolean
 }
 
 export interface Route {
@@ -229,8 +230,6 @@ export interface Ship {
   nameEn: string
   series: string
   realNameId: string
-  shipClass: string
-  starLevel: string
   capacity: number
   floors: number
   length: number
@@ -261,8 +260,6 @@ export interface ShipForm {
   code: string
   series: string
   realNameId: string
-  shipClass: string
-  starLevel: string
   capacity: number
   floors: number
   length: number

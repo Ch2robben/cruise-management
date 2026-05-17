@@ -20,6 +20,7 @@ interface StopForm {
   sailTime: string
   distance: number
   type: 'start' | 'middle' | 'end'
+  embarkDisembark: boolean
 }
 
 interface RouteFormData {
@@ -40,6 +41,7 @@ const emptyStop = (type: 'start' | 'middle' | 'end'): StopForm => ({
   sailTime: '',
   distance: 0,
   type,
+  embarkDisembark: type === 'start' || type === 'end',
 })
 
 const emptyForm: RouteFormData = {
@@ -95,7 +97,7 @@ export default function RoutePage() {
 
   // 航线规划表单操作
   const stopsFromRoute = (r: Route): StopForm[] =>
-    r.stops.map((s) => ({ key: s.id, portId: s.portId, portName: s.portName, day: s.day, pierName: s.pierName, sailTime: s.sailTime, distance: s.distance, type: s.type }))
+    r.stops.map((s) => ({ key: s.id, portId: s.portId, portName: s.portName, day: s.day, pierName: s.pierName, sailTime: s.sailTime, distance: s.distance, type: s.type, embarkDisembark: s.embarkDisembark ?? (s.type === 'start' || s.type === 'end') }))
 
   const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, stops: [emptyStop('start'), emptyStop('end')] }); setFormOpen(true) }
 
@@ -164,6 +166,7 @@ export default function RoutePage() {
       sailTime: s.sailTime,
       distance: s.distance,
       type: s.type,
+      embarkDisembark: s.embarkDisembark,
     }))
 
     if (editingId) {
@@ -328,6 +331,7 @@ export default function RoutePage() {
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">停靠码头</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-28">预计航行时间</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-28">上段航距(nmi)</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 w-16">上下客</th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 w-16">操作</th>
                   </tr>
                 </thead>
@@ -393,6 +397,14 @@ export default function RoutePage() {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={stop.embarkDisembark}
+                            onChange={(e) => updateStop(stop.key, 'embarkDisembark', e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
                           {!isEnd && (
                             <button onClick={() => addStop()} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="增加">
                               <Plus className="w-4 h-4" />
@@ -450,6 +462,7 @@ export default function RoutePage() {
                     <th className="pb-2 font-medium">第N天</th>
                     <th className="pb-2 font-medium">预计航行时间</th>
                     <th className="pb-2 font-medium">航距(nmi)</th>
+                    <th className="pb-2 font-medium">上下客</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -459,6 +472,7 @@ export default function RoutePage() {
                       <td className="py-1.5">{s.type === 'start' ? '起航' : `第${s.day}天`}</td>
                       <td className="py-1.5">{s.sailTime || '-'}</td>
                       <td className="py-1.5 font-mono">{s.distance}</td>
+                      <td className="py-1.5">{s.embarkDisembark ? '是' : '否'}</td>
                     </tr>
                   ))}
                 </tbody>
