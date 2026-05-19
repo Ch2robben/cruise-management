@@ -23,7 +23,7 @@ interface DataTableProps<T> {
   emptyText?: string
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
+export default function DataTable<T>({
   columns,
   dataSource,
   loading,
@@ -33,8 +33,8 @@ export default function DataTable<T extends Record<string, unknown>>({
 }: DataTableProps<T>) {
   const getRowKey = (record: T, index: number): string => {
     if (typeof rowKey === 'function') return rowKey(record)
-    if (typeof rowKey === 'string') return String(record[rowKey] ?? index)
-    if ('id' in record) return String(record.id)
+    if (typeof rowKey === 'string') return String((record as Record<string, unknown>)[rowKey] ?? index)
+    if ('id' in (record as Record<string, unknown>)) return String((record as Record<string, unknown>).id)
     return String(index)
   }
 
@@ -79,7 +79,7 @@ export default function DataTable<T extends Record<string, unknown>>({
                       {col.render
                         ? col.render(record)
                         : col.dataIndex
-                          ? String(record[col.dataIndex as keyof T] ?? '-')
+                          ? String((record as Record<string, unknown>)[col.dataIndex as string] ?? '-')
                           : '-'}
                     </td>
                   ))}

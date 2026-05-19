@@ -20,6 +20,13 @@ import UserPage from '@/pages/system/UserPage'
 import RolePage from '@/pages/system/RolePage'
 import MenuPage from '@/pages/system/MenuPage'
 import DictionaryPage from '@/pages/system/DictionaryPage'
+import DealerPage from '@/pages/distribution/DealerPage'
+import CabinHoldPage from '@/pages/distribution/CabinHoldPage'
+import CharterOrderPage from '@/pages/service/CharterOrderPage'
+import ComplaintTicketPage from '@/pages/service/ComplaintTicketPage'
+import CustomerProfilePage from '@/pages/customer/CustomerProfilePage'
+import ReconciliationPage from '@/pages/finance/ReconciliationPage'
+import DataReportPage from '@/pages/report/DataReportPage'
 
 export const router = createBrowserRouter([
   {
@@ -49,6 +56,13 @@ export const router = createBrowserRouter([
       { path: '/voyage/templates', element: <TemplatePage /> },
       { path: '/voyage/inventory', element: <InventoryPage /> },
       { path: '/voyage/pricing', element: <PricingPage /> },
+      { path: '/distribution/dealers', element: <DealerPage /> },
+      { path: '/distribution/cabin-holds', element: <CabinHoldPage /> },
+      { path: '/service/charter-orders', element: <CharterOrderPage /> },
+      { path: '/service/complaints', element: <ComplaintTicketPage /> },
+      { path: '/customer/profiles', element: <CustomerProfilePage /> },
+      { path: '/finance/reconciliations', element: <ReconciliationPage /> },
+      { path: '/report/data-reports', element: <DataReportPage /> },
       { path: '/resources/tickets', element: <TicketPage /> },
       { path: '/resources/facilities', element: <FacilityPage /> },
       { path: '/resources/rooms', element: <RoomPage /> },

@@ -87,6 +87,7 @@ export interface Pier {
   portId: string
   name: string
   nameEn: string
+  position: string
   sort: number
 }
 
@@ -629,4 +630,400 @@ export interface DashboardData {
   salesTrend: { date: string; amount: number }[]
   purchaseTrend: { date: string; amount: number }[]
   alertList: { name: string; stock: number; minStock: number }[]
+}
+
+// ========== 经销商管理 ==========
+export type DealerChannelType = 'ota' | 'distribution' | 'group'
+export type DealerLevel = 'strategic' | 'core' | 'normal'
+export type DealerSettlementCycle = 'monthly' | 'quarterly' | 'voyage_end'
+export type DealerPriceSystem = 'retail' | 'online' | 'contract' | 'regional'
+export type DealerRefundPermission = 'none' | 'self' | 'with_subordinate'
+export type DealerRebateDimension = 'sales' | 'orders' | 'product'
+export type DealerRebateCycle = 'monthly' | 'quarterly' | 'yearly'
+export type DealerStatus = 'cooperating' | 'terminated'
+
+export interface Dealer {
+  id: string
+  name: string
+  code: string
+  socialCreditCode: string
+  channelTypes: DealerChannelType[]
+  region: string
+  level: DealerLevel
+  contact: string
+  phone: string
+  qualificationFiles: string[]
+  creditLimit: number
+  guaranteeAmount: number
+  settlementCycle: DealerSettlementCycle
+  priceSystems: DealerPriceSystem[]
+  otaServiceRate: number | null
+  refundPermission: DealerRefundPermission
+  rebateDimensions: DealerRebateDimension[]
+  rebateCycle: DealerRebateCycle
+  authorizedProductIds: string[]
+  status: DealerStatus
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface DealerForm {
+  name: string
+  code: string
+  socialCreditCode: string
+  channelTypes: DealerChannelType[]
+  region: string
+  level: DealerLevel
+  contact: string
+  phone: string
+  qualificationFiles: string[]
+  creditLimit: number
+  guaranteeAmount: number
+  settlementCycle: DealerSettlementCycle
+  priceSystems: DealerPriceSystem[]
+  otaServiceRate: number | null
+  refundPermission: DealerRefundPermission
+  rebateDimensions: DealerRebateDimension[]
+  rebateCycle: DealerRebateCycle
+  authorizedProductIds: string[]
+}
+
+// ========== 锁舱记录 ==========
+export type CabinHoldStatus = 'effective' | 'released' | 'expired'
+
+export interface CabinHold {
+  id: string
+  dealerId: string
+  dealerName: string
+  productId: string
+  productName: string
+  routeName: string
+  voyageDate: string
+  cabinType: string
+  holdQuantity: number
+  confirmedQuantity: number
+  availableInventory: number
+  unitPrice: number
+  depositRatio: number
+  depositAmount: number
+  releaseDeadline: string
+  releaseReason: string
+  status: CabinHoldStatus
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface CabinHoldForm {
+  dealerId: string
+  productId: string
+  voyageDate: string
+  cabinType: string
+  holdQuantity: number
+  depositRatio: number
+  releaseDeadline: string
+  releaseReason: string
+}
+
+// ========== 包船订单 ==========
+export type CharterReservationType = 'study' | 'business' | 'wedding' | 'deck' | 'hall' | 'cabin'
+export type CharterOrderStatus = 'pending_accept' | 'accepted' | 'signed' | 'in_progress' | 'completed' | 'cancelled'
+export type CharterBillingType = 'hourly' | 'per_person' | 'fixed'
+export type CharterSettlementType = 'cash' | 'monthly' | 'unified'
+export type CollectionStatus = 'unpaid' | 'partial' | 'paid'
+export type BalanceStatus = 'unsettled' | 'partial' | 'settled'
+
+export interface CharterFeeItem {
+  id: string
+  item: string
+  unitPrice: number
+  quantity: number
+  amount: number
+  remark: string
+}
+
+export interface CharterCollectionRecord {
+  id: string
+  amount: number
+  feeItem: string
+  voucher: string
+  collectedAt: string
+  collectedBy: string
+}
+
+export interface CharterTraveler {
+  id: string
+  name: string
+  certificateType: string
+  certificateNo: string
+}
+
+export interface CharterOrder {
+  id: string
+  orderNo: string
+  reservationType: CharterReservationType
+  companyName: string
+  contactName: string
+  phone: string
+  useDate: string
+  passengerCount: number
+  routeId: string
+  routeName: string
+  shipId: string
+  shipName: string
+  shipCapacity: number
+  billingType: CharterBillingType
+  specialRequirement: string
+  feeItems: CharterFeeItem[]
+  totalAmount: number
+  depositAmount: number
+  receivedDepositAmount: number
+  depositDeadline: string
+  settlementType: CharterSettlementType
+  realNameRequired: boolean
+  travelers: CharterTraveler[]
+  berthOccupancy: 'free' | 'reserved' | 'confirmed' | 'conflict'
+  depositStatus: CollectionStatus
+  balanceStatus: BalanceStatus
+  status: CharterOrderStatus
+  internalRemark: string
+  rejectReason: string
+  collections: CharterCollectionRecord[]
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface CharterOrderForm {
+  reservationType: CharterReservationType
+  companyName: string
+  contactName: string
+  phone: string
+  useDate: string
+  passengerCount: number
+  routeId: string
+  shipId: string
+  billingType: CharterBillingType
+  specialRequirement: string
+  feeItems: CharterFeeItem[]
+  depositAmount: number
+  depositDeadline: string
+  settlementType: CharterSettlementType
+  realNameRequired: boolean
+  travelers: CharterTraveler[]
+}
+
+// ========== 客诉工单 ==========
+export type ComplaintType = 'complaint' | 'consult' | 'refund'
+export type ComplaintPriority = 'high' | 'medium' | 'low'
+export type ComplaintStatus = 'pending' | 'processing' | 'completed'
+
+export interface ComplaintRecord {
+  id: string
+  opinion: string
+  internalRemark: string
+  status: ComplaintStatus
+  operator: string
+  operatedAt: string
+}
+
+export interface ComplaintTicket {
+  id: string
+  ticketNo: string
+  type: ComplaintType
+  orderNo: string
+  customerName: string
+  phone: string
+  productName: string
+  voyageDate: string
+  orderAmount: number
+  description: string
+  attachments: string[]
+  priority: ComplaintPriority
+  assigneeId: string
+  assigneeName: string
+  status: ComplaintStatus
+  records: ComplaintRecord[]
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface ComplaintTicketForm {
+  type: ComplaintType
+  orderNo: string
+  customerName: string
+  phone: string
+  description: string
+  attachments: string[]
+  priority: ComplaintPriority
+  assigneeId: string
+}
+
+// ========== 客户档案 ==========
+export type CustomerLevel = 'vip' | 'advanced' | 'normal' | 'potential'
+export type CustomerSourceChannel = 'ota' | 'official' | 'offline' | 'onboard'
+
+export interface CustomerOrderHistory {
+  id: string
+  orderNo: string
+  productName: string
+  routeName: string
+  voyageDate: string
+  amount: number
+  status: string
+}
+
+export interface CustomerRelatedTicket {
+  id: string
+  ticketNo: string
+  type: ComplaintType
+  status: ComplaintStatus
+  createdAt: string
+}
+
+export interface CustomerProfile {
+  id: string
+  name: string
+  phone: string
+  idCard: string
+  gender: string
+  birthday: string
+  nationality: string
+  origin: string
+  sourceChannel: CustomerSourceChannel
+  totalAmount: number
+  voyageCount: number
+  favoriteRoute: string
+  favoriteCabin: string
+  lastVoyageDate: string
+  tags: string[]
+  level: CustomerLevel
+  remark: string
+  orderHistory: CustomerOrderHistory[]
+  relatedTickets: CustomerRelatedTicket[]
+  status: 'enabled'
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface CustomerProfileForm {
+  tags: string[]
+  level: CustomerLevel
+  remark: string
+}
+
+// ========== 营销活动 ==========
+export type CampaignType = 'full_reduction' | 'discount' | 'free_ticket' | 'rebate' | 'early_bird' | 'off_season'
+export type CampaignStatus = 'not_started' | 'ongoing' | 'ended'
+export type CampaignDiscountMode = 'amount' | 'percentage' | 'free_count'
+export type CampaignStackingRule = 'no_stack' | 'member_only' | 'all_stack'
+
+export interface MarketingCampaign {
+  id: string
+  name: string
+  type: CampaignType
+  startDate: string
+  endDate: string
+  productIds: string[]
+  productNames: string[]
+  customerScopes: string[]
+  channelIds: string[]
+  channelNames: string[]
+  discountMode: CampaignDiscountMode
+  discountValue: number
+  orderCap: number | null
+  stackingRule: CampaignStackingRule
+  coveredOrders: number
+  participantCount: number
+  discountTotal: number
+  drivenRevenue: number
+  roi: number
+  status: CampaignStatus
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface MarketingCampaignForm {
+  name: string
+  type: CampaignType
+  startDate: string
+  endDate: string
+  productIds: string[]
+  customerScopes: string[]
+  channelIds: string[]
+  discountMode: CampaignDiscountMode
+  discountValue: number
+  orderCap: number | null
+  stackingRule: CampaignStackingRule
+}
+
+// ========== 对账批次 ==========
+export type ReconciliationChannelType = 'ota' | 'distribution'
+export type ReconciliationStatus = 'pending_check' | 'reconciled' | 'diff_pending' | 'diff_resolved'
+export type ReconciliationDiffType = 'amount' | 'time' | 'missing_order' | 'missing_bank'
+
+export interface ReconciliationDifference {
+  id: string
+  orderNo: string
+  tradeTime: string
+  channelAmount: number
+  bankAmount: number
+  diffAmount: number
+  diffType: ReconciliationDiffType
+  remark: string
+  handled: boolean
+}
+
+export interface ReconciliationBatch {
+  id: string
+  batchNo: string
+  dealerId: string
+  dealerName: string
+  channelType: ReconciliationChannelType
+  reconcileDate: string
+  bankFileName: string
+  totalCount: number
+  matchedCount: number
+  diffCount: number
+  matchRate: number
+  handler: string
+  status: ReconciliationStatus
+  differences: ReconciliationDifference[]
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface ReconciliationBatchForm {
+  dealerId: string
+  reconcileDate: string
+  bankFileName: string
+}
+
+// ========== 数据报表 ==========
+export type ReportCategory = 'operations' | 'distribution' | 'finance' | 'sales'
+export type ReportPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year'
+
+export interface DataReportEntry {
+  id: string
+  category: ReportCategory
+  reportName: string
+  period: ReportPeriod
+  dateLabel: string
+  routeName: string
+  productName: string
+  dealerName: string
+  voyageNo: string
+  metricA: number
+  metricB: number
+  metricC: number
+  metricD: number
+  status: 'published'
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
 }

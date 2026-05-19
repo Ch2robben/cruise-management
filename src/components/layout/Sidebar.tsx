@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -34,6 +34,38 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
+    key: 'distribution', label: '分销合作', icon: 'Ship',
+    children: [
+      { key: 'dealer', label: '经销商管理', path: '/distribution/dealers' },
+      { key: 'cabin_hold', label: '锁舱记录', path: '/distribution/cabin-holds' },
+    ],
+  },
+  {
+    key: 'service', label: '服务运营', icon: 'Calendar',
+    children: [
+      { key: 'charter_order', label: '包船订单', path: '/service/charter-orders' },
+      { key: 'complaint_ticket', label: '客诉工单', path: '/service/complaints' },
+    ],
+  },
+  {
+    key: 'customer', label: '客户管理', icon: 'Users',
+    children: [
+      { key: 'customer_profile', label: '客户档案', path: '/customer/profiles' },
+    ],
+  },
+  {
+    key: 'finance', label: '财务管理', icon: 'Wallet',
+    children: [
+      { key: 'reconciliation', label: '对账批次', path: '/finance/reconciliations' },
+    ],
+  },
+  {
+    key: 'report', label: '报表中心', icon: 'PieChart',
+    children: [
+      { key: 'data_report', label: '数据报表', path: '/report/data-reports' },
+    ],
+  },
+  {
     key: 'system', label: '系统设置', icon: 'Settings',
     children: [
       { key: 'user', label: '用户管理', path: '/system/users' },
@@ -50,6 +82,9 @@ const iconMap: Record<string, React.ReactNode> = {
   Settings: <Settings className="w-4 h-4" />,
   Ship: <Ship className="w-4 h-4" />,
   Calendar: <Calendar className="w-4 h-4" />,
+  Users: <Users className="w-4 h-4" />,
+  Wallet: <Wallet className="w-4 h-4" />,
+  PieChart: <PieChart className="w-4 h-4" />,
 }
 
 export default function Sidebar() {
@@ -58,6 +93,11 @@ export default function Sidebar() {
     // dashboard: true,
     resources: true,
     voyage: true,
+    distribution: true,
+    service: true,
+    customer: true,
+    finance: true,
+    report: true,
     system: true,
   })
 
@@ -73,7 +113,7 @@ export default function Sidebar() {
     <aside className="w-56 bg-gray-900 text-gray-300 flex flex-col shrink-0 h-full overflow-y-auto">
       <div className="flex items-center gap-2 px-4 py-4 border-b border-gray-800">
         <Ship className="w-5 h-5 text-blue-400" />
-        <span className="text-sm font-semibold text-white">长航集团游轮管理</span>
+        <span className="text-base font-semibold text-white">长航集团游轮管理</span>
       </div>
 
       <nav className="flex-1 py-2">
@@ -81,7 +121,7 @@ export default function Sidebar() {
           <div key={item.key}>
             <button
               onClick={() => toggle(item.key)}
-              className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-gray-800 transition-colors ${
+              className={`w-full flex items-center gap-2 px-4 py-3 text-base hover:bg-gray-800 transition-colors ${
                 isChildActive(item.children) ? 'text-white bg-gray-800' : ''
               }`}
             >
@@ -100,7 +140,7 @@ export default function Sidebar() {
                     key={child.key}
                     to={child.path}
                     className={({ isActive }) =>
-                      `block pl-12 pr-4 py-2 text-sm hover:bg-gray-800 transition-colors ${
+                      `block pl-12 pr-4 py-2.5 text-base hover:bg-gray-800 transition-colors ${
                         isActive ? 'text-white bg-blue-600/20 border-r-2 border-blue-500' : ''
                       }`
                     }

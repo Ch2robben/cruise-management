@@ -11,7 +11,7 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
-interface MenuForm { name: string; code: string; parentId: string; route: string; type: string; sort: number; icon: string; permission: string }
+interface MenuForm { name: string; code: string; parentId: string; route: string; type: Menu['type']; sort: number; icon: string; permission: string }
 const emptyForm: MenuForm = { name: '', code: '', parentId: '', route: '', type: 'menu', sort: 1, icon: '', permission: '' }
 
 export default function MenuPage() {
@@ -110,7 +110,7 @@ export default function MenuPage() {
               <div><label className="block text-sm text-gray-700 mb-1">菜单编码</label><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className={inputClass} /></div>
               <div><label className="block text-sm text-gray-700 mb-1">上级菜单</label><select value={form.parentId} onChange={(e) => setForm({ ...form, parentId: e.target.value })} className={inputClass}><option value="">-</option>{parentMenus.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">路由地址</label><input value={form.route} onChange={(e) => setForm({ ...form, route: e.target.value })} className={inputClass} /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">菜单类型 <span className="text-red-500">*</span></label><select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={inputClass}>{MENU_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">菜单类型 <span className="text-red-500">*</span></label><select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as Menu['type'] })} className={inputClass}>{MENU_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">排序</label><input type="number" value={form.sort} onChange={(e) => setForm({ ...form, sort: Number(e.target.value) })} className={inputClass} /></div>
             </div>
           </div>

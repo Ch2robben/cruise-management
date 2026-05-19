@@ -10,7 +10,7 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
-const emptyPier = (): Omit<Pier, 'id' | 'portId'> => ({ name: '', nameEn: '', sort: 1 })
+const emptyPier = (): Omit<Pier, 'id' | 'portId'> => ({ name: '', nameEn: '', position: '', sort: 1 })
 const emptyForm: PortForm = { name: '', nameEn: '', code: '', city: '', sort: 1, piers: [emptyPier()] }
 
 export default function PortPage() {
@@ -51,7 +51,7 @@ export default function PortPage() {
     setEditingId(record.id)
     setForm({
       name: record.name, nameEn: record.nameEn, code: record.code, city: record.city, sort: record.sort,
-      piers: record.piers.length > 0 ? record.piers.map((p) => ({ name: p.name, nameEn: p.nameEn, sort: p.sort })) : [emptyPier()],
+      piers: record.piers.length > 0 ? record.piers.map((p) => ({ name: p.name, nameEn: p.nameEn, position: p.position || '', sort: p.sort })) : [emptyPier()],
     })
     setFormOpen(true)
   }
@@ -153,10 +153,11 @@ export default function PortPage() {
           </div>
           <div>
             <div className="flex items-center justify-between mb-3"><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">码头管理</h4><button type="button" onClick={addPier} className="text-xs text-blue-600 hover:bg-blue-50 rounded px-2 py-0.5">+ 添加码头</button></div>
-            <table className="w-full text-sm"><thead><tr className="bg-gray-50 border-b"><th className="px-3 py-2 text-left text-xs text-gray-500">码头名称</th><th className="px-3 py-2 text-left text-xs text-gray-500">英文名称</th><th className="px-3 py-2 text-left text-xs text-gray-500 w-16">排序</th><th className="px-3 py-2 text-center text-xs text-gray-500 w-12">操作</th></tr></thead>
+            <table className="w-full text-sm"><thead><tr className="bg-gray-50 border-b"><th className="px-3 py-2 text-left text-xs text-gray-500">码头名称</th><th className="px-3 py-2 text-left text-xs text-gray-500">英文名称</th><th className="px-3 py-2 text-left text-xs text-gray-500">位置</th><th className="px-3 py-2 text-left text-xs text-gray-500 w-16">排序</th><th className="px-3 py-2 text-center text-xs text-gray-500 w-12">操作</th></tr></thead>
             <tbody className="divide-y">{form.piers.map((pier, idx) => (
               <tr key={idx}><td className="px-3 py-2"><input value={pier.name} onChange={(e) => updatePier(idx, 'name', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" /></td>
               <td className="px-3 py-2"><input value={pier.nameEn} onChange={(e) => updatePier(idx, 'nameEn', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" /></td>
+              <td className="px-3 py-2"><select value={pier.position || ''} onChange={(e) => updatePier(idx, 'position', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs"><option value="">请选择</option><option value="一码头">一码头</option><option value="二码头">二码头</option><option value="三码头">三码头</option></select></td>
               <td className="px-3 py-2"><input type="number" value={pier.sort} onChange={(e) => updatePier(idx, 'sort', Number(e.target.value))} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-center" /></td>
               <td className="px-3 py-2 text-center"><button type="button" onClick={() => removePier(idx)} disabled={form.piers.length <= 1} className="text-xs text-red-500 hover:bg-red-50 rounded px-1 py-0.5 disabled:opacity-30">删除</button></td></tr>
             ))}</tbody></table>
@@ -168,7 +169,7 @@ export default function PortPage() {
       <DetailDrawer open={detailOpen} title="港口详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
           <DetailCard title="基本信息"><DetailRow label="港口名称" value={detail.name} /><DetailRow label="英文名称" value={detail.nameEn || '-'} /><DetailRow label="港口编码" value={detail.code || '-'} mono /><DetailRow label="城市" value={detail.city} /><DetailRow label="排序号" value={detail.sort} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
-          <DetailCard title={`码头列表（${detail.piers.length}个）`}>{detail.piers.length > 0 ? detail.piers.map((pier) => <div key={pier.id} className="flex justify-between text-sm py-0.5"><span className="text-gray-700">{pier.name} / {pier.nameEn || '-'}</span><span className="text-gray-400">排序 {pier.sort}</span></div>) : <p className="text-sm text-gray-400">暂无码头</p>}</DetailCard>
+          <DetailCard title={`码头列表（${detail.piers.length}个）`}>{detail.piers.length > 0 ? detail.piers.map((pier) => <div key={pier.id} className="flex justify-between text-sm py-0.5"><span className="text-gray-700">{pier.name} / {pier.nameEn || '-'}</span><span className="text-gray-400">{pier.position ? `${pier.position} · ` : ''}排序 {pier.sort}</span></div>) : <p className="text-sm text-gray-400">暂无码头</p>}</DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
         </>)}
       </DetailDrawer>

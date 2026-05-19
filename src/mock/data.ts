@@ -1,4 +1,44 @@
 import type { Port, Attraction, Route, RouteStop, User, Role, Menu, Dictionary, DashboardData, Ship, Product, ProductSegment, PricingRow } from '@/types'
+import type {
+  Dealer,
+  DealerChannelType,
+  DealerLevel,
+  DealerPriceSystem,
+  DealerRebateCycle,
+  DealerRebateDimension,
+  DealerRefundPermission,
+  DealerSettlementCycle,
+  CabinHold,
+  CabinHoldStatus,
+  CharterBillingType,
+  CharterFeeItem,
+  CharterOrder,
+  CharterOrderStatus,
+  CharterReservationType,
+  CharterSettlementType,
+  CharterTraveler,
+  ComplaintPriority,
+  ComplaintRecord,
+  ComplaintTicket,
+  ComplaintStatus,
+  ComplaintType,
+  CustomerLevel,
+  CustomerProfile,
+  CustomerSourceChannel,
+  DataReportEntry,
+  MarketingCampaign,
+  CampaignDiscountMode,
+  CampaignStackingRule,
+  CampaignStatus,
+  CampaignType,
+  ReconciliationBatch,
+  ReconciliationChannelType,
+  ReconciliationDiffType,
+  ReconciliationDifference,
+  ReconciliationStatus,
+  ReportCategory,
+  ReportPeriod,
+} from '@/types'
 
 // ===================== 港口数据 =====================
 export const ports: Port[] = [
@@ -27,47 +67,47 @@ export const ports: Port[] = [
 
 // ===================== 码头数据 =====================
 export const piers: import('@/types').Pier[] = [
-  { id: 'pr01', portId: 'p01', name: 'p01_观光码头', nameEn: '观光码头 #1', sort: 1 },
-  { id: 'pr02', portId: 'p01', name: 'p01_滚装码头', nameEn: '滚装码头 #2', sort: 2 },
-  { id: 'pr03', portId: 'p01', name: 'p01_货运码头', nameEn: '货运码头 #3', sort: 3 },
-  { id: 'pr04', portId: 'p02', name: 'p02_集装箱码头', nameEn: '集装箱码头 #1', sort: 1 },
-  { id: 'pr05', portId: 'p02', name: 'p02_观光码头', nameEn: '观光码头 #2', sort: 2 },
-  { id: 'pr06', portId: 'p02', name: 'p02_货运码头', nameEn: '货运码头 #3', sort: 3 },
-  { id: 'pr07', portId: 'p03', name: 'p03_集装箱码头', nameEn: '集装箱码头 #1', sort: 1 },
-  { id: 'pr08', portId: 'p04', name: 'p04_游艇码头', nameEn: '游艇码头 #1', sort: 1 },
-  { id: 'pr09', portId: 'p04', name: 'p04_散货码头', nameEn: '散货码头 #2', sort: 2 },
-  { id: 'pr10', portId: 'p05', name: 'p05_散货码头', nameEn: '散货码头 #1', sort: 1 },
-  { id: 'pr11', portId: 'p05', name: 'p05_集装箱码头', nameEn: '集装箱码头 #2', sort: 2 },
-  { id: 'pr12', portId: 'p05', name: 'p05_货运码头', nameEn: '货运码头 #3', sort: 3 },
-  { id: 'pr13', portId: 'p06', name: 'p06_游艇码头', nameEn: '游艇码头 #1', sort: 1 },
-  { id: 'pr14', portId: 'p06', name: 'p06_邮轮码头', nameEn: '邮轮码头 #2', sort: 2 },
-  { id: 'pr15', portId: 'p07', name: 'p07_集装箱码头', nameEn: '集装箱码头 #1', sort: 1 },
-  { id: 'pr16', portId: 'p07', name: 'p07_散货码头', nameEn: '散货码头 #2', sort: 2 },
-  { id: 'pr17', portId: 'p08', name: 'p08_集装箱码头', nameEn: '集装箱码头 #1', sort: 1 },
-  { id: 'pr18', portId: 'p08', name: 'p08_客运码头', nameEn: '客运码头 #2', sort: 2 },
-  { id: 'pr19', portId: 'p09', name: 'p09_邮轮码头', nameEn: '邮轮码头 #1', sort: 1 },
-  { id: 'pr20', portId: 'p09', name: 'p09_观光码头', nameEn: '观光码头 #2', sort: 2 },
-  { id: 'pr21', portId: 'p09', name: 'p09_滚装码头', nameEn: '滚装码头 #3', sort: 3 },
-  { id: 'pr22', portId: 'p10', name: 'p10_客运码头', nameEn: '客运码头 #1', sort: 1 },
-  { id: 'pr23', portId: 'p10', name: 'p10_集装箱码头', nameEn: '集装箱码头 #2', sort: 2 },
-  { id: 'pr24', portId: 'p11', name: 'p11_集装箱码头', nameEn: '集装箱码头 #1', sort: 1 },
-  { id: 'pr25', portId: 'p12', name: 'p12_散货码头', nameEn: '散货码头 #1', sort: 1 },
-  { id: 'pr26', portId: 'p13', name: 'p13_货运码头', nameEn: '货运码头 #1', sort: 1 },
-  { id: 'pr27', portId: 'p14', name: 'p14_邮轮码头', nameEn: '邮轮码头 #1', sort: 1 },
-  { id: 'pr28', portId: 'p15', name: 'p15_客运码头', nameEn: '客运码头 #1', sort: 1 },
-  { id: 'pr29', portId: 'p15', name: 'p15_滚装码头', nameEn: '滚装码头 #2', sort: 2 },
-  { id: 'pr30', portId: 'p15', name: 'p15_游艇码头', nameEn: '游艇码头 #3', sort: 3 },
-  { id: 'pr31', portId: 'p16', name: 'p16_观光码头', nameEn: '观光码头 #1', sort: 1 },
-  { id: 'pr32', portId: 'p16', name: 'p16_客运码头', nameEn: '客运码头 #2', sort: 2 },
-  { id: 'pr33', portId: 'p16', name: 'p16_邮轮码头', nameEn: '邮轮码头 #3', sort: 3 },
-  { id: 'pr34', portId: 'p17', name: 'p17_散货码头', nameEn: '散货码头 #1', sort: 1 },
-  { id: 'pr35', portId: 'p17', name: 'p17_货运码头', nameEn: '货运码头 #2', sort: 2 },
-  { id: 'pr36', portId: 'p18', name: 'p18_滚装码头', nameEn: '滚装码头 #1', sort: 1 },
-  { id: 'pr37', portId: 'p18', name: 'p18_散货码头', nameEn: '散货码头 #2', sort: 2 },
-  { id: 'pr38', portId: 'p18', name: 'p18_散货码头', nameEn: '散货码头 #3', sort: 3 },
-  { id: 'pr39', portId: 'p19', name: 'p19_散货码头', nameEn: '散货码头 #1', sort: 1 },
-  { id: 'pr40', portId: 'p20', name: 'p20_滚装码头', nameEn: '滚装码头 #1', sort: 1 },
-  { id: 'pr41', portId: 'p20', name: 'p20_客运码头', nameEn: '客运码头 #2', sort: 2 },
+  { id: 'pr01', portId: 'p01', name: 'p01_观光码头', nameEn: '观光码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr02', portId: 'p01', name: 'p01_滚装码头', nameEn: '滚装码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr03', portId: 'p01', name: 'p01_货运码头', nameEn: '货运码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr04', portId: 'p02', name: 'p02_集装箱码头', nameEn: '集装箱码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr05', portId: 'p02', name: 'p02_观光码头', nameEn: '观光码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr06', portId: 'p02', name: 'p02_货运码头', nameEn: '货运码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr07', portId: 'p03', name: 'p03_集装箱码头', nameEn: '集装箱码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr08', portId: 'p04', name: 'p04_游艇码头', nameEn: '游艇码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr09', portId: 'p04', name: 'p04_散货码头', nameEn: '散货码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr10', portId: 'p05', name: 'p05_散货码头', nameEn: '散货码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr11', portId: 'p05', name: 'p05_集装箱码头', nameEn: '集装箱码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr12', portId: 'p05', name: 'p05_货运码头', nameEn: '货运码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr13', portId: 'p06', name: 'p06_游艇码头', nameEn: '游艇码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr14', portId: 'p06', name: 'p06_邮轮码头', nameEn: '邮轮码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr15', portId: 'p07', name: 'p07_集装箱码头', nameEn: '集装箱码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr16', portId: 'p07', name: 'p07_散货码头', nameEn: '散货码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr17', portId: 'p08', name: 'p08_集装箱码头', nameEn: '集装箱码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr18', portId: 'p08', name: 'p08_客运码头', nameEn: '客运码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr19', portId: 'p09', name: 'p09_邮轮码头', nameEn: '邮轮码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr20', portId: 'p09', name: 'p09_观光码头', nameEn: '观光码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr21', portId: 'p09', name: 'p09_滚装码头', nameEn: '滚装码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr22', portId: 'p10', name: 'p10_客运码头', nameEn: '客运码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr23', portId: 'p10', name: 'p10_集装箱码头', nameEn: '集装箱码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr24', portId: 'p11', name: 'p11_集装箱码头', nameEn: '集装箱码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr25', portId: 'p12', name: 'p12_散货码头', nameEn: '散货码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr26', portId: 'p13', name: 'p13_货运码头', nameEn: '货运码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr27', portId: 'p14', name: 'p14_邮轮码头', nameEn: '邮轮码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr28', portId: 'p15', name: 'p15_客运码头', nameEn: '客运码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr29', portId: 'p15', name: 'p15_滚装码头', nameEn: '滚装码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr30', portId: 'p15', name: 'p15_游艇码头', nameEn: '游艇码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr31', portId: 'p16', name: 'p16_观光码头', nameEn: '观光码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr32', portId: 'p16', name: 'p16_客运码头', nameEn: '客运码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr33', portId: 'p16', name: 'p16_邮轮码头', nameEn: '邮轮码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr34', portId: 'p17', name: 'p17_散货码头', nameEn: '散货码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr35', portId: 'p17', name: 'p17_货运码头', nameEn: '货运码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr36', portId: 'p18', name: 'p18_滚装码头', nameEn: '滚装码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr37', portId: 'p18', name: 'p18_散货码头', nameEn: '散货码头 #2', position: '二码头', sort: 2 },
+  { id: 'pr38', portId: 'p18', name: 'p18_散货码头', nameEn: '散货码头 #3', position: '三码头', sort: 3 },
+  { id: 'pr39', portId: 'p19', name: 'p19_散货码头', nameEn: '散货码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr40', portId: 'p20', name: 'p20_滚装码头', nameEn: '滚装码头 #1', position: '一码头', sort: 1 },
+  { id: 'pr41', portId: 'p20', name: 'p20_客运码头', nameEn: '客运码头 #2', position: '二码头', sort: 2 },
 ]
 
 // ===================== 景点数据 =====================
@@ -1246,3 +1286,370 @@ export const productInventories: import('@/types').ProductInventory[] = [
   { id: 'pinv191', productId: 'prod16', segmentKey: '上海港-深圳港', cabinTypeName: '海景房', physicalCapacity: 21, totalAvailable: 19, locked: 2, emergencyStock: 2, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'pinv192', productId: 'prod16', segmentKey: '上海港-深圳港', cabinTypeName: '内舱房', physicalCapacity: 17, totalAvailable: 17, locked: 0, emergencyStock: 0, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
 ]
+
+// ===================== 扩展模块基础常量 =====================
+const dealerRegions = ['重庆/渝中', '重庆/江北', '湖北/宜昌', '湖北/武汉', '江苏/南京', '上海/浦东', '广东/广州', '福建/厦门']
+const dealerChannelPool: DealerChannelType[][] = [
+  ['ota'],
+  ['distribution'],
+  ['group'],
+  ['ota', 'distribution'],
+  ['distribution', 'group'],
+]
+const dealerLevelPool: DealerLevel[] = ['strategic', 'core', 'normal']
+const dealerSettlementPool: DealerSettlementCycle[] = ['monthly', 'quarterly', 'voyage_end']
+const dealerPriceSystemPool: DealerPriceSystem[][] = [
+  ['retail', 'online'],
+  ['contract', 'regional'],
+  ['retail', 'contract'],
+  ['online', 'regional'],
+]
+const dealerRefundPool: DealerRefundPermission[] = ['none', 'self', 'with_subordinate']
+const dealerRebateDimensionPool: DealerRebateDimension[][] = [['sales'], ['orders'], ['product'], ['sales', 'orders']]
+const dealerRebateCyclePool: DealerRebateCycle[] = ['monthly', 'quarterly', 'yearly']
+const complaintTypePool: ComplaintType[] = ['complaint', 'consult', 'refund']
+const complaintPriorityPool: ComplaintPriority[] = ['high', 'medium', 'low']
+const complaintStatusPool: ComplaintStatus[] = ['pending', 'processing', 'completed']
+const customerLevelPool: CustomerLevel[] = ['vip', 'advanced', 'normal', 'potential']
+const customerSourcePool: CustomerSourceChannel[] = ['ota', 'official', 'offline', 'onboard']
+const campaignTypePool: CampaignType[] = ['full_reduction', 'discount', 'free_ticket', 'rebate', 'early_bird', 'off_season']
+const campaignStatusPool: CampaignStatus[] = ['not_started', 'ongoing', 'ended']
+const campaignModePool: CampaignDiscountMode[] = ['amount', 'percentage', 'free_count']
+const campaignStackingPool: CampaignStackingRule[] = ['no_stack', 'member_only', 'all_stack']
+const reconciliationChannelPool: ReconciliationChannelType[] = ['ota', 'distribution']
+const reconciliationStatusPool: ReconciliationStatus[] = ['pending_check', 'reconciled', 'diff_pending', 'diff_resolved']
+const reconciliationDiffTypePool: ReconciliationDiffType[] = ['amount', 'time', 'missing_order', 'missing_bank']
+const reportCategoryPool: ReportCategory[] = ['operations', 'distribution', 'finance', 'sales']
+const reportPeriodPool: ReportPeriod[] = ['day', 'week', 'month', 'quarter', 'year']
+
+const charterReservationTypePool: CharterReservationType[] = ['study', 'business', 'wedding', 'deck', 'hall', 'cabin']
+const charterBillingTypePool: CharterBillingType[] = ['fixed', 'hourly', 'per_person']
+const charterSettlementPool: CharterSettlementType[] = ['cash', 'monthly', 'unified']
+const charterStatusPool: CharterOrderStatus[] = ['pending_accept', 'accepted', 'signed', 'in_progress', 'completed', 'cancelled']
+const cabinHoldStatusPool: CabinHoldStatus[] = ['effective', 'released', 'expired']
+
+function makeCharterFeeItems(seed: number): CharterFeeItem[] {
+  return [
+    { id: `fee-${seed}-1`, item: '船票费', unitPrice: 380 + seed * 10, quantity: 30 + seed, amount: (380 + seed * 10) * (30 + seed), remark: '基础船票' },
+    { id: `fee-${seed}-2`, item: '餐饮费', unitPrice: 88, quantity: 30 + seed, amount: 88 * (30 + seed), remark: '自助晚宴' },
+    { id: `fee-${seed}-3`, item: '服务费', unitPrice: 1500, quantity: 1, amount: 1500, remark: '活动统筹' },
+  ]
+}
+
+function makeTravelers(seed: number): CharterTraveler[] {
+  return Array.from({ length: 3 }, (_, index) => ({
+    id: `traveler-${seed}-${index + 1}`,
+    name: `乘客${seed}${index + 1}`,
+    certificateType: '身份证',
+    certificateNo: `50010${seed}${index + 1}19900101${String(index + 1).padStart(4, '0')}`,
+  }))
+}
+
+function makeComplaintRecords(seed: number, status: ComplaintStatus): ComplaintRecord[] {
+  const base: ComplaintRecord[] = [
+    { id: `cr-${seed}-1`, opinion: '已接收工单并完成基础核验。', internalRemark: '核对订单来源与游客信息', status: 'pending', operator: users[seed % users.length].name, operatedAt: `2026-05-${String((seed % 20) + 1).padStart(2, '0')} 09:10:00` },
+  ]
+  if (status === 'processing' || status === 'completed') {
+    base.push({ id: `cr-${seed}-2`, opinion: '已联系游客并补充问题背景，进入跟进阶段。', internalRemark: '等待业务部门回复', status: 'processing', operator: users[(seed + 1) % users.length].name, operatedAt: `2026-05-${String((seed % 20) + 1).padStart(2, '0')} 13:40:00` })
+  }
+  if (status === 'completed') {
+    base.push({ id: `cr-${seed}-3`, opinion: '问题已闭环处理，游客已确认。', internalRemark: '归档完成', status: 'completed', operator: users[(seed + 2) % users.length].name, operatedAt: `2026-05-${String((seed % 20) + 2).padStart(2, '0')} 10:20:00` })
+  }
+  return base
+}
+
+function maskIdCard(value: string) {
+  return `${value.slice(0, 3)}********${value.slice(-4)}`
+}
+
+function getCampaignReportName(category: ReportCategory) {
+  const map: Record<ReportCategory, string> = {
+    operations: '检票统计表',
+    distribution: '经销商销售业绩表',
+    finance: '航次收入统计表',
+    sales: '产品销售排行',
+  }
+  return map[category]
+}
+
+// ===================== 经销商数据 =====================
+export const dealers: Dealer[] = Array.from({ length: 16 }, (_, index) => {
+  const product = products[index % products.length]
+  return {
+    id: `dealer${String(index + 1).padStart(2, '0')}`,
+    name: `长航合作经销商${index + 1}`,
+    code: `DLR2026${String(index + 1).padStart(3, '0')}`,
+    socialCreditCode: `9150010${String(index + 1).padStart(10, '0')}`,
+    channelTypes: dealerChannelPool[index % dealerChannelPool.length],
+    region: dealerRegions[index % dealerRegions.length],
+    level: dealerLevelPool[index % dealerLevelPool.length],
+    contact: `联系人${index + 1}`,
+    phone: `1380001${String(index + 1).padStart(4, '0')}`,
+    qualificationFiles: [`license-${index + 1}.pdf`, `agreement-${index + 1}.jpg`],
+    creditLimit: 80000 + index * 12000,
+    guaranteeAmount: 10000 + index * 1500,
+    settlementCycle: dealerSettlementPool[index % dealerSettlementPool.length],
+    priceSystems: dealerPriceSystemPool[index % dealerPriceSystemPool.length],
+    otaServiceRate: index % 3 === 0 ? Number((2.5 + index * 0.2).toFixed(1)) : null,
+    refundPermission: dealerRefundPool[index % dealerRefundPool.length],
+    rebateDimensions: dealerRebateDimensionPool[index % dealerRebateDimensionPool.length],
+    rebateCycle: dealerRebateCyclePool[index % dealerRebateCyclePool.length],
+    authorizedProductIds: [product.id, products[(index + 3) % products.length].id],
+    status: index % 5 === 0 ? 'terminated' : 'cooperating',
+    updatedBy: users[index % users.length].name,
+    updatedAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 10:${String((index * 7) % 60).padStart(2, '0')}:00`,
+    createdAt: `2026-03-${String((index % 18) + 1).padStart(2, '0')} 09:00:00`,
+  }
+})
+
+// ===================== 锁舱记录数据 =====================
+export const cabinHolds: CabinHold[] = Array.from({ length: 16 }, (_, index) => {
+  const dealer = dealers[index % dealers.length]
+  const product = products[index % products.length]
+  const voyage = voyages[index % voyages.length]
+  const holdQuantity = 4 + (index % 6)
+  const unitPrice = 2200 + index * 120
+  const depositRatio = 20 + (index % 5) * 10
+  const status = cabinHoldStatusPool[index % cabinHoldStatusPool.length]
+  return {
+    id: `hold${String(index + 1).padStart(2, '0')}`,
+    dealerId: dealer.id,
+    dealerName: dealer.name,
+    productId: product.id,
+    productName: product.name,
+    routeName: product.routeName,
+    voyageDate: voyage.startDate,
+    cabinType: ['套房', '阳台房', '海景房', '内舱房'][index % 4],
+    holdQuantity,
+    confirmedQuantity: status === 'effective' ? Math.max(0, holdQuantity - 2) : holdQuantity - 1,
+    availableInventory: 18 + (index % 8),
+    unitPrice,
+    depositRatio,
+    depositAmount: Math.round(holdQuantity * unitPrice * depositRatio) / 100,
+    releaseDeadline: `2026-06-${String((index % 20) + 1).padStart(2, '0')}`,
+    releaseReason: status === 'released' ? '经销商主动释放未售库存' : status === 'expired' ? '超过释放期限自动回收' : '',
+    status,
+    updatedBy: users[(index + 1) % users.length].name,
+    updatedAt: `2026-05-${String((index % 20) + 1).padStart(2, '0')} 15:${String((index * 3) % 60).padStart(2, '0')}:00`,
+    createdAt: `2026-04-${String((index % 20) + 1).padStart(2, '0')} 11:00:00`,
+  }
+})
+
+// ===================== 包船订单数据 =====================
+export const charterOrders: CharterOrder[] = Array.from({ length: 15 }, (_, index) => {
+  const route = routes[index % routes.length]
+  const ship = ships[index % ships.length]
+  const feeItems = makeCharterFeeItems(index + 1)
+  const totalAmount = feeItems.reduce((sum, item) => sum + item.amount, 0)
+  const status = charterStatusPool[index % charterStatusPool.length]
+  const receivedDepositAmount = status === 'pending_accept' ? 0 : status === 'accepted' ? totalAmount * 0.15 : totalAmount * 0.3
+  return {
+    id: `charter${String(index + 1).padStart(2, '0')}`,
+    orderNo: `CHT202605${String(index + 1).padStart(4, '0')}`,
+    reservationType: charterReservationTypePool[index % charterReservationTypePool.length],
+    companyName: `用船单位${index + 1}`,
+    contactName: `联系人${index + 1}`,
+    phone: `1390002${String(index + 1).padStart(4, '0')}`,
+    useDate: `2026-06-${String((index % 20) + 1).padStart(2, '0')}`,
+    passengerCount: 36 + index * 4,
+    routeId: route.id,
+    routeName: route.name,
+    shipId: ship.id,
+    shipName: ship.name,
+    shipCapacity: ship.capacity,
+    billingType: charterBillingTypePool[index % charterBillingTypePool.length],
+    specialRequirement: index % 2 === 0 ? '需安排舞台、投影及欢迎茶歇。' : '需预留嘉宾休息区与摄影点位。',
+    feeItems,
+    totalAmount,
+    depositAmount: Math.round(totalAmount * 0.3),
+    receivedDepositAmount,
+    depositDeadline: `2026-05-${String((index % 20) + 5).padStart(2, '0')}`,
+    settlementType: charterSettlementPool[index % charterSettlementPool.length],
+    realNameRequired: index % 3 === 0,
+    travelers: index % 3 === 0 ? makeTravelers(index + 1) : [],
+    berthOccupancy: ['free', 'reserved', 'confirmed', 'conflict'][index % 4] as CharterOrder['berthOccupancy'],
+    depositStatus: receivedDepositAmount === 0 ? 'unpaid' : receivedDepositAmount < Math.round(totalAmount * 0.3) ? 'partial' : 'paid',
+    balanceStatus: status === 'completed' ? 'settled' : status === 'in_progress' ? 'partial' : 'unsettled',
+    status,
+    internalRemark: status === 'accepted' ? '已完成业务确认，待客户签约。' : status === 'cancelled' ? '客户行程调整取消。' : '',
+    rejectReason: status === 'cancelled' ? '档期冲突或客户主动取消' : '',
+    collections: receivedDepositAmount > 0 ? [{ id: `collect-${index + 1}`, amount: receivedDepositAmount, feeItem: '定金', voucher: `voucher-${index + 1}.pdf`, collectedAt: `2026-05-${String((index % 20) + 2).padStart(2, '0')} 16:00:00`, collectedBy: users[index % users.length].name }] : [],
+    updatedBy: users[index % users.length].name,
+    updatedAt: `2026-05-${String((index % 20) + 1).padStart(2, '0')} 17:00:00`,
+    createdAt: `2026-04-${String((index % 20) + 1).padStart(2, '0')} 10:00:00`,
+  }
+})
+
+// ===================== 客诉工单数据 =====================
+export const complaintTickets: ComplaintTicket[] = Array.from({ length: 16 }, (_, index) => {
+  const product = products[index % products.length]
+  const orderNo = `ORD202605${String(index + 1).padStart(4, '0')}`
+  const status = complaintStatusPool[index % complaintStatusPool.length]
+  return {
+    id: `complaint${String(index + 1).padStart(2, '0')}`,
+    ticketNo: `WO202605${String(index + 1).padStart(4, '0')}`,
+    type: complaintTypePool[index % complaintTypePool.length],
+    orderNo,
+    customerName: `游客${index + 1}`,
+    phone: `1370003${String(index + 1).padStart(4, '0')}`,
+    productName: product.name,
+    voyageDate: `2026-06-${String((index % 20) + 1).padStart(2, '0')}`,
+    orderAmount: 3680 + index * 320,
+    description: index % 3 === 0 ? '游客反馈登船前通知不及时，希望尽快确认处理结果。' : index % 3 === 1 ? '游客咨询同行儿童政策及舱房加床安排。' : '游客提交退款申请，需核对退款金额与规则。',
+    attachments: [`attachment-${index + 1}.jpg`],
+    priority: complaintPriorityPool[index % complaintPriorityPool.length],
+    assigneeId: users[(index + 2) % users.length].id,
+    assigneeName: users[(index + 2) % users.length].name,
+    status,
+    records: makeComplaintRecords(index + 1, status),
+    updatedBy: users[(index + 2) % users.length].name,
+    updatedAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 18:00:00`,
+    createdAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 09:00:00`,
+  }
+})
+
+// ===================== 客户档案数据 =====================
+export const customerProfiles: CustomerProfile[] = Array.from({ length: 15 }, (_, index) => {
+  const product = products[index % products.length]
+  const complaint = complaintTickets[index % complaintTickets.length]
+  const orderHistory = Array.from({ length: 3 }, (_, historyIndex) => ({
+    id: `customer-order-${index + 1}-${historyIndex + 1}`,
+    orderNo: `ORD20260${historyIndex + 3}${String(index + 1).padStart(4, '0')}`,
+    productName: products[(index + historyIndex) % products.length].name,
+    routeName: products[(index + historyIndex) % products.length].routeName,
+    voyageDate: `2026-0${historyIndex + 3}-${String((index % 20) + 1).padStart(2, '0')}`,
+    amount: 3980 + historyIndex * 860 + index * 120,
+    status: '已完成',
+  }))
+  return {
+    id: `customer${String(index + 1).padStart(2, '0')}`,
+    name: `客户${index + 1}`,
+    phone: `1360004${String(index + 1).padStart(4, '0')}`,
+    idCard: maskIdCard(`50010${String(index + 1).padStart(12, '0')}`),
+    gender: index % 2 === 0 ? '男' : '女',
+    birthday: `198${index % 10}-0${(index % 8) + 1}-15`,
+    nationality: '中国',
+    origin: ['重庆', '上海', '武汉', '南京', '广州'][index % 5],
+    sourceChannel: customerSourcePool[index % customerSourcePool.length],
+    totalAmount: 6800 + index * 5200,
+    voyageCount: 1 + (index % 6),
+    favoriteRoute: product.routeName,
+    favoriteCabin: ['套房', '阳台房', '海景房', '内舱房'][index % 4],
+    lastVoyageDate: orderHistory[0].voyageDate,
+    tags: index % 2 === 0 ? ['家庭出游', '高净值'] : ['企业客户', '复购潜力'],
+    level: customerLevelPool[index % customerLevelPool.length],
+    remark: index % 3 === 0 ? '重点关注客户，适合推送高端长线产品。' : '来源稳定，可持续触达。',
+    orderHistory,
+    relatedTickets: [
+      { id: complaint.id, ticketNo: complaint.ticketNo, type: complaint.type, status: complaint.status, createdAt: complaint.createdAt },
+    ],
+    status: 'enabled',
+    updatedBy: users[index % users.length].name,
+    updatedAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 12:00:00`,
+    createdAt: `2026-03-${String((index % 18) + 1).padStart(2, '0')} 08:00:00`,
+  }
+})
+
+// ===================== 营销活动数据 =====================
+export const marketingCampaigns: MarketingCampaign[] = Array.from({ length: 15 }, (_, index) => {
+  const product = products[index % products.length]
+  const dealer = dealers[index % dealers.length]
+  const type = campaignTypePool[index % campaignTypePool.length]
+  const status = campaignStatusPool[index % campaignStatusPool.length]
+  const discountValue = type === 'discount' ? 8.5 : type === 'free_ticket' ? 1 : 300 + index * 20
+  const discountTotal = 12000 + index * 2600
+  const drivenRevenue = 68000 + index * 12000
+  return {
+    id: `campaign${String(index + 1).padStart(2, '0')}`,
+    name: `${product.name}营销活动${index + 1}`,
+    type,
+    startDate: `2026-06-${String((index % 15) + 1).padStart(2, '0')}`,
+    endDate: `2026-07-${String((index % 15) + 6).padStart(2, '0')}`,
+    productIds: [product.id, products[(index + 1) % products.length].id],
+    productNames: [product.name, products[(index + 1) % products.length].name],
+    customerScopes: index % 2 === 0 ? ['VIP', '高级'] : ['家庭出游', '企业客户'],
+    channelIds: [dealer.id],
+    channelNames: [dealer.name],
+    discountMode: campaignModePool[index % campaignModePool.length],
+    discountValue,
+    orderCap: index % 4 === 0 ? null : 2000 + index * 200,
+    stackingRule: campaignStackingPool[index % campaignStackingPool.length],
+    coveredOrders: 40 + index * 6,
+    participantCount: 88 + index * 10,
+    discountTotal,
+    drivenRevenue,
+    roi: Number((discountTotal / drivenRevenue).toFixed(4)),
+    status,
+    updatedBy: users[index % users.length].name,
+    updatedAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 11:30:00`,
+    createdAt: `2026-04-${String((index % 18) + 1).padStart(2, '0')} 09:20:00`,
+  }
+})
+
+// ===================== 对账批次数据 =====================
+export const reconciliationBatches: ReconciliationBatch[] = Array.from({ length: 15 }, (_, index) => {
+  const dealer = dealers.filter((item) => item.channelTypes.includes('ota') || item.channelTypes.includes('distribution'))[index % 10]
+  const diffCount = index % 4 === 0 ? 0 : (index % 3) + 1
+  const differences: ReconciliationDifference[] = Array.from({ length: diffCount }, (_, diffIndex) => {
+    const channelAmount = 3200 + diffIndex * 280 + index * 90
+    const bankAmount = diffIndex % 2 === 0 ? channelAmount + 60 : channelAmount - 45
+    return {
+      id: `diff-${index + 1}-${diffIndex + 1}`,
+      orderNo: `ORDREC2026${String(index + 1).padStart(3, '0')}${diffIndex + 1}`,
+      tradeTime: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 10:${String(diffIndex * 10).padStart(2, '0')}:00`,
+      channelAmount,
+      bankAmount,
+      diffAmount: bankAmount - channelAmount,
+      diffType: reconciliationDiffTypePool[(index + diffIndex) % reconciliationDiffTypePool.length],
+      remark: diffIndex === 0 ? '等待渠道确认差异来源' : '',
+      handled: index % 4 === 3,
+    }
+  })
+  const status = diffCount === 0 ? 'reconciled' : reconciliationStatusPool[index % reconciliationStatusPool.length]
+  return {
+    id: `recon${String(index + 1).padStart(2, '0')}`,
+    batchNo: `REC202605${String(index + 1).padStart(3, '0')}`,
+    dealerId: dealer.id,
+    dealerName: dealer.name,
+    channelType: reconciliationChannelPool[index % reconciliationChannelPool.length],
+    reconcileDate: `2026-05-${String((index % 18) + 1).padStart(2, '0')}`,
+    bankFileName: `bank-flow-${index + 1}.xlsx`,
+    totalCount: 80 + index * 4,
+    matchedCount: 80 + index * 4 - diffCount,
+    diffCount,
+    matchRate: Number((((80 + index * 4 - diffCount) / (80 + index * 4)) * 100).toFixed(2)),
+    handler: users[(index + 3) % users.length].name,
+    status,
+    differences,
+    updatedBy: users[(index + 3) % users.length].name,
+    updatedAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 19:00:00`,
+    createdAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 09:40:00`,
+  }
+})
+
+// ===================== 数据报表数据 =====================
+export const dataReports: DataReportEntry[] = Array.from({ length: 20 }, (_, index) => {
+  const category = reportCategoryPool[index % reportCategoryPool.length]
+  const product = products[index % products.length]
+  const route = routes[index % routes.length]
+  const dealer = dealers[index % dealers.length]
+  return {
+    id: `report${String(index + 1).padStart(2, '0')}`,
+    category,
+    reportName: getCampaignReportName(category),
+    period: reportPeriodPool[index % reportPeriodPool.length],
+    dateLabel: `2026-${String((index % 5) + 1).padStart(2, '0')}-${String((index % 20) + 1).padStart(2, '0')}`,
+    routeName: route.name,
+    productName: product.name,
+    dealerName: dealer.name,
+    voyageNo: voyages[index % voyages.length].voyageNo,
+    metricA: 80 + index * 6,
+    metricB: 12 + index * 2,
+    metricC: 56000 + index * 3800,
+    metricD: 15 + index,
+    status: 'published',
+    updatedBy: users[index % users.length].name,
+    updatedAt: `2026-05-${String((index % 18) + 1).padStart(2, '0')} 08:30:00`,
+    createdAt: `2026-04-${String((index % 18) + 1).padStart(2, '0')} 08:30:00`,
+  }
+})
