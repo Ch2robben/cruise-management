@@ -257,7 +257,7 @@ export default function ComplaintTicketPage() {
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-32 select-field"
           >
             <option value="all">全部</option>
             {Object.entries(typeLabels).map(([key, label]) => (
@@ -270,7 +270,7 @@ export default function ComplaintTicketPage() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-32 select-field"
           >
             <option value="all">全部</option>
             {Object.entries(statusLabels).map(([key, label]) => (
@@ -283,7 +283,7 @@ export default function ComplaintTicketPage() {
           <select
             value={priorityFilter}
             onChange={(event) => setPriorityFilter(event.target.value)}
-            className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-28 select-field"
           >
             <option value="all">全部</option>
             {Object.entries(priorityLabels).map(([key, label]) => (
@@ -407,7 +407,7 @@ export default function ComplaintTicketPage() {
             <select
               value={form.type}
               onChange={(event) => setForm({ ...form, type: event.target.value as ComplaintType })}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full select-field"
             >
               {Object.entries(typeLabels).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
@@ -419,7 +419,7 @@ export default function ComplaintTicketPage() {
             <select
               value={form.priority}
               onChange={(event) => setForm({ ...form, priority: event.target.value as ComplaintPriority })}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full select-field"
             >
               {Object.entries(priorityLabels).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
@@ -439,7 +439,7 @@ export default function ComplaintTicketPage() {
             <select
               value={form.assigneeId}
               onChange={(event) => setForm({ ...form, assigneeId: event.target.value })}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full select-field"
             >
               {users.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
@@ -499,7 +499,7 @@ export default function ComplaintTicketPage() {
           <select
             value={assignAssigneeId}
             onChange={(event) => setAssignAssigneeId(event.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full select-field"
           >
             {users.map((item) => (
               <option key={item.id} value={item.id}>{item.name}</option>
@@ -523,7 +523,7 @@ export default function ComplaintTicketPage() {
             <select
               value={recordStatus}
               onChange={(event) => setRecordStatus(event.target.value as ComplaintStatus)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full select-field"
             >
               {Object.entries(statusLabels).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>

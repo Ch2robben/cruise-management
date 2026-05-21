@@ -168,7 +168,7 @@ export default function DealerPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">渠道类型</label>
-          <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)} className="w-32 select-field">
             <option value="all">全部</option>
             <option value="ota">OTA</option>
             <option value="distribution">同业分销</option>
@@ -177,7 +177,7 @@ export default function DealerPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">合作状态</label>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-32 select-field">
             <option value="all">全部</option>
             <option value="cooperating">合作中</option>
             <option value="terminated">已终止</option>
@@ -185,7 +185,7 @@ export default function DealerPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">经销商等级</label>
-          <select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          <select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} className="w-28 select-field">
             <option value="all">全部</option>
             <option value="strategic">战略</option>
             <option value="core">核心</option>
@@ -265,9 +265,9 @@ export default function DealerPage() {
               <div><label className="block text-sm text-gray-700 mb-1">经销商名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">合作编号</label><input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">统一社会信用代码</label><input value={form.socialCreditCode} onChange={(event) => setForm({ ...form, socialCreditCode: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">合作区域 <span className="text-red-500">*</span></label><select value={form.region} onChange={(event) => setForm({ ...form, region: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{regionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">经销商等级</label><select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as DealerLevel })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="strategic">战略</option><option value="core">核心</option><option value="normal">普通</option></select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">渠道类型 <span className="text-red-500">*</span></label><select multiple value={form.channelTypes} onChange={(event) => setForm({ ...form, channelTypes: getSelectedValues(event) as DealerChannelType[] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[88px]"><option value="ota">OTA</option><option value="distribution">同业分销</option><option value="group">组团社</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">合作区域 <span className="text-red-500">*</span></label><select value={form.region} onChange={(event) => setForm({ ...form, region: event.target.value })} className="w-full select-field">{regionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">经销商等级</label><select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as DealerLevel })} className="w-full select-field"><option value="strategic">战略</option><option value="core">核心</option><option value="normal">普通</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">渠道类型 <span className="text-red-500">*</span></label><select multiple value={form.channelTypes} onChange={(event) => setForm({ ...form, channelTypes: getSelectedValues(event) as DealerChannelType[] })} className="w-full min-h-[88px] select-field-multiple"><option value="ota">OTA</option><option value="distribution">同业分销</option><option value="group">组团社</option></select></div>
               <div><label className="block text-sm text-gray-700 mb-1">联系人 <span className="text-red-500">*</span></label><input value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">联系电话 <span className="text-red-500">*</span></label><input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
             </div>
@@ -278,26 +278,26 @@ export default function DealerPage() {
             <div className="grid grid-cols-3 gap-4">
               <div><label className="block text-sm text-gray-700 mb-1">授信额度</label><input type="number" value={form.creditLimit} onChange={(event) => setForm({ ...form, creditLimit: Number(event.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">质保金</label><input type="number" value={form.guaranteeAmount} onChange={(event) => setForm({ ...form, guaranteeAmount: Number(event.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">结算周期</label><select value={form.settlementCycle} onChange={(event) => setForm({ ...form, settlementCycle: event.target.value as DealerSettlementCycle })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="monthly">月度</option><option value="quarterly">季度</option><option value="voyage_end">航次结束</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">结算周期</label><select value={form.settlementCycle} onChange={(event) => setForm({ ...form, settlementCycle: event.target.value as DealerSettlementCycle })} className="w-full select-field"><option value="monthly">月度</option><option value="quarterly">季度</option><option value="voyage_end">航次结束</option></select></div>
             </div>
           </div>
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">价格策略与返利</h4>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm text-gray-700 mb-1">适用结算价体系</label><select multiple value={form.priceSystems} onChange={(event) => setForm({ ...form, priceSystems: getSelectedValues(event) as DealerPriceSystem[] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[88px]"><option value="retail">零售公布价</option><option value="online">线上销售价</option><option value="contract">签约结算价</option><option value="regional">区域结算价</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">适用结算价体系</label><select multiple value={form.priceSystems} onChange={(event) => setForm({ ...form, priceSystems: getSelectedValues(event) as DealerPriceSystem[] })} className="w-full min-h-[88px] select-field-multiple"><option value="retail">零售公布价</option><option value="online">线上销售价</option><option value="contract">签约结算价</option><option value="regional">区域结算价</option></select></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm text-gray-700 mb-1">OTA 服务费率</label><input type="number" step="0.1" value={form.otaServiceRate ?? ''} onChange={(event) => setForm({ ...form, otaServiceRate: event.target.value === '' ? null : Number(event.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-                <div><label className="block text-sm text-gray-700 mb-1">退改签权限</label><select value={form.refundPermission} onChange={(event) => setForm({ ...form, refundPermission: event.target.value as DealerRefundPermission })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="none">无</option><option value="self">限自身订单</option><option value="with_subordinate">含下级</option></select></div>
-                <div><label className="block text-sm text-gray-700 mb-1">返利维度</label><select multiple value={form.rebateDimensions} onChange={(event) => setForm({ ...form, rebateDimensions: getSelectedValues(event) as DealerRebateDimension[] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[88px]"><option value="sales">按销售额阶梯</option><option value="orders">按订单量</option><option value="product">按特定产品</option></select></div>
-                <div><label className="block text-sm text-gray-700 mb-1">返利结算周期</label><select value={form.rebateCycle} onChange={(event) => setForm({ ...form, rebateCycle: event.target.value as DealerRebateCycle })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="monthly">月度</option><option value="quarterly">季度</option><option value="yearly">年度</option></select></div>
+                <div><label className="block text-sm text-gray-700 mb-1">退改签权限</label><select value={form.refundPermission} onChange={(event) => setForm({ ...form, refundPermission: event.target.value as DealerRefundPermission })} className="w-full select-field"><option value="none">无</option><option value="self">限自身订单</option><option value="with_subordinate">含下级</option></select></div>
+                <div><label className="block text-sm text-gray-700 mb-1">返利维度</label><select multiple value={form.rebateDimensions} onChange={(event) => setForm({ ...form, rebateDimensions: getSelectedValues(event) as DealerRebateDimension[] })} className="w-full min-h-[88px] select-field-multiple"><option value="sales">按销售额阶梯</option><option value="orders">按订单量</option><option value="product">按特定产品</option></select></div>
+                <div><label className="block text-sm text-gray-700 mb-1">返利结算周期</label><select value={form.rebateCycle} onChange={(event) => setForm({ ...form, rebateCycle: event.target.value as DealerRebateCycle })} className="w-full select-field"><option value="monthly">月度</option><option value="quarterly">季度</option><option value="yearly">年度</option></select></div>
               </div>
             </div>
           </div>
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">授权产品</h4>
-            <select multiple value={form.authorizedProductIds} onChange={(event) => setForm({ ...form, authorizedProductIds: getSelectedValues(event) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[120px]">
+            <select multiple value={form.authorizedProductIds} onChange={(event) => setForm({ ...form, authorizedProductIds: getSelectedValues(event) })} className="w-full min-h-[120px] select-field-multiple">
               {products.slice(0, 18).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
             </select>
           </div>

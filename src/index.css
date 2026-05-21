@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .select-field {
+    @apply h-10 rounded-lg border border-gray-300 bg-white px-3 pr-9 text-sm text-gray-900 outline-none transition-colors;
+    appearance: none;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyMCAyMCI+PHBhdGggc3Ryb2tlPSIjNmI3MjgwIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS13aWR0aD0iMS41IiBkPSJtNiA4IDQgNCA0LTQiLz48L3N2Zz4=");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
+  }
+
+  .select-field:focus {
+    @apply border-gray-500 ring-2 ring-gray-100;
+  }
+
+  .select-field:disabled {
+    @apply cursor-not-allowed bg-gray-50 text-gray-400;
+  }
+
+  .select-field-sm {
+    @apply h-8 rounded border border-gray-300 bg-white px-2 pr-8 text-xs text-gray-900 outline-none transition-colors;
+    appearance: none;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyMCAyMCI+PHBhdGggc3Ryb2tlPSIjNmI3MjgwIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS13aWR0aD0iMS41IiBkPSJtNiA4IDQgNCA0LTQiLz48L3N2Zz4=");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 0.875rem 0.875rem;
+  }
+
+  .select-field-sm:focus {
+    @apply border-gray-500 ring-2 ring-gray-100;
+  }
+
+  .select-field-multiple {
+    @apply rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors;
+  }
+
+  .select-field-multiple:focus {
+    @apply border-gray-500 ring-2 ring-gray-100;
+  }
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
