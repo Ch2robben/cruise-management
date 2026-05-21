@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { dealerApi } from '@/mock/api'
 import { products } from '@/mock/data'
@@ -18,6 +18,11 @@ const priceSystemLabels: Record<DealerPriceSystem, string> = { retail: '零售�
 const refundLabels: Record<DealerRefundPermission, string> = { none: '无', self: '限自身订单', with_subordinate: '含下级' }
 const rebateDimensionLabels: Record<DealerRebateDimension, string> = { sales: '按销售额阶梯', orders: '按订单量', product: '按特定产品' }
 const rebateCycleLabels: Record<DealerRebateCycle, string> = { monthly: '月度', quarterly: '季度', yearly: '年度' }
+
+type MultiSelectOption<T extends string> = {
+  value: T
+  label: string
+}
 
 const emptyForm: DealerForm = {
   name: '',
@@ -40,8 +45,69 @@ const emptyForm: DealerForm = {
   authorizedProductIds: [],
 }
 
-function getSelectedValues(event: ChangeEvent<HTMLSelectElement>) {
-  return Array.from(event.target.selectedOptions).map((option) => option.value)
+const channelTypeOptions: MultiSelectOption<DealerChannelType>[] = [
+  { value: 'ota', label: 'OTA' },
+  { value: 'distribution', label: '同业分销' },
+  { value: 'group', label: '组团社' },
+]
+
+const priceSystemOptions: MultiSelectOption<DealerPriceSystem>[] = [
+  { value: 'retail', label: '零售公布价' },
+  { value: 'online', label: '线上销售价' },
+  { value: 'contract', label: '签约结算价' },
+  { value: 'regional', label: '区域结算价' },
+]
+
+const rebateDimensionOptions: MultiSelectOption<DealerRebateDimension>[] = [
+  { value: 'sales', label: '按销售额阶梯' },
+  { value: 'orders', label: '按订单量' },
+  { value: 'product', label: '按特定产品' },
+]
+
+function MultiSelectField<T extends string>({
+  value,
+  options,
+  onChange,
+  className = '',
+}: {
+  value: T[]
+  options: MultiSelectOption<T>[]
+  onChange: (value: T[]) => void
+  className?: string
+}) {
+  const selectedValues = new Set(value)
+
+  const toggleValue = (nextValue: T) => {
+    if (selectedValues.has(nextValue)) {
+      onChange(value.filter((item) => item !== nextValue))
+      return
+    }
+    onChange([...value, nextValue])
+  }
+
+  return (
+    <div className={`rounded-lg border border-gray-300 bg-white p-2 transition-colors focus-within:border-gray-500 focus-within:ring-2 focus-within:ring-gray-100 ${className}`}>
+      <div className="grid gap-1">
+        {options.map((option) => {
+          const checked = selectedValues.has(option.value)
+          return (
+            <label
+              key={option.value}
+              className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${checked ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggleValue(option.value)}
+                className="h-4 w-4 rounded border-gray-300 accent-gray-900"
+              />
+              <span className="truncate">{option.label}</span>
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export default function DealerPage() {
@@ -267,7 +333,7 @@ export default function DealerPage() {
               <div><label className="block text-sm text-gray-700 mb-1">统一社会信用代码</label><input value={form.socialCreditCode} onChange={(event) => setForm({ ...form, socialCreditCode: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">合作区域 <span className="text-red-500">*</span></label><select value={form.region} onChange={(event) => setForm({ ...form, region: event.target.value })} className="w-full select-field">{regionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">经销商等级</label><select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as DealerLevel })} className="w-full select-field"><option value="strategic">战略</option><option value="core">核心</option><option value="normal">普通</option></select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">渠道类型 <span className="text-red-500">*</span></label><select multiple value={form.channelTypes} onChange={(event) => setForm({ ...form, channelTypes: getSelectedValues(event) as DealerChannelType[] })} className="w-full min-h-[88px] select-field-multiple"><option value="ota">OTA</option><option value="distribution">同业分销</option><option value="group">组团社</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">渠道类型 <span className="text-red-500">*</span></label><MultiSelectField value={form.channelTypes} options={channelTypeOptions} onChange={(channelTypes) => setForm({ ...form, channelTypes })} /></div>
               <div><label className="block text-sm text-gray-700 mb-1">联系人 <span className="text-red-500">*</span></label><input value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">联系电话 <span className="text-red-500">*</span></label><input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
             </div>
@@ -285,11 +351,11 @@ export default function DealerPage() {
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">价格策略与返利</h4>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm text-gray-700 mb-1">适用结算价体系</label><select multiple value={form.priceSystems} onChange={(event) => setForm({ ...form, priceSystems: getSelectedValues(event) as DealerPriceSystem[] })} className="w-full min-h-[88px] select-field-multiple"><option value="retail">零售公布价</option><option value="online">线上销售价</option><option value="contract">签约结算价</option><option value="regional">区域结算价</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">适用结算价体系</label><MultiSelectField value={form.priceSystems} options={priceSystemOptions} onChange={(priceSystems) => setForm({ ...form, priceSystems })} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm text-gray-700 mb-1">OTA 服务费率</label><input type="number" step="0.1" value={form.otaServiceRate ?? ''} onChange={(event) => setForm({ ...form, otaServiceRate: event.target.value === '' ? null : Number(event.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
                 <div><label className="block text-sm text-gray-700 mb-1">退改签权限</label><select value={form.refundPermission} onChange={(event) => setForm({ ...form, refundPermission: event.target.value as DealerRefundPermission })} className="w-full select-field"><option value="none">无</option><option value="self">限自身订单</option><option value="with_subordinate">含下级</option></select></div>
-                <div><label className="block text-sm text-gray-700 mb-1">返利维度</label><select multiple value={form.rebateDimensions} onChange={(event) => setForm({ ...form, rebateDimensions: getSelectedValues(event) as DealerRebateDimension[] })} className="w-full min-h-[88px] select-field-multiple"><option value="sales">按销售额阶梯</option><option value="orders">按订单量</option><option value="product">按特定产品</option></select></div>
+                <div><label className="block text-sm text-gray-700 mb-1">返利维度</label><MultiSelectField value={form.rebateDimensions} options={rebateDimensionOptions} onChange={(rebateDimensions) => setForm({ ...form, rebateDimensions })} /></div>
                 <div><label className="block text-sm text-gray-700 mb-1">返利结算周期</label><select value={form.rebateCycle} onChange={(event) => setForm({ ...form, rebateCycle: event.target.value as DealerRebateCycle })} className="w-full select-field"><option value="monthly">月度</option><option value="quarterly">季度</option><option value="yearly">年度</option></select></div>
               </div>
             </div>
@@ -297,9 +363,12 @@ export default function DealerPage() {
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">授权产品</h4>
-            <select multiple value={form.authorizedProductIds} onChange={(event) => setForm({ ...form, authorizedProductIds: getSelectedValues(event) })} className="w-full min-h-[120px] select-field-multiple">
-              {products.slice(0, 18).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-            </select>
+            <MultiSelectField
+              value={form.authorizedProductIds}
+              options={products.slice(0, 18).map((product) => ({ value: product.id, label: product.name }))}
+              onChange={(authorizedProductIds) => setForm({ ...form, authorizedProductIds })}
+              className="max-h-48 overflow-y-auto"
+            />
           </div>
         </div>
       </FormDialog>
