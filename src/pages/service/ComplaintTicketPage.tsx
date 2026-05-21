@@ -19,6 +19,7 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import { SelectField, type SelectOption } from '@/components/common/SelectField'
 
 const typeLabels: Record<ComplaintType, string> = {
   complaint: '投诉',
@@ -37,6 +38,38 @@ const statusLabels: Record<ComplaintStatus, string> = {
   processing: '处理中',
   completed: '已完成',
 }
+
+const typeOptions: SelectOption<ComplaintType>[] = Object.entries(typeLabels).map(([value, label]) => ({
+  value: value as ComplaintType,
+  label,
+}))
+
+const priorityOptions: SelectOption<ComplaintPriority>[] = Object.entries(priorityLabels).map(([value, label]) => ({
+  value: value as ComplaintPriority,
+  label,
+}))
+
+const statusOptions: SelectOption<ComplaintStatus>[] = Object.entries(statusLabels).map(([value, label]) => ({
+  value: value as ComplaintStatus,
+  label,
+}))
+
+const typeFilterOptions: SelectOption<string>[] = [
+  { value: 'all', label: '全部' },
+  ...typeOptions,
+]
+
+const statusFilterOptions: SelectOption<string>[] = [
+  { value: 'all', label: '全部' },
+  ...statusOptions,
+]
+
+const priorityFilterOptions: SelectOption<string>[] = [
+  { value: 'all', label: '全部' },
+  ...priorityOptions,
+]
+
+const assigneeOptions: SelectOption<string>[] = users.map((item) => ({ value: item.id, label: item.name }))
 
 const emptyForm: ComplaintTicketForm = {
   type: 'complaint',
@@ -254,42 +287,15 @@ export default function ComplaintTicketPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">工单类型</label>
-          <select
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value)}
-            className="w-32 select-field"
-          >
-            <option value="all">全部</option>
-            {Object.entries(typeLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
+          <SelectField value={typeFilter} onChange={setTypeFilter} options={typeFilterOptions} className="w-32" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">处理状态</label>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="w-32 select-field"
-          >
-            <option value="all">全部</option>
-            {Object.entries(statusLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
+          <SelectField value={statusFilter} onChange={setStatusFilter} options={statusFilterOptions} className="w-32" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">优先级</label>
-          <select
-            value={priorityFilter}
-            onChange={(event) => setPriorityFilter(event.target.value)}
-            className="w-28 select-field"
-          >
-            <option value="all">全部</option>
-            {Object.entries(priorityLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
+          <SelectField value={priorityFilter} onChange={setPriorityFilter} options={priorityFilterOptions} className="w-28" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">开始日期</label>
@@ -404,27 +410,11 @@ export default function ComplaintTicketPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">工单类型</label>
-            <select
-              value={form.type}
-              onChange={(event) => setForm({ ...form, type: event.target.value as ComplaintType })}
-              className="w-full select-field"
-            >
-              {Object.entries(typeLabels).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
+            <SelectField value={form.type} onChange={(type) => setForm({ ...form, type })} options={typeOptions} className="w-full" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">优先级</label>
-            <select
-              value={form.priority}
-              onChange={(event) => setForm({ ...form, priority: event.target.value as ComplaintPriority })}
-              className="w-full select-field"
-            >
-              {Object.entries(priorityLabels).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
+            <SelectField value={form.priority} onChange={(priority) => setForm({ ...form, priority })} options={priorityOptions} className="w-full" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">订单号</label>
@@ -436,15 +426,7 @@ export default function ComplaintTicketPage() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">处理人</label>
-            <select
-              value={form.assigneeId}
-              onChange={(event) => setForm({ ...form, assigneeId: event.target.value })}
-              className="w-full select-field"
-            >
-              {users.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
+            <SelectField value={form.assigneeId} onChange={(assigneeId) => setForm({ ...form, assigneeId })} options={assigneeOptions} className="w-full" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">客户姓名</label>
@@ -496,15 +478,7 @@ export default function ComplaintTicketPage() {
       >
         <div className="flex flex-col gap-1.5">
           <label className="text-sm text-gray-600">处理人</label>
-          <select
-            value={assignAssigneeId}
-            onChange={(event) => setAssignAssigneeId(event.target.value)}
-            className="w-full select-field"
-          >
-            {users.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
+          <SelectField value={assignAssigneeId} onChange={setAssignAssigneeId} options={assigneeOptions} className="w-full" />
         </div>
       </FormDialog>
 
@@ -520,15 +494,7 @@ export default function ComplaintTicketPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">流转状态</label>
-            <select
-              value={recordStatus}
-              onChange={(event) => setRecordStatus(event.target.value as ComplaintStatus)}
-              className="w-full select-field"
-            >
-              {Object.entries(statusLabels).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
+            <SelectField value={recordStatus} onChange={setRecordStatus} options={statusOptions} className="w-full" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-gray-600">当前工单</label>

@@ -10,6 +10,7 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import { SelectField } from '@/components/common/SelectField'
 
 const emptyForm: CabinHoldForm = {
   dealerId: '',
@@ -45,6 +46,7 @@ export default function CabinHoldPage() {
 
   const activeDealers = useMemo(() => dealers.filter((item) => item.status === 'cooperating'), [])
   const routeOptions = useMemo(() => Array.from(new Set(products.map((item) => item.routeName))), [])
+  const cabinTypeOptions = useMemo(() => ['套房', '阳台房', '海景房', '内舱房'].map((item) => ({ value: item, label: item })), [])
   const selectedProduct = useMemo(() => products.find((item) => item.id === form.productId), [form.productId])
   const selectedDealer = useMemo(() => dealers.find((item) => item.id === form.dealerId), [form.dealerId])
   const availableInventory = selectedProduct ? 12 + products.findIndex((item) => item.id === selectedProduct.id) % 8 : 0
@@ -141,9 +143,9 @@ export default function CabinHoldPage() {
 
       <SearchPanel onSearch={() => fetchData(1)} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="经销商名称/产品名称" className="w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">经销商</label><select value={dealerFilter} onChange={(event) => setDealerFilter(event.target.value)} className="w-44 select-field"><option value="all">全部</option>{activeDealers.map((dealer) => <option key={dealer.id} value={dealer.id}>{dealer.name}</option>)}</select></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">航线</label><select value={routeFilter} onChange={(event) => setRouteFilter(event.target.value)} className="w-44 select-field"><option value="all">全部</option>{routeOptions.map((route) => <option key={route} value={route}>{route}</option>)}</select></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">锁舱状态</label><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-32 select-field"><option value="all">全部</option><option value="effective">有效</option><option value="released">已释放</option><option value="expired">已逾期</option></select></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">经销商</label><SelectField value={dealerFilter} onChange={setDealerFilter} options={[{ value: 'all', label: '全部' }, ...activeDealers.map((dealer) => ({ value: dealer.id, label: dealer.name }))]} className="w-44" /></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">航线</label><SelectField value={routeFilter} onChange={setRouteFilter} options={[{ value: 'all', label: '全部' }, ...routeOptions.map((route) => ({ value: route, label: route }))]} className="w-44" /></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">锁舱状态</label><SelectField value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: '全部' }, { value: 'effective', label: '有效' }, { value: 'released', label: '已释放' }, { value: 'expired', label: '已逾期' }]} className="w-32" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">开始日期</label><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">结束日期</label><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
       </SearchPanel>
@@ -213,10 +215,10 @@ export default function CabinHoldPage() {
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">锁舱信息</h4>
             <div className="grid grid-cols-3 gap-4">
-              <div><label className="block text-sm text-gray-700 mb-1">经销商 <span className="text-red-500">*</span></label><select value={form.dealerId} onChange={(event) => setForm({ ...form, dealerId: event.target.value })} className="w-full select-field">{activeDealers.map((dealer) => <option key={dealer.id} value={dealer.id}>{dealer.name}</option>)}</select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">产品 <span className="text-red-500">*</span></label><select value={form.productId} onChange={(event) => setForm({ ...form, productId: event.target.value, releaseDeadline: form.releaseDeadline || '2026-05-20' })} className="w-full select-field">{products.slice(0, 18).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">经销商 <span className="text-red-500">*</span></label><SelectField value={form.dealerId} onChange={(dealerId) => setForm({ ...form, dealerId })} options={activeDealers.map((dealer) => ({ value: dealer.id, label: dealer.name }))} /></div>
+              <div><label className="block text-sm text-gray-700 mb-1">产品 <span className="text-red-500">*</span></label><SelectField value={form.productId} onChange={(productId) => setForm({ ...form, productId, releaseDeadline: form.releaseDeadline || '2026-05-20' })} options={products.slice(0, 18).map((product) => ({ value: product.id, label: product.name }))} /></div>
               <div><label className="block text-sm text-gray-700 mb-1">航次日期 <span className="text-red-500">*</span></label><input type="date" value={form.voyageDate} onChange={(event) => setForm({ ...form, voyageDate: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">舱位类型</label><select value={form.cabinType} onChange={(event) => setForm({ ...form, cabinType: event.target.value })} className="w-full select-field"><option value="套房">套房</option><option value="阳台房">阳台房</option><option value="海景房">海景房</option><option value="内舱房">内舱房</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">舱位类型</label><SelectField value={form.cabinType} onChange={(cabinType) => setForm({ ...form, cabinType })} options={cabinTypeOptions} /></div>
               <div><label className="block text-sm text-gray-700 mb-1">锁舱数量</label><input type="number" min={1} max={availableInventory} value={form.holdQuantity} onChange={(event) => setForm({ ...form, holdQuantity: Number(event.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">定金比例</label><input type="number" min={10} max={100} value={form.depositRatio} onChange={(event) => setForm({ ...form, depositRatio: Number(event.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">释放期限 <span className="text-red-500">*</span></label><input type="date" value={form.releaseDeadline} onChange={(event) => setForm({ ...form, releaseDeadline: event.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
