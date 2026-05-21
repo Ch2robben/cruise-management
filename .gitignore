@@ -3,3 +3,17 @@ dist/
 .vite/
 *.tsbuildinfo
 .DS_Store
+
+# Local agent notes and non-runtime documentation
+memory.md
+CLAUDE.md
+.claude/
+docs/
+*.mermaid
+*.doc
+*.docx
+*.pdf
+*.ppt
+*.pptx
+*.xls
+*.xlsx
