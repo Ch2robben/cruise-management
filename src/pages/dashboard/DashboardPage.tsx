@@ -35,7 +35,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">数据看板</h2>
-        <p className="text-sm text-gray-500 mt-0.5">长航集团游轮业务核心运营数据概览</p>
+        <p className="text-sm text-gray-500 mt-0.5">某旅游公司游轮业务核心运营数据概览</p>
       </div>
 
       {/* 统计卡片 */}

@@ -1,20 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, X, ChevronLeft } from 'lucide-react'
-import { templateApi } from '@/mock/api'
+import { useNavigate } from 'react-router-dom'
+import { Plus, X, ChevronLeft, Warehouse } from 'lucide-react'
+import { productApi, templateApi } from '@/mock/api'
 import { products, ships, routes } from '@/mock/data'
-import type { VoyageTemplate, TemplateInventory, TemplateItinerary, TemplateDeposit, PaginatedResult, SearchParams } from '@/types'
+import type { VoyageTemplate, TemplateInventory, TemplateItinerary, TemplateDeposit, PaginatedResult, PricingRow, Product, SearchParams } from '@/types'
 import { formatDateTime, generateId } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import ItineraryEditor, { createTemplateItineraryItem } from '@/components/voyage/ItineraryEditor'
 
 const statusLabels: Record<string, string> = { draft: '草稿', enabled: '已启用', disabled: '已停用' }
 const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-600', enabled: 'bg-green-100 text-green-700', disabled: 'bg-red-100 text-red-600' }
 
 const TABS = ['航次库存', '航次行程', '航次定金', '计价配置', '销售规则']
-const themes = ['用餐', '讲座', '表演', '景点']
-const agencies = ['中青旅', '春秋旅游', '携程国旅', '康辉旅游', '众信旅游']
 const marketCategories = ['欧美', '中东', '内宾']
 const settlementRules = ['月结30天', '预付款50%', '全额预付']
 const refundPolicies = ['标准退改', '严格退改', '灵活退改']
@@ -23,9 +23,6 @@ const materialOptions = ['宣传册', '行程单', '保险单', '签证指南']
 type TemplateForm = Omit<VoyageTemplate, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>
 
 const emptyInv = (): TemplateInventory => ({ id: generateId(), cabinName: '', totalBeds: 0, released: 0, status: 'closed' })
-const emptyItin = (portName = '', day = 0, arrival = '', dep = ''): TemplateItinerary => ({
-  id: generateId(), portName, day, arrivalTime: arrival, departureTime: dep, theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '',
-})
 const emptyDep = (): TemplateDeposit => ({ id: generateId(), marketCategory: '', deposit: 0 })
 
 const emptyForm: TemplateForm = {
@@ -38,9 +35,13 @@ const emptyForm: TemplateForm = {
 }
 
 export default function TemplatePage() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<PaginatedResult<VoyageTemplate>>({ data: [], total: 0, page: 1, pageSize: 10 })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [keyword, setKeyword] = useState('')
+  const [shipFilter, setShipFilter] = useState('all')
+  const [directionFilter, setDirectionFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
 
   // Form
@@ -55,20 +56,29 @@ export default function TemplatePage() {
   const [detail, setDetail] = useState<VoyageTemplate | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
+  const [pricingOpen, setPricingOpen] = useState(false)
+  const [pricingEditing, setPricingEditing] = useState(false)
+  const [pricingTemplate, setPricingTemplate] = useState<VoyageTemplate | null>(null)
+  const [pricingProduct, setPricingProduct] = useState<Product | null>(null)
+  const [pricingRows, setPricingRows] = useState<PricingRow[]>([])
+  const [pricingSaving, setPricingSaving] = useState(false)
 
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     if (keyword.trim()) params.keyword = keyword.trim()
+    if (shipFilter !== 'all') params.shipName = shipFilter
+    if (directionFilter !== 'all') params.direction = directionFilter
     if (statusFilter !== 'all') params.status = statusFilter
     const result = await templateApi.list(params)
     setData(result)
+    setSelectedIds(new Set())
     setLoading(false)
-  }, [keyword, statusFilter])
+  }, [keyword, shipFilter, directionFilter, statusFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
   const handleSearch = () => fetchData(1)
-  const handleReset = () => { setKeyword(''); setStatusFilter('all') }
+  const handleReset = () => { setKeyword(''); setShipFilter('all'); setDirectionFilter('all'); setStatusFilter('all') }
 
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setTab(0); setFormOpen(true) }
   const openEdit = (r: VoyageTemplate) => {
@@ -80,8 +90,79 @@ export default function TemplatePage() {
   const handleDelete = (id: string) => { setConfirmId(id); setConfirmOpen(true) }
   const confirmDelete = async () => { await templateApi.remove(confirmId); setConfirmOpen(false); fetchData(data.page) }
   const handleToggleStatus = async (id: string) => { await templateApi.toggleStatus(id); fetchData(data.page) }
+  const handleBatchPublishPlan = async () => {
+    const selectedTemplates = data.data.filter((item) => selectedIds.has(item.id))
+    for (const item of selectedTemplates) {
+      await templateApi.update(item.id, {
+        status: 'enabled',
+        updatedBy: '当前用户',
+        updatedAt: new Date().toISOString(),
+      })
+    }
+    fetchData(data.page)
+  }
+  const handleBatchEditPlan = () => {
+    const selectedTemplate = data.data.find((item) => selectedIds.has(item.id))
+    if (selectedTemplate) openEdit(selectedTemplate)
+  }
+  const openPricing = (template: VoyageTemplate) => {
+    const product = products.find((item) => item.id === template.productId) || null
+    const mergedPricing = product
+      ? Array.from(
+          product.pricing.reduce((map, item) => {
+            if (!map.has(item.segmentKey)) {
+              map.set(item.segmentKey, { ...item, cabinType: '标准间' })
+            }
+            return map
+          }, new Map<string, PricingRow>()),
+        ).map(([, item]) => item)
+      : []
+    setPricingTemplate(template)
+    setPricingProduct(product)
+    setPricingRows(mergedPricing)
+    setPricingEditing(false)
+    setPricingOpen(true)
+  }
+  const closePricing = () => {
+    setPricingOpen(false)
+    setPricingEditing(false)
+    setPricingTemplate(null)
+    setPricingProduct(null)
+    setPricingRows([])
+  }
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (data.data.length > 0 && prev.size === data.data.length) return new Set()
+      return new Set(data.data.map((item) => item.id))
+    })
+  }
 
   const cabinLabels: Record<string, string> = { suite: '套房', balcony: '阳台房', window: '海景房', inside: '内舱房' }
+  const directionLabels: Record<string, string> = { upstream: '上水', downstream: '下水' }
+  const getTemplateDirection = (r: VoyageTemplate) => directionLabels[products.find((p) => p.id === r.productId)?.routeType || ''] || '-'
+  const groupedPricingRows = (() => {
+    const rows: { row: PricingRow; idx: number; isFirst: boolean; rowSpan: number }[] = []
+    let i = 0
+    while (i < pricingRows.length) {
+      const key = pricingRows[i].segmentKey
+      let j = i
+      while (j < pricingRows.length && pricingRows[j].segmentKey === key) j++
+      const span = j - i
+      for (let k = i; k < j; k++) {
+        rows.push({ row: pricingRows[k], idx: k, isFirst: k === i, rowSpan: span })
+      }
+      i = j
+    }
+    return rows
+  })()
 
   // Product auto-fill: 初始化库存(船舶舱房) + 行程(航线停靠港)
   const onProductChange = (pid: string) => {
@@ -95,13 +176,11 @@ export default function TemplatePage() {
       id: generateId(), cabinName: cabinLabels[ct] || ct, totalBeds: 2, released: 0, status: 'closed' as const,
     }))
     // 行程：根据航线停靠港生成（每港一行，留空活动字段）
-    const itinerary: TemplateItinerary[] = (route?.stops || []).map((stop, i, arr) => ({
-      id: generateId(),
+    const itinerary: TemplateItinerary[] = (route?.stops || []).map((stop) => createTemplateItineraryItem({
       portName: stop.portName,
       day: stop.day,
       arrivalTime: stop.type === 'start' ? '' : stop.sailTime,
       departureTime: stop.type === 'end' ? '' : stop.sailTime,
-      theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '',
     }))
     setForm((f) => ({
       ...f, productId: pid, productName: p.name, shipName: p.shipName || '',
@@ -131,26 +210,6 @@ export default function TemplatePage() {
   const addInv = () => setForm((f) => ({ ...f, inventory: [...f.inventory, emptyInv()] }))
   const removeInv = (idx: number) => setForm((f) => ({ ...f, inventory: f.inventory.filter((_, i) => i !== idx) }))
 
-  // Itinerary helpers
-  const updateItin = (idx: number, f: keyof TemplateItinerary, v: string) => {
-    setForm((prev) => { const itin = [...prev.itinerary]; itin[idx] = { ...itin[idx], [f]: v }; return { ...prev, itinerary: itin } })
-  }
-  const addItin = (portName = '', day = 0, arrival = '', dep = '') => setForm((f) => ({ ...f, itinerary: [...f.itinerary, emptyItin(portName, day, arrival, dep)] }))
-  const addItinToGroup = (refIdx: number) => {
-    setForm((f) => {
-      const itin = [...f.itinerary]
-      const ref = itin[refIdx]
-      // 找到该港口组的最后一行的索引
-      let insertAt = refIdx
-      while (insertAt + 1 < itin.length && itin[insertAt + 1].portName === ref.portName && itin[insertAt + 1].day === ref.day) {
-        insertAt++
-      }
-      itin.splice(insertAt + 1, 0, emptyItin(ref.portName, ref.day, ref.arrivalTime, ref.departureTime))
-      return { ...f, itinerary: itin }
-    })
-  }
-  const removeItin = (idx: number) => setForm((f) => ({ ...f, itinerary: f.itinerary.filter((_, i) => i !== idx) }))
-
   // Deposit helpers
   const updateDep = (idx: number, f: keyof TemplateDeposit, v: string | number) => {
     setForm((prev) => { const deps = [...prev.deposits]; deps[idx] = { ...deps[idx], [f]: v }; return { ...prev, deposits: deps } })
@@ -158,29 +217,53 @@ export default function TemplatePage() {
   const addDep = () => setForm((f) => ({ ...f, deposits: [...f.deposits, emptyDep()] }))
   const removeDep = (idx: number) => setForm((f) => ({ ...f, deposits: f.deposits.filter((_, i) => i !== idx) }))
 
+  const updatePricingBasePrice = (index: number, basePrice: number) => {
+    setPricingRows((prev) => {
+      const next = [...prev]
+      const current = next[index]
+      next[index] = { ...current, basePrice }
+      return next
+    })
+  }
+  const savePricing = async () => {
+    if (!pricingProduct) return
+    setPricingSaving(true)
+    const updatedPricing = pricingProduct.pricing.map((item) => {
+      const matched = pricingRows.find((pricingRow) => pricingRow.segmentKey === item.segmentKey)
+      if (!matched) return item
+      return { ...item, basePrice: matched.basePrice }
+    })
+    await productApi.updatePricing(pricingProduct.id, updatedPricing)
+    setPricingSaving(false)
+    setPricingEditing(false)
+    setPricingProduct({ ...pricingProduct, pricing: updatedPricing })
+  }
+
   // Toggle multi-select
   const toggleArray = (arr: string[], val: string): string[] => arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]
 
-  // Build itinerary rowSpan groups
-  const itinRows = (() => {
-    const rows: { row: Omit<TemplateItinerary, 'id'>; idx: number; isFirst: boolean; span: number }[] = []
-    const itin = form.itinerary
-    let i = 0
-    while (i < itin.length) {
-      const key = `${itin[i].portName}-${itin[i].day}`
-      let j = i
-      while (j < itin.length && `${itin[j].portName}-${itin[j].day}` === key) j++
-      for (let k = i; k < j; k++) rows.push({ row: itin[k], idx: k, isFirst: k === i, span: j - i })
-      i = j
-    }
-    return rows
-  })()
-
   const columns = [
+    {
+      key: 'select',
+      title: '',
+      width: '48px',
+      render: (r: VoyageTemplate) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(r.id)}
+          onChange={() => toggleSelect(r.id)}
+          className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+        />
+      ),
+    },
     { key: 'code', title: '模板编码', render: (r: VoyageTemplate) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '名称', dataIndex: 'name' as keyof VoyageTemplate },
+    { key: 'inventoryManage', title: '库存管理', width: '120px', render: (r: VoyageTemplate) => (
+      <button onClick={() => navigate(`/voyage/template-inventory?templateId=${r.id}`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"><Warehouse className="w-3 h-3" />库存管理</button>
+    ) },
     { key: 'productName', title: '关联产品', dataIndex: 'productName' as keyof VoyageTemplate },
     { key: 'shipName', title: '适用游轮', dataIndex: 'shipName' as keyof VoyageTemplate },
+    { key: 'direction', title: '航行类型', render: (r: VoyageTemplate) => getTemplateDirection(r) },
     { key: 'voyageStartTime', title: '开始时间', dataIndex: 'voyageStartTime' as keyof VoyageTemplate },
     { key: 'voyageEndTime', title: '结束时间', dataIndex: 'voyageEndTime' as keyof VoyageTemplate },
     { key: 'sailType', title: '开航类型', render: (r: VoyageTemplate) => r.sailType === '周内固定' ? `每周${r.sailDay}` : `每${r.sailDay}天` },
@@ -189,8 +272,9 @@ export default function TemplatePage() {
     { key: 'status', title: '状态', render: (r: VoyageTemplate) => <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[r.status]}`}>{statusLabels[r.status]}</span> },
     { key: 'updatedBy', title: '修改人', dataIndex: 'updatedBy' as keyof VoyageTemplate },
     { key: 'updatedAt', title: '修改时间', render: (r: VoyageTemplate) => formatDateTime(r.updatedAt) },
-    { key: 'actions', title: '操作', width: '160px', render: (r: VoyageTemplate) => (
+    { key: 'actions', title: '操作', width: '320px', render: (r: VoyageTemplate) => (
       <div className="flex items-center gap-1">
+        <button onClick={() => openPricing(r)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">定价</button>
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">编辑</button>
         <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">{r.status === 'enabled' ? '停用' : '启用'}</button>
@@ -221,38 +305,10 @@ export default function TemplatePage() {
         </div>
       )
       case 1: return (
-        <div>
-          <div className="mb-3"><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">航次行程</h4></div>
-          <table className="w-full text-sm"><thead><tr className="bg-gray-50 border-b border-gray-200">
-            <th className="px-2 py-2 text-left text-xs text-gray-500">停靠港</th><th className="px-2 py-2 text-left text-xs text-gray-500 w-14">天数</th>
-            <th className="px-2 py-2 text-left text-xs text-gray-500 w-20">抵港</th><th className="px-2 py-2 text-left text-xs text-gray-500 w-20">离港</th>
-            <th className="px-2 py-2 text-left text-xs text-gray-500">主题</th><th className="px-2 py-2 text-left text-xs text-gray-500 w-20">开始</th><th className="px-2 py-2 text-left text-xs text-gray-500 w-20">结束</th>
-            <th className="px-2 py-2 text-left text-xs text-gray-500">描述</th><th className="px-2 py-2 text-left text-xs text-gray-500">地接社</th><th className="px-2 py-2 text-left text-xs text-gray-500">景点</th>
-            <th className="px-2 py-2 text-center text-xs text-gray-500 w-16">操作</th>
-          </tr></thead><tbody className="divide-y divide-gray-100">
-            {itinRows.map(({ row, idx, isFirst, span }) => (
-              <tr key={idx}>
-                {isFirst && <><td className="px-2 py-2 bg-gray-50/50 font-medium text-gray-700" rowSpan={span}>{row.portName || '-'}</td>
-                  <td className="px-2 py-2 bg-gray-50/50 text-gray-500" rowSpan={span}>第{row.day}天</td>
-                  <td className="px-2 py-2 bg-gray-50/50" rowSpan={span}><input type="time" value={row.arrivalTime} onChange={(e) => updateItin(idx, 'arrivalTime', e.target.value)} disabled={row.day === 0} className="w-full px-1 py-1 border border-gray-300 rounded text-xs disabled:bg-gray-50 disabled:text-gray-400" /></td>
-                  <td className="px-2 py-2 bg-gray-50/50" rowSpan={span}><input type="time" value={row.departureTime} onChange={(e) => updateItin(idx, 'departureTime', e.target.value)} disabled={idx === form.itinerary.length - 1} className="w-full px-1 py-1 border border-gray-300 rounded text-xs disabled:bg-gray-50 disabled:text-gray-400" /></td>
-                </>}
-                <td className="px-2 py-2"><select value={row.theme} onChange={(e) => updateItin(idx, 'theme', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs"><option value="">-</option>{themes.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
-                <td className="px-2 py-2"><input type="time" value={row.startTime} onChange={(e) => updateItin(idx, 'startTime', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                <td className="px-2 py-2"><input type="time" value={row.endTime} onChange={(e) => updateItin(idx, 'endTime', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                <td className="px-2 py-2"><input value={row.description} onChange={(e) => updateItin(idx, 'description', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                <td className="px-2 py-2"><select value={row.agency} onChange={(e) => updateItin(idx, 'agency', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs"><option value="">-</option>{agencies.map((a) => <option key={a} value={a}>{a}</option>)}</select></td>
-                <td className="px-2 py-2"><input value={row.attraction} onChange={(e) => updateItin(idx, 'attraction', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                <td className="px-2 py-2">
-                  <div className="flex items-center gap-0.5 justify-center">
-                    <button onClick={() => addItinToGroup(idx)} className="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded px-1 py-0.5" title="添加活动">+</button>
-                    <button onClick={() => removeItin(idx)} className="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded px-1 py-0.5">×</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody></table>
-        </div>
+        <ItineraryEditor
+          value={form.itinerary}
+          onChange={(itinerary) => setForm((prev) => ({ ...prev, itinerary }))}
+        />
       )
       case 2: return (
         <div>
@@ -304,15 +360,33 @@ export default function TemplatePage() {
   return (
     <div>
       <PageHeader title="航次模板" description="管理航次模板的库存、行程、定价及销售规则">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"><Plus className="w-4 h-4" />新增模板</button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleBatchPublishPlan}
+            disabled={selectedIds.size === 0}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          >
+            发布计划
+          </button>
+          <button
+            onClick={handleBatchEditPlan}
+            disabled={selectedIds.size !== 1}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-300 disabled:hover:bg-white"
+          >
+            修改计划
+          </button>
+          <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"><Plus className="w-4 h-4" />新增模板</button>
+        </div>
       </PageHeader>
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">所属游轮</label><select value={shipFilter} onChange={(e) => setShipFilter(e.target.value)} className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{ships.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">航行类型</label><select value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="upstream">上水</option><option value="downstream">下水</option></select></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="draft">草稿</option><option value="enabled">已启用</option><option value="disabled">已停用</option></select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">模糊搜索</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="模板编码/名称" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="draft">草稿</option><option value="enabled">已启用</option><option value="disabled">已停用</option></select></div>
       </SearchPanel>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden"><div className="overflow-x-auto"><table className="w-full">
-        <thead><tr className="border-b border-gray-200 bg-gray-50">{columns.map((c) => <th key={c.key} className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" style={c.width ? { width: c.width } : undefined}>{c.title}</th>)}</tr></thead>
+        <thead><tr className="border-b border-gray-200 bg-gray-50">{columns.map((c) => <th key={c.key} className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" style={c.width ? { width: c.width } : undefined}>{c.key === 'select' ? <input type="checkbox" checked={data.data.length > 0 && selectedIds.size === data.data.length} onChange={toggleSelectAll} className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" /> : c.title}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan={columns.length} className="px-4 py-16 text-center text-sm text-gray-400">加载中...</td></tr> : data.data.length === 0 ? <tr><td colSpan={columns.length} className="px-4 py-16 text-center text-sm text-gray-400">暂无数据</td></tr> : data.data.map((r) => <tr key={r.id} className="hover:bg-gray-50 transition-colors">{columns.map((c) => <td key={c.key} className="px-4 py-2.5 text-sm text-gray-700 whitespace-nowrap">{c.render ? c.render(r) : c.dataIndex ? String(r[c.dataIndex as keyof VoyageTemplate] ?? '-') : '-'}</td>)}</tr>)}</tbody>
       </table></div>
       {data.total > 0 && <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50"><span className="text-sm text-gray-500">共 {data.total} 条</span><div className="flex items-center gap-1"><button onClick={() => fetchData(data.page - 1)} disabled={data.page <= 1} className="px-3 py-1.5 text-sm rounded text-gray-600 hover:bg-gray-200 disabled:opacity-30">上一页</button><button onClick={() => fetchData(data.page + 1)} disabled={data.page >= Math.ceil(data.total / data.pageSize)} className="px-3 py-1.5 text-sm rounded text-gray-600 hover:bg-gray-200 disabled:opacity-30">下一页</button></div></div>}
@@ -363,6 +437,110 @@ export default function TemplatePage() {
       </DetailDrawer>
 
       <ConfirmDialog open={confirmOpen} title="删除模板" message="确定要删除该模板吗？此操作不可恢复。" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />
+
+      {pricingOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-[6vh] backdrop-blur-[2px]">
+          <div className="absolute inset-0" onClick={closePricing} />
+          <div className="relative flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+            <div className="shrink-0 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-white px-7 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-[28px] font-semibold tracking-tight text-gray-900">
+                    模板定价
+                  </h3>
+                  <p className="mt-1 text-lg font-medium text-gray-700">
+                    {pricingTemplate?.name || '-'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {pricingProduct && (
+                    <button
+                      onClick={() => setPricingEditing((prev) => !prev)}
+                      className={`rounded-xl px-4 py-2.5 text-sm font-medium transition focus:outline-none ${
+                        pricingEditing
+                          ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {pricingEditing ? '取消编辑' : '编辑'}
+                    </button>
+                  )}
+                  <button onClick={closePricing} className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus:outline-none">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <div className="text-xs text-gray-400">关联产品</div>
+                  <div className="mt-1 text-sm font-medium text-gray-700">{pricingProduct?.name || '-'}</div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <div className="text-xs text-gray-400">价格规则</div>
+                  <div className="mt-1 text-sm font-medium text-gray-700">{pricingRows.length} 条</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-slate-50/60 px-7 py-6">
+              {!pricingProduct ? (
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-white py-20 text-center text-sm text-gray-400">未找到该模板关联的产品定价数据</div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="px-5 py-4 text-left text-sm font-semibold text-gray-600">航段</th>
+                        <th className="px-5 py-4 text-right text-sm font-semibold text-gray-600">标准间基准价(¥)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {groupedPricingRows.map(({ row, idx }) => {
+                        return (
+                          <tr key={`${row.segmentKey}-${row.cabinType}-${idx}`} className="transition hover:bg-slate-50">
+                            <td className="px-5 py-4 text-[15px] font-medium text-gray-700">
+                              {row.startPort} - {row.endPort}
+                            </td>
+                            <td className="px-5 py-4">
+                              {pricingEditing ? (
+                                <div className="flex justify-end">
+                                  <input
+                                    type="number"
+                                    value={row.basePrice}
+                                    onChange={(e) => updatePricingBasePrice(idx, Number(e.target.value))}
+                                    className="w-36 rounded-xl border border-gray-300 bg-white px-3 py-2 text-right text-[15px] text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="text-right text-[28px] font-semibold tracking-tight text-gray-800">
+                                  <span className="mr-0.5 text-lg font-medium text-gray-400">¥</span>
+                                  {row.basePrice}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-200 bg-white px-7 py-5 shrink-0">
+              <button onClick={closePricing} className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none">
+                关闭
+              </button>
+              {pricingEditing && pricingProduct && (
+                <button onClick={savePricing} disabled={pricingSaving} className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-50 focus:outline-none">
+                  {pricingSaving ? '保存中...' : '保存'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

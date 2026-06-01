@@ -166,21 +166,24 @@ export default function RoomPage() {
 
   return (
     <div>
-      <PageHeader title="房间管理" description="管理游轮物理房间实例，支持批量生成与状态维护">
-        <div className="flex items-center gap-2">
-          {selected.size > 0 && (<>
-            <button onClick={() => setBatchStatusOpen(true)} className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">批量改状态（{selected.size}）</button>
-            <button onClick={batchDelete} className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700">批量删除（{selected.size}）</button>
-          </>)}
-          <button onClick={() => { setGenShipId(''); setGenCabinType(''); setGenDeck(''); setGenRows([]); setGenStep(0); setGenOpen(true) }} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"><Plus className="w-4 h-4" />批量生成</button>
-          <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-900 text-gray-900 text-sm rounded-lg hover:bg-gray-100">单条新增</button>
-        </div>
-      </PageHeader>
+      <PageHeader title="房间管理" description="管理游轮物理房间实例，支持批量生成与状态维护" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="房间号" className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <div className="flex items-center gap-3">
+          {selected.size > 0 && (
+            <>
+              <button onClick={() => setBatchStatusOpen(true)} className="inline-flex h-11 items-center rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">批量改状态（{selected.size}）</button>
+              <button onClick={batchDelete} className="inline-flex h-11 items-center rounded-md bg-red-600 px-6 text-base font-medium text-white transition hover:bg-red-700">批量删除（{selected.size}）</button>
+            </>
+          )}
+          <button onClick={() => { setGenShipId(''); setGenCabinType(''); setGenDeck(''); setGenRows([]); setGenStep(0); setGenOpen(true) }} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"><Plus className="w-4 h-4" />添加</button>
+          <button onClick={openCreate} className="inline-flex h-11 items-center rounded-md border border-blue-600 px-6 text-base font-medium text-blue-600 transition hover:bg-blue-50">单条新增</button>
+        </div>
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden"><div className="overflow-x-auto"><table className="w-full">
         <thead><tr className="border-b border-gray-200 bg-gray-50">{columns.map((c) => <th key={c.key} className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" style={c.width ? { width: c.width } : undefined}>{c.key === 'cb' ? <input type="checkbox" checked={selected.size === data.data.length && data.data.length > 0} onChange={toggleAll} className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer" /> : c.title}</th>)}</tr></thead>

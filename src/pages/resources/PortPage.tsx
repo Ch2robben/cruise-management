@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react'
 import { portApi } from '@/mock/api'
 import type { Port, PortForm, Pier, PaginatedResult, SearchParams } from '@/types'
 import { formatDateTime, generateId } from '@/utils/format'
-import PageHeader from '@/components/common/PageHeader'
-import SearchPanel from '@/components/common/SearchPanel'
 import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
@@ -30,11 +28,16 @@ export default function PortPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ type: string; id: string }>({ type: '', id: '' })
 
-  const fetchData = useCallback(async (page = 1) => {
+  const fetchData = useCallback(async (
+    page = 1,
+    overrides?: { keyword?: string; status?: string },
+  ) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
-    if (keyword.trim()) params.keyword = keyword.trim()
-    if (statusFilter !== 'all') params.status = statusFilter
+    const nextKeyword = overrides?.keyword ?? keyword
+    const nextStatusFilter = overrides?.status ?? statusFilter
+    if (nextKeyword.trim()) params.keyword = nextKeyword.trim()
+    if (nextStatusFilter !== 'all') params.status = nextStatusFilter
     const result = await portApi.list(params)
     setData(result)
     setLoading(false)
@@ -42,7 +45,11 @@ export default function PortPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
   const handleSearch = () => fetchData(1)
-  const handleReset = () => { setKeyword(''); setStatusFilter('all') }
+  const handleReset = () => {
+    setKeyword('')
+    setStatusFilter('all')
+    fetchData(1, { keyword: '', status: 'all' })
+  }
 
   const toggleExpand = (id: string) => setExpanded((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
@@ -82,61 +89,213 @@ export default function PortPage() {
   const handleDelete = (id: string) => { setConfirmAction({ type: 'delete', id }); setConfirmOpen(true) }
   const confirmDelete = async () => { await portApi.remove(confirmAction.id); setConfirmOpen(false); fetchData(data.page) }
 
-  const treeCols = [
-    { key: 'name', title: '港口名称', p: (r: Port) => r.name, c: (p: Pier) => <><span className="px-1 py-0.5 bg-blue-100 text-blue-700 rounded text-xs mr-1">码头</span>{p.name}</> },
-    { key: 'nameEn', title: '英文名称', p: (r: Port) => r.nameEn, c: (p: Pier) => p.nameEn },
-    { key: 'code', title: '港口编码', p: (r: Port) => <span className="font-mono text-xs">{r.code}</span>, c: () => '' },
-    { key: 'city', title: '城市', p: (r: Port) => r.city, c: () => '' },
-    { key: 'sort', title: '排序号', p: (r: Port) => r.sort, c: (p: Pier) => p.sort },
-    { key: 'status', title: '状态', p: (r: Port) => <StatusBadge status={r.status} />, c: () => '' },
-    { key: 'updatedBy', title: '修改人', p: (r: Port) => r.updatedBy, c: () => '' },
-    { key: 'updatedAt', title: '修改时间', p: (r: Port) => formatDateTime(r.updatedAt), c: () => '' },
-    { key: 'actions', title: '操作', w: '180px', p: (r: Port) => (
-      <div className="flex items-center gap-1">
-        <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
-        <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">编辑</button>
-        <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">{r.status === 'enabled' ? '禁用' : '启用'}</button>
-        <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
+  const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize))
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1).slice(
+    Math.max(0, Math.min(data.page - 3, totalPages - 5)),
+    Math.max(0, Math.min(data.page - 3, totalPages - 5)) + Math.min(5, totalPages),
+  )
+
+  const renderNameCell = (record: Port) => (
+    <div className="flex items-center gap-2">
+      {record.piers.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => toggleExpand(record.id)}
+          className="flex h-6 w-6 items-center justify-center rounded border border-transparent text-gray-400 transition hover:border-gray-200 hover:bg-gray-50 hover:text-gray-600"
+        >
+          {expanded.has(record.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
+      ) : (
+        <span className="block w-6" />
+      )}
+      <div>
+        <div className="text-sm font-medium text-gray-900">{record.name}</div>
+        {record.nameEn && <div className="mt-0.5 text-xs text-gray-400">{record.nameEn}</div>}
       </div>
-    ), c: () => '' },
-  ]
+    </div>
+  )
 
   return (
-    <div>
-      <PageHeader title="港口管理" description="管理国内内河及沿海港口基础信息及关联码头">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"><Plus className="w-4 h-4" />新增港口</button>
-      </PageHeader>
-      <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="港口编码/名称" className="w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="enabled">启用</option><option value="disabled">禁用</option></select></div>
-      </SearchPanel>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-[32px] font-semibold text-gray-900">港口管理</h2>
+      </div>
 
-      {/* 树形表格 */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden"><div className="overflow-x-auto"><table className="w-full">
-        <thead><tr className="border-b border-gray-200 bg-gray-50">
-          <th className="w-10 px-2 py-3" />
-          {treeCols.map((col) => <th key={col.key} className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" style={col.w ? { width: col.w } : {}}>{col.title}</th>)}
-        </tr></thead>
-        <tbody className="divide-y divide-gray-100">
-          {loading ? <tr><td colSpan={treeCols.length + 1} className="px-4 py-16 text-center text-sm text-gray-400">加载中...</td></tr>
-          : data.data.length === 0 ? <tr><td colSpan={treeCols.length + 1} className="px-4 py-16 text-center text-sm text-gray-400">暂无数据</td></tr>
-          : data.data.map((record) => (<>
-            <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-2 py-2.5">
-                {record.piers.length > 0 && <button onClick={() => toggleExpand(record.id)} className="p-1 text-gray-400 hover:text-gray-600">{expanded.has(record.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}</button>}
-              </td>
-              {treeCols.map((col) => <td key={col.key} className="px-4 py-2.5 text-sm text-gray-700 whitespace-nowrap">{col.p(record)}</td>)}
-            </tr>
-            {expanded.has(record.id) && record.piers.map((pier) => (
-              <tr key={pier.id} className="bg-blue-50/30">
-                <td className="px-2 py-2"><span className="block w-4 ml-2 border-l-2 border-b-2 border-blue-300 h-3" /></td>
-                {treeCols.map((col) => <td key={col.key} className="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">{col.c(pier)}</td>)}
+      <div className="bg-white">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 border-b border-gray-200 px-9 py-8">
+          <div className="flex items-center gap-4">
+            <label className="text-[15px] font-medium text-gray-800">港口名称</label>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
+              placeholder="请输入内容"
+              className="h-12 w-[460px] border border-gray-300 px-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-blue-500"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="text-[15px] font-medium text-gray-800">状态</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-12 w-36 border border-gray-300 bg-white px-4 text-sm text-gray-700 outline-none transition focus:border-blue-500"
+            >
+              <option value="all">全部</option>
+              <option value="enabled">启用</option>
+              <option value="disabled">禁用</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSearch}
+              disabled={loading}
+              className="h-12 min-w-[90px] rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              搜索
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={loading}
+              className="h-12 min-w-[90px] rounded-md border border-gray-300 bg-white px-6 text-base text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              重置
+            </button>
+          </div>
+        </div>
+
+        <div className="px-9 py-6">
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            添加
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden border border-gray-200 bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px]">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800">序号</th>
+                <th className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800">港口名称</th>
+                <th className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800">港口编码</th>
+                <th className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800">城市</th>
+                <th className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800">状态</th>
+                <th className="border-b border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800">操作</th>
               </tr>
-            ))}
-          </>))}
-        </tbody>
-      </table></div>
-      {data.total > 0 && <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50"><span className="text-sm text-gray-500">共 {data.total} 条</span><div className="flex items-center gap-1"><button onClick={() => fetchData(data.page - 1)} disabled={data.page <= 1} className="px-3 py-1.5 text-sm rounded text-gray-600 hover:bg-gray-200 disabled:opacity-30">上一页</button><button onClick={() => fetchData(data.page + 1)} disabled={data.page >= Math.ceil(data.total / data.pageSize)} className="px-3 py-1.5 text-sm rounded text-gray-600 hover:bg-gray-200 disabled:opacity-30">下一页</button></div></div>}
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-20 text-center text-sm text-gray-400">加载中...</td>
+                </tr>
+              ) : data.data.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-20 text-center text-sm text-gray-400">暂无数据</td>
+                </tr>
+              ) : (
+                data.data.map((record, index) => (
+                  <Fragment key={record.id}>
+                    <tr className="transition hover:bg-gray-50">
+                      <td className="border-b border-r border-gray-200 px-4 py-5 text-[15px] text-gray-900">
+                        {(data.page - 1) * data.pageSize + index + 1}
+                      </td>
+                      <td className="border-b border-r border-gray-200 px-4 py-4">{renderNameCell(record)}</td>
+                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">
+                        {record.code ? <span className="font-mono">{record.code}</span> : '-'}
+                      </td>
+                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">{record.city || '-'}</td>
+                      <td className="border-b border-r border-gray-200 px-4 py-5"><StatusBadge status={record.status} /></td>
+                      <td className="border-b border-gray-200 px-4 py-5 text-sm">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openEdit(record)} className="text-base text-blue-600 hover:text-blue-700">编辑</button>
+                          <span className="text-gray-300">|</span>
+                          <button onClick={() => handleDelete(record.id)} className="text-base text-red-500 hover:text-red-600">删除</button>
+                          <button onClick={() => openDetail(record)} className="ml-3 text-sm text-gray-500 hover:text-gray-700">详情</button>
+                          <button onClick={() => handleToggleStatus(record.id)} className="text-sm text-gray-500 hover:text-gray-700">
+                            {record.status === 'enabled' ? '禁用' : '启用'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expanded.has(record.id) && record.piers.map((pier) => (
+                      <tr key={pier.id} className="bg-blue-50/40">
+                        <td className="border-b border-r border-gray-200 px-4 py-4 text-sm text-gray-400" />
+                        <td className="border-b border-r border-gray-200 px-4 py-4 text-sm text-gray-700">
+                          <div className="flex items-center gap-3 pl-9">
+                            <span className="block h-3 w-3 rounded-full border border-blue-300 bg-white" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">码头</span>
+                                <span>{pier.name || '-'}</span>
+                              </div>
+                              {pier.nameEn && <div className="mt-0.5 text-xs text-gray-400">{pier.nameEn}</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="border-b border-r border-gray-200 px-4 py-4 text-sm text-gray-400">-</td>
+                        <td className="border-b border-r border-gray-200 px-4 py-4 text-sm text-gray-700">{pier.position || '-'}</td>
+                        <td className="border-b border-r border-gray-200 px-4 py-4 text-sm text-gray-400">-</td>
+                        <td className="border-b border-gray-200 px-4 py-4 text-sm text-gray-400">排序 {pier.sort}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {data.total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-4 px-9 py-10 text-gray-500">
+            <div className="text-[15px]">
+              共 {data.total} 条记录 第 {data.page} / {totalPages} 页
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => fetchData(data.page - 1)}
+                  disabled={data.page <= 1}
+                  className="flex h-12 w-12 items-center justify-center rounded border border-gray-200 bg-white text-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  &lt;
+                </button>
+                {pageNumbers.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => fetchData(page)}
+                    className={`flex h-12 w-12 items-center justify-center rounded border text-lg transition ${
+                      page === data.page
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-blue-500 hover:text-blue-600'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => fetchData(data.page + 1)}
+                  disabled={data.page >= totalPages}
+                  className="flex h-12 w-12 items-center justify-center rounded border border-gray-200 bg-white text-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  &gt;
+                </button>
+              </div>
+              <div className="flex h-12 min-w-[110px] items-center justify-center rounded border border-gray-200 bg-white px-4 text-lg text-gray-500">
+                {data.pageSize}条/页
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 表单 */}

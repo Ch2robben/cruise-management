@@ -64,18 +64,7 @@ export default function DataReportPage() {
 
   return (
     <div>
-      <PageHeader title="数据报表" description="多维度的数据统计与报表导出中心。">
-        <div className="flex gap-2">
-          <button onClick={() => alert('自定义报表功能开发中')} className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
-            <SlidersHorizontal className="w-4 h-4" />
-            自定义报表
-          </button>
-          <button onClick={handleExport} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
-            <Download className="w-4 h-4" />
-            导出报表
-          </button>
-        </div>
-      </PageHeader>
+      <PageHeader title="数据报表" description="多维度的数据统计与报表导出中心。" />
 
       <div className="mb-4">
         <div className="border-b border-gray-200">
@@ -122,6 +111,18 @@ export default function DataReportPage() {
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="航线/产品/渠道名称" className="w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <div className="flex gap-3">
+          <button onClick={() => alert('自定义报表功能开发中')} className="inline-flex h-11 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-6 text-base text-gray-700 transition hover:bg-gray-50">
+            <SlidersHorizontal className="w-4 h-4" />
+            自定义报表
+          </button>
+          <button onClick={handleExport} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+            <Download className="w-4 h-4" />
+            导出报表
+          </button>
+        </div>
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">

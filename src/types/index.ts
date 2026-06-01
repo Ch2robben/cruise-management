@@ -389,6 +389,8 @@ export interface Voyage {
   shipId: string
   routeId: string
   productId: string
+  /** 航次独立行程（已从模板剥离），若为 undefined 表示尚未剥离、仍继承模板 */
+  itinerary?: TemplateItinerary[]
   updatedBy: string
   updatedAt: string
   createdAt: string

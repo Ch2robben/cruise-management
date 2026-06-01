@@ -135,11 +135,7 @@ export default function AttractionPage() {
 
   return (
     <div>
-      <PageHeader title="景点管理" description="管理各港口关联的旅游景点信息">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
-          <Plus className="w-4 h-4" />新增景点
-        </button>
-      </PageHeader>
+      <PageHeader title="景点管理" description="管理各港口关联的旅游景点信息" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -152,6 +148,11 @@ export default function AttractionPage() {
           />
         </div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <Plus className="w-4 h-4" />添加
+        </button>
+      </div>
 
       <DataTable
         columns={columns}

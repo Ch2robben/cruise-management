@@ -14,8 +14,13 @@ import TemplatePage from '@/pages/voyage/TemplatePage'
 import TicketPage from '@/pages/resources/TicketPage'
 import FacilityPage from '@/pages/resources/FacilityPage'
 import RoomPage from '@/pages/resources/RoomPage'
+import CabinPage from '@/pages/resources/CabinPage'
 import InventoryPage from '@/pages/voyage/InventoryPage'
+import PriceManagementPage from '@/pages/voyage/PriceManagementPage'
+import TemplateInventoryPage from '@/pages/voyage/TemplateInventoryPage'
 import PricingPage from '@/pages/voyage/PricingPage'
+import PricingRulePage from '@/pages/voyage/PricingRulePage'
+import SalesControlPage from '@/pages/voyage/SalesControlPage'
 import UserPage from '@/pages/system/UserPage'
 import RolePage from '@/pages/system/RolePage'
 import MenuPage from '@/pages/system/MenuPage'
@@ -27,6 +32,17 @@ import ComplaintTicketPage from '@/pages/service/ComplaintTicketPage'
 import CustomerProfilePage from '@/pages/customer/CustomerProfilePage'
 import ReconciliationPage from '@/pages/finance/ReconciliationPage'
 import DataReportPage from '@/pages/report/DataReportPage'
+
+import DepositRulePage from '@/pages/rule/DepositRulePage'
+import PaymentRulePage from '@/pages/rule/PaymentRulePage'
+import PenaltyRulePage from '@/pages/rule/PenaltyRulePage'
+import DiscountRulePage from '@/pages/rule/DiscountRulePage'
+import TipConfigPage from '@/pages/rule/TipConfigPage'
+import GroupAuthPage from '@/pages/rule/GroupAuthPage'
+import RefundRulePage from '@/pages/rule/RefundRulePage'
+import ShipAuthPage from '@/pages/rule/ShipAuthPage'
+import CloseRulePage from '@/pages/rule/CloseRulePage'
+import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
 
 export const router = createBrowserRouter([
   {
@@ -55,6 +71,10 @@ export const router = createBrowserRouter([
       { path: '/voyage/list', element: <VoyagePage /> },
       { path: '/voyage/templates', element: <TemplatePage /> },
       { path: '/voyage/inventory', element: <InventoryPage /> },
+      { path: '/voyage/pricing-rules', element: <PricingRulePage /> },
+      { path: '/voyage/price-management', element: <PriceManagementPage /> },
+      { path: '/voyage/sales-control', element: <SalesControlPage /> },
+      { path: '/voyage/template-inventory', element: <TemplateInventoryPage /> },
       { path: '/voyage/pricing', element: <PricingPage /> },
       { path: '/distribution/dealers', element: <DealerPage /> },
       { path: '/distribution/cabin-holds', element: <CabinHoldPage /> },
@@ -66,10 +86,21 @@ export const router = createBrowserRouter([
       { path: '/resources/tickets', element: <TicketPage /> },
       { path: '/resources/facilities', element: <FacilityPage /> },
       { path: '/resources/rooms', element: <RoomPage /> },
+      { path: '/resources/cabins', element: <CabinPage /> },
       { path: '/system/users', element: <UserPage /> },
       { path: '/system/roles', element: <RolePage /> },
       { path: '/system/menus', element: <MenuPage /> },
       { path: '/system/dictionaries', element: <DictionaryPage /> },
+      { path: '/rule/deposit', element: <DepositRulePage /> },
+      { path: '/rule/payment', element: <PaymentRulePage /> },
+      { path: '/rule/penalty', element: <PenaltyRulePage /> },
+      { path: '/rule/discount', element: <DiscountRulePage /> },
+      { path: '/rule/tip', element: <TipConfigPage /> },
+      { path: '/rule/group-auth', element: <GroupAuthPage /> },
+      { path: '/rule/refund', element: <RefundRulePage /> },
+      { path: '/rule/ship-auth', element: <ShipAuthPage /> },
+      { path: '/rule/close', element: <CloseRulePage /> },
+      { path: '/rule/performance', element: <PerformanceRulePage /> },
     ],
   },
 ], {

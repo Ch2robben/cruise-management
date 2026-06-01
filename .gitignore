@@ -3,10 +3,13 @@ dist/
 .vite/
 *.tsbuildinfo
 .DS_Store
+.vscode/
 
 # Local agent notes and non-runtime documentation
 memory.md
 CLAUDE.md
+AI_PROMPT_SOURCE.md
+长航游轮销售规则分析.md
 .claude/
 docs/
 *.mermaid

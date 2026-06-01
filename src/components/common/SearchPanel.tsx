@@ -1,6 +1,4 @@
 import type { ReactNode } from 'react'
-import { Search, RotateCcw } from 'lucide-react'
-
 interface SearchPanelProps {
   children: ReactNode
   onSearch: () => void
@@ -10,24 +8,22 @@ interface SearchPanelProps {
 
 export default function SearchPanel({ children, onSearch, onReset, loading }: SearchPanelProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
-      <div className="flex flex-wrap gap-3 items-end">
+    <div className="bg-white">
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-4 border-b border-gray-200 px-9 py-8">
         {children}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="ml-auto flex items-center gap-3">
           <button
             onClick={onSearch}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            className="h-12 min-w-[90px] rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Search className="w-4 h-4" />
-            查询
+            搜索
           </button>
           <button
             onClick={onReset}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            className="h-12 min-w-[90px] rounded-md border border-gray-300 bg-white px-6 text-base text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RotateCcw className="w-4 h-4" />
             重置
           </button>
         </div>

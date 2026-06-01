@@ -94,12 +94,15 @@ export default function MenuPage() {
 
   return (
     <div>
-      <PageHeader title="菜单管理" description="管理后台菜单结构和权限配置"><button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"><Plus className="w-4 h-4" />新增菜单</button></PageHeader>
+      <PageHeader title="菜单管理" description="管理后台菜单结构和权限配置" />
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="菜单名称/编码" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">类型</label><select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"><option value="all">全部</option>{MENU_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"><option value="all">全部</option><option value="enabled">启用</option><option value="disabled">禁用</option></select></div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"><Plus className="w-4 h-4" />添加</button>
+      </div>
       <DataTable columns={columns} dataSource={data.data} loading={loading} rowKey="id" pagination={{ current: data.page, pageSize: data.pageSize, total: data.total, onChange: (page) => fetchData(page) }} />
 
       <FormDialog open={formOpen} title={editingId ? '编辑菜单' : '新增菜单'} loading={formLoading} onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>

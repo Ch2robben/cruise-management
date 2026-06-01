@@ -444,8 +444,9 @@ export const templateApi = {
       filtered = filtered.filter((t) => t.code.toLowerCase().includes(kw) || t.name.toLowerCase().includes(kw))
     }
     if (params.status && params.status !== 'all') filtered = filtered.filter((t) => t.status === params.status)
+    if (params.shipName && params.shipName !== 'all') filtered = filtered.filter((t) => t.shipName === params.shipName)
     if (params.direction && params.direction !== 'all') {
-      // 通过关联产品判断上下水
+      filtered = filtered.filter((t) => products.find((p) => p.id === t.productId)?.routeType === params.direction)
     }
     const page = params.page || 1
     const pageSize = params.pageSize || 10

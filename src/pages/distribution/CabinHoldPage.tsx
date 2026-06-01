@@ -134,12 +134,7 @@ export default function CabinHoldPage() {
 
   return (
     <div>
-      <PageHeader title="锁舱记录" description="管理经销商锁舱预留记录，并联动可售库存扣减与释放。">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
-          <Plus className="w-4 h-4" />
-          新增锁舱
-        </button>
-      </PageHeader>
+      <PageHeader title="锁舱记录" description="管理经销商锁舱预留记录，并联动可售库存扣减与释放。" />
 
       <SearchPanel onSearch={() => fetchData(1)} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="经销商名称/产品名称" className="w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
@@ -149,6 +144,12 @@ export default function CabinHoldPage() {
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">开始日期</label><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">结束日期</label><input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <Plus className="w-4 h-4" />
+          添加
+        </button>
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">

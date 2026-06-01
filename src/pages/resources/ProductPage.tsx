@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, ChevronDown, ChevronRight, RotateCcw, X } from 'lucide-react'
 import { productApi } from '@/mock/api'
-import { routes, ships } from '@/mock/data'
+import { routes, ships, tickets } from '@/mock/data'
 import { productInventories } from '@/mock/data'
 import type { Product, ProductSegment, PricingRow, PaginatedResult, SearchParams, ProductInventory } from '@/types'
 import { formatDateTime } from '@/utils/format'
@@ -25,8 +25,34 @@ type ProductForm = {
   description: string
 }
 
+type ProductTicketIdentity = 'tourist' | 'resident'
+type ProductTicketStatus = 'published' | 'offline'
+
+interface ProductTicketConfig {
+  ticketIds: string[]
+  identity: ProductTicketIdentity
+  orderRule: string
+  refundRule: string
+  status: ProductTicketStatus
+}
+
 const emptyForm: ProductForm = {
   name: '', routeId: '', shipId: '', icon: '', images: [], description: '',
+}
+
+const cabinTypeLabels: Record<string, string> = { suite: '套房', balcony: '阳台房', window: '海景房', inside: '内舱房' }
+const orderRuleOptions = ['默认下单规则', '实名制下单', '提前3天截止', '库存确认后下单']
+const refundRuleOptions = ['默认退改规则', '标准退改', '严格退改', '灵活退改']
+
+function createDefaultTicketConfig(): ProductTicketConfig {
+  const defaultNames = ['成人标准票', '儿童标准票', '学生特惠票']
+  return {
+    ticketIds: tickets.filter(ticket => defaultNames.includes(ticket.name)).map(ticket => ticket.id),
+    identity: 'tourist',
+    orderRule: '默认下单规则',
+    refundRule: '默认退改规则',
+    status: 'offline',
+  }
 }
 
 // ========== 工具函数 ==========
@@ -97,6 +123,13 @@ export default function ProductPage() {
 
   // 图片预览弹窗
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+
+  // 票类管理
+  const [ticketOpen, setTicketOpen] = useState(false)
+  const [ticketProduct, setTicketProduct] = useState<Product | null>(null)
+  const [ticketDropdownOpen, setTicketDropdownOpen] = useState(false)
+  const [ticketConfigs, setTicketConfigs] = useState<Record<string, ProductTicketConfig>>({})
+  const [ticketDraft, setTicketDraft] = useState<ProductTicketConfig>(() => createDefaultTicketConfig())
 
   const shipLevelOptions = ['all', ...shipLevels]
   const shipLevelLabels: Record<string, string> = { all: '全部', ...Object.fromEntries(shipLevels.map((l) => [l, l])) }
@@ -294,13 +327,15 @@ export default function ProductPage() {
 
   const openInventory = (record: Product) => {
     setInvProduct(record)
-    const seg = record.segments[0]
+    const seg = [...record.segments].sort((a, b) => b.days - a.days || b.mileage - a.mileage)[0]
     setInvSegment(seg ? `${seg.startPort}-${seg.endPort}` : '')
     // 从 mock 加载该产品的库存数据
     const data = productInventories.filter((i) => i.productId === record.id)
     setInvData(data.length > 0 ? data : record.segments.flatMap((s) => {
       const segKey = `${s.startPort}-${s.endPort}`
-      return ['套房', '阳台房', '海景房'].map((ct) => ({
+      const ship = ships.find(item => item.id === record.shipId)
+      const cabinTypes = ship?.cabinTypes.map(type => cabinTypeLabels[type] || type) || ['套房', '阳台房', '海景房']
+      return cabinTypes.map((ct) => ({
         id: `${record.id}_${segKey}_${ct}`, productId: record.id, segmentKey: segKey,
         cabinTypeName: ct, physicalCapacity: 20, totalAvailable: 20, locked: 0, emergencyStock: 0,
         updatedBy: '', updatedAt: '', createdAt: '',
@@ -324,6 +359,32 @@ export default function ProductPage() {
 
   const filteredInv = invData.filter((i) => i.segmentKey === invSegment)
   const invSegments = [...new Set(invData.map((i) => i.segmentKey))]
+
+  const openTicketManagement = (record: Product) => {
+    setTicketProduct(record)
+    setTicketDraft(ticketConfigs[record.id] || createDefaultTicketConfig())
+    setTicketDropdownOpen(false)
+    setTicketOpen(true)
+  }
+
+  const toggleTicketSelection = (ticketId: string) => {
+    setTicketDraft(prev => ({
+      ...prev,
+      ticketIds: prev.ticketIds.includes(ticketId) ? prev.ticketIds.filter(id => id !== ticketId) : [...prev.ticketIds, ticketId],
+    }))
+  }
+
+  const saveTicketManagement = () => {
+    if (!ticketProduct) return
+    setTicketConfigs(prev => ({ ...prev, [ticketProduct.id]: ticketDraft }))
+    setTicketOpen(false)
+    setTicketProduct(null)
+  }
+
+  const selectedTicketNames = ticketDraft.ticketIds
+    .map(id => tickets.find(ticket => ticket.id === id)?.name)
+    .filter(Boolean)
+    .join('、')
 
   // ========== 定价逻辑 ==========
   const openPricing = (record: Product) => {
@@ -403,11 +464,11 @@ export default function ProductPage() {
     { key: 'status', title: '状态', parent: (r: Product) => <StatusBadge status={r.status} />, child: (s: ProductSegment) => <StatusBadge status={s.status} /> },
     { key: 'updatedBy', title: '操作人', parent: (r: Product) => r.updatedBy, child: (_s: ProductSegment, p: Product) => p.updatedBy },
     { key: 'updatedAt', title: '操作时间', parent: (r: Product) => formatDateTime(r.updatedAt), child: (_s: ProductSegment, p: Product) => formatDateTime(p.updatedAt) },
-    { key: 'actions', title: '操作', width: '240px', parent: (r: Product) => (
+    { key: 'actions', title: '操作', width: '320px', parent: (r: Product) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">编辑</button>
-        <button onClick={() => openInventory(r)} className="hidden px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">库存</button>
+        <button onClick={() => openTicketManagement(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">票类管理</button>
         <button onClick={() => openPricing(r)} className="px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded">定价</button>
         <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
           {r.status === 'enabled' ? '禁用' : '启用'}
@@ -423,11 +484,7 @@ export default function ProductPage() {
 
   return (
     <div>
-      <PageHeader title="产品管理" description="管理游轮产品信息、航段配置及基准价策略">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
-          <Plus className="w-4 h-4" />新增产品
-        </button>
-      </PageHeader>
+      <PageHeader title="产品管理" description="管理游轮产品信息、航段配置及基准价策略" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -489,6 +546,11 @@ export default function ProductPage() {
           </div>
         </div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <Plus className="w-4 h-4" />添加
+        </button>
+      </div>
 
       {/* 树形表格（父子行共用列头） */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -826,6 +888,157 @@ export default function ProductPage() {
         </div>
       )}
 
+      {/* 票类管理弹窗 */}
+      {ticketOpen && ticketProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setTicketOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[86vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">票类管理 · {ticketProduct.name}</h3>
+                <p className="mt-1 text-xs text-gray-500">配置该产品可售票种、身份归属、下单规则和退改规则。</p>
+              </div>
+              <button onClick={() => setTicketOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">设置可售票种</h4>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setTicketDropdownOpen(open => !open)}
+                    className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm text-gray-700 hover:border-gray-400"
+                  >
+                    <span className="truncate">{selectedTicketNames || '请选择可售票种'}</span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${ticketDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {ticketDropdownOpen && (
+                    <div className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {tickets.map(ticket => (
+                          <label key={ticket.id} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={ticketDraft.ticketIds.includes(ticket.id)}
+                              onChange={() => toggleTicketSelection(ticket.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                            />
+                            <span className="flex-1">{ticket.name}</span>
+                            <span className="text-xs text-gray-400">{ticket.status === 'enabled' ? '有效' : '停用'}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">规则</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">身份归属 <span className="text-red-500">*</span></label>
+                    <div className="flex rounded-lg border border-gray-300 p-1">
+                      {[
+                        { value: 'tourist', label: '游客' },
+                        { value: 'resident', label: '居民' },
+                      ].map(item => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => setTicketDraft({ ...ticketDraft, identity: item.value as ProductTicketIdentity })}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-sm ${ticketDraft.identity === item.value ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">下单规则</label>
+                    <select
+                      value={ticketDraft.orderRule}
+                      onChange={(event) => setTicketDraft({ ...ticketDraft, orderRule: event.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      {orderRuleOptions.map(rule => <option key={rule} value={rule}>{rule}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">退改规则</label>
+                    <select
+                      value={ticketDraft.refundRule}
+                      onChange={(event) => setTicketDraft({ ...ticketDraft, refundRule: event.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      {refundRuleOptions.map(rule => <option key={rule} value={rule}>{rule}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">其他</h4>
+                <div className="inline-flex rounded-lg border border-gray-300 p-1">
+                  {[
+                    { value: 'published', label: '发布上架' },
+                    { value: 'offline', label: '下架' },
+                  ].map(item => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => setTicketDraft({ ...ticketDraft, status: item.value as ProductTicketStatus })}
+                      className={`rounded-md px-4 py-1.5 text-sm ${ticketDraft.status === item.value ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">已选票种</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">入住类型</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">价格系数</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">状态</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {ticketDraft.ticketIds.length === 0 ? (
+                      <tr><td colSpan={4} className="px-3 py-8 text-center text-sm text-gray-400">请选择可售票种</td></tr>
+                    ) : ticketDraft.ticketIds.map(ticketId => {
+                      const ticket = tickets.find(item => item.id === ticketId)
+                      if (!ticket) return null
+                      return (
+                        <tr key={ticket.id}>
+                          <td className="px-3 py-2 text-gray-900">{ticket.name}</td>
+                          <td className="px-3 py-2 text-gray-600">{ticket.guestType === 'adult' ? '成人' : ticket.guestType === 'child' ? '儿童' : '婴儿'}</td>
+                          <td className="px-3 py-2 text-gray-600">{ticket.priceCoefficient.toFixed(1)}</td>
+                          <td className="px-3 py-2">
+                            <StatusBadge status={ticket.status} />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
+              <button onClick={() => setTicketOpen(false)} className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">取消</button>
+              <button onClick={saveTicketManagement} className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 图片预览弹窗 */}
       {imagePreview && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setImagePreview(null)}>
@@ -846,6 +1059,11 @@ export default function ProductPage() {
             <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
               <h3 className="text-base font-semibold text-gray-900">库存设置 · {invProduct.name}</h3>
               <div className="flex items-center gap-3">
+                <label className="cursor-pointer px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                  导入
+                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => { event.currentTarget.value = '' }} />
+                </label>
+                <span className="text-xs text-gray-500">切换航段</span>
                 <select value={invSegment} onChange={(e) => setInvSegment(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
                   {invSegments.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>

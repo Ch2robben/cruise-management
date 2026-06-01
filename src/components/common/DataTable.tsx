@@ -38,16 +38,24 @@ export default function DataTable<T>({
     return String(index)
   }
 
+  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1
+  const pageNumbers = pagination
+    ? Array.from({ length: totalPages }, (_, index) => index + 1).slice(
+        Math.max(0, Math.min(pagination.current - 3, totalPages - 5)),
+        Math.max(0, Math.min(pagination.current - 3, totalPages - 5)) + Math.min(5, totalPages),
+      )
+    : []
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="overflow-hidden border border-gray-200 bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[900px]">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr className="bg-gray-50">
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
+                  className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800 last:border-r-0"
                   style={col.width ? { width: col.width } : undefined}
                 >
                   {col.title}
@@ -55,10 +63,10 @@ export default function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-16 text-center">
+                <td colSpan={columns.length} className="px-4 py-20 text-center">
                   <div className="flex items-center justify-center gap-2 text-gray-400">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span className="text-sm">加载中...</span>
@@ -67,15 +75,15 @@ export default function DataTable<T>({
               </tr>
             ) : dataSource.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-16 text-center text-sm text-gray-400">
+                <td colSpan={columns.length} className="px-4 py-20 text-center text-sm text-gray-400">
                   {emptyText}
                 </td>
               </tr>
             ) : (
               dataSource.map((record, index) => (
-                <tr key={getRowKey(record, index)} className="hover:bg-gray-50 transition-colors">
+                <tr key={getRowKey(record, index)} className="transition hover:bg-gray-50">
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-2.5 text-sm text-gray-700 whitespace-nowrap">
+                    <td key={col.key} className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700 whitespace-nowrap last:border-r-0">
                       {col.render
                         ? col.render(record)
                         : col.dataIndex
@@ -91,50 +99,45 @@ export default function DataTable<T>({
       </div>
 
       {pagination && pagination.total > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <span className="text-sm text-gray-500">
-            共 {pagination.total} 条，第 {pagination.current}/{Math.ceil(pagination.total / pagination.pageSize)} 页
+        <div className="flex flex-wrap items-center justify-between gap-4 px-9 py-10 text-gray-500">
+          <span className="text-[15px]">
+            共 {pagination.total} 条记录 第 {pagination.current} / {totalPages} 页
           </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => pagination.onChange(pagination.current - 1)}
-              disabled={pagination.current <= 1}
-              className="p-1.5 rounded text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {Array.from({ length: Math.min(5, Math.ceil(pagination.total / pagination.pageSize)) }, (_, i) => {
-              const totalPages = Math.ceil(pagination.total / pagination.pageSize)
-              let pageNum: number
-              if (totalPages <= 5) {
-                pageNum = i + 1
-              } else if (pagination.current <= 3) {
-                pageNum = i + 1
-              } else if (pagination.current >= totalPages - 2) {
-                pageNum = totalPages - 4 + i
-              } else {
-                pageNum = pagination.current - 2 + i
-              }
-              return (
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => pagination.onChange(pagination.current - 1)}
+                disabled={pagination.current <= 1}
+                className="flex h-12 w-12 items-center justify-center rounded border border-gray-200 bg-white text-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {pageNumbers.map((pageNum) => (
                 <button
                   key={pageNum}
                   onClick={() => pagination.onChange(pageNum)}
-                  className={`w-8 h-8 rounded text-sm ${
+                  className={`flex h-12 w-12 items-center justify-center rounded border text-lg transition ${
                     pageNum === pagination.current
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:bg-gray-200'
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-blue-500 hover:text-blue-600'
                   }`}
                 >
                   {pageNum}
                 </button>
-              )
-            })}
+              ))}
+              <button
+                onClick={() => pagination.onChange(pagination.current + 1)}
+                disabled={pagination.current >= totalPages}
+                className="flex h-12 w-12 items-center justify-center rounded border border-gray-200 bg-white text-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
             <button
-              onClick={() => pagination.onChange(pagination.current + 1)}
-              disabled={pagination.current >= Math.ceil(pagination.total / pagination.pageSize)}
-              className="p-1.5 rounded text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              type="button"
+              className="flex h-12 min-w-[110px] items-center justify-center rounded border border-gray-200 bg-white px-4 text-lg text-gray-500"
             >
-              <ChevronRight className="w-4 h-4" />
+              {pagination.pageSize}条/页
             </button>
           </div>
         </div>

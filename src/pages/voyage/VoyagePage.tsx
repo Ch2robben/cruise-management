@@ -1,20 +1,44 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, X } from 'lucide-react'
-import { voyageApi, priceApi } from '@/mock/api'
-import { products, voyageTemplates, voyages, routes, ships } from '@/mock/data'
-import type { Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice } from '@/types'
+import { voyageApi, priceApi, templateApi } from '@/mock/api'
+import { dealers, products, voyageTemplates, voyages, routes, ships } from '@/mock/data'
+import type { DealerChannelType, Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, VoyageTemplate, TemplateItinerary } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import ItineraryEditor from '@/components/voyage/ItineraryEditor'
 
 const statusLabels: Record<string, string> = { ticketing: '售票', suspended: '停航', chartered: '包租', deadhead: '空放', pending: '待定', transfer: '转船' }
 const statusColors: Record<string, string> = { ticketing: 'bg-green-100 text-green-700', suspended: 'bg-red-100 text-red-600', chartered: 'bg-purple-100 text-purple-700', deadhead: 'bg-gray-100 text-gray-500', pending: 'bg-yellow-100 text-yellow-700', transfer: 'bg-blue-100 text-blue-700' }
 const approvalColors: Record<string, string> = { '已审批': 'text-green-600', '审批中': 'text-yellow-600', '已驳回': 'text-red-600' }
 const statusOptions = ['all', 'ticketing', 'suspended', 'chartered', 'deadhead', 'pending', 'transfer']
+
+type SupplierTab = 'inventory' | 'price'
+type SupplierChannelFilter = 'all' | DealerChannelType
+
+interface SupplierSegmentRow {
+  key: string
+  label: string
+}
+
+interface SupplierCell {
+  sold: number
+  available: number
+  price: number
+}
+
+type SupplierMatrix = Record<string, Record<string, SupplierCell>>
+
+const supplierChannelLabels: Record<SupplierChannelFilter, string> = {
+  all: '全部分类',
+  ota: 'OTA',
+  distribution: '分销商',
+  group: '组团社',
+}
 
 export default function VoyagePage() {
   const navigate = useNavigate()
@@ -50,11 +74,88 @@ export default function VoyagePage() {
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [timeline, setTimeline] = useState<ApprovalStep[]>([])
 
+  // 航次行程
+  const [itineraryOpen, setItineraryOpen] = useState(false)
+  const [itineraryVoyage, setItineraryVoyage] = useState<Voyage | null>(null)
+  const [itineraryTemplate, setItineraryTemplate] = useState<VoyageTemplate | null>(null)
+  const [itineraryDraft, setItineraryDraft] = useState<TemplateItinerary[]>([])
+
   // 价格日历
   const [priceOpen, setPriceOpen] = useState(false)
   const [priceVoyage, setPriceVoyage] = useState<Voyage | null>(null)
   const [priceData, setPriceData] = useState<VoyagePrice[]>([])
   const [priceView, setPriceView] = useState<'base' | 'adult' | 'child' | 'baby'>('adult')
+
+  // 分销商价库
+  const [supplierOpen, setSupplierOpen] = useState(false)
+  const [supplierVoyage, setSupplierVoyage] = useState<Voyage | null>(null)
+  const [supplierTab, setSupplierTab] = useState<SupplierTab>('inventory')
+  const [supplierChannelFilter, setSupplierChannelFilter] = useState<SupplierChannelFilter>('all')
+  const [supplierDealerId, setSupplierDealerId] = useState('all')
+  const [supplierSegments, setSupplierSegments] = useState<SupplierSegmentRow[]>([])
+  const [supplierCabins, setSupplierCabins] = useState<string[]>([])
+  const [supplierMatrix, setSupplierMatrix] = useState<SupplierMatrix>({})
+
+  const openSupplierBook = (voyage: Voyage) => {
+    const product = products.find(item => item.id === voyage.productId)
+    const segments = createSupplierSegments(product, voyage)
+    const cabins = createSupplierCabins(product)
+    setSupplierVoyage(voyage)
+    setSupplierTab('inventory')
+    setSupplierChannelFilter('all')
+    setSupplierDealerId('all')
+    setSupplierSegments(segments)
+    setSupplierCabins(cabins)
+    setSupplierMatrix(createSupplierMatrix(voyage, product, segments, cabins, 'all', 'all'))
+    setSupplierOpen(true)
+  }
+
+  const refreshSupplierMatrix = (
+    voyage: Voyage | null,
+    channelFilter: SupplierChannelFilter,
+    dealerId: string,
+    segments = supplierSegments,
+    cabins = supplierCabins,
+  ) => {
+    if (!voyage) return
+    const product = products.find(item => item.id === voyage.productId)
+    setSupplierMatrix(createSupplierMatrix(voyage, product, segments, cabins, channelFilter, dealerId))
+  }
+
+  const changeSupplierChannel = (value: SupplierChannelFilter) => {
+    const nextDealerId = 'all'
+    setSupplierChannelFilter(value)
+    setSupplierDealerId(nextDealerId)
+    refreshSupplierMatrix(supplierVoyage, value, nextDealerId)
+  }
+
+  const changeSupplierDealer = (value: string) => {
+    setSupplierDealerId(value)
+    refreshSupplierMatrix(supplierVoyage, supplierChannelFilter, value)
+  }
+
+  const updateSupplierCell = (segmentKey: string, cabin: string, field: 'available' | 'price', value: number) => {
+    setSupplierMatrix(prev => ({
+      ...prev,
+      [segmentKey]: {
+        ...prev[segmentKey],
+        [cabin]: {
+          ...prev[segmentKey]?.[cabin],
+          [field]: Math.max(0, value || 0),
+        },
+      },
+    }))
+  }
+
+  const closeSupplierBook = () => {
+    setSupplierOpen(false)
+    setSupplierVoyage(null)
+  }
+
+  const saveSupplierBook = () => {
+    setSupplierOpen(false)
+    setSupplierVoyage(null)
+  }
 
   const openPrice = async (r: Voyage) => {
     const result = await priceApi.list({ voyageId: r.id, pageSize: 100 })
@@ -148,6 +249,34 @@ export default function VoyagePage() {
   const handleBatchStatus = async () => { if (selected.size === 0) return; await voyageApi.batchUpdateStatus([...selected], batchStatus); setBatchOpen(false); fetchData(data.page) }
 
   const openTimeline = (v: Voyage) => { setTimeline(v.approvalTimeline || []); setTimelineOpen(true) }
+  const openItinerary = (voyage: Voyage) => {
+    const template = voyageTemplates.find(item => item.id === voyage.templateId)
+      || voyageTemplates.find(item => item.name === voyage.templateName)
+      || voyageTemplates.find(item => item.productId === voyage.productId)
+      || null
+    setItineraryVoyage(voyage)
+    setItineraryTemplate(template)
+    setItineraryDraft(template?.itinerary.map(item => ({ ...item })) || [])
+    setItineraryOpen(true)
+  }
+
+  const closeItinerary = () => {
+    setItineraryOpen(false)
+    setItineraryVoyage(null)
+    setItineraryTemplate(null)
+    setItineraryDraft([])
+  }
+
+  const saveItinerary = async () => {
+    if (!itineraryTemplate) return
+    await templateApi.update(itineraryTemplate.id, {
+      itinerary: itineraryDraft,
+      updatedBy: '当前用户',
+      updatedAt: new Date().toISOString(),
+    })
+    setItineraryTemplate({ ...itineraryTemplate, itinerary: itineraryDraft, updatedBy: '当前用户', updatedAt: new Date().toISOString() })
+    setItineraryOpen(false)
+  }
 
   const genTemplates = voyageTemplates.filter((t) => t.productId === genProductId)
 
@@ -201,26 +330,23 @@ export default function VoyagePage() {
     )},
     { key: 'updatedBy', title: '修改人', render: (r: Voyage) => (r as any).updatedBy || '-' },
     { key: 'updatedAt', title: '修改时间', render: (r: Voyage) => (r as any).updatedAt ? formatDateTime((r as any).updatedAt) : '-' },
-    { key: 'actions', title: '操作', width: '200px', render: (r: Voyage) => (
+    { key: 'actions', title: '操作', width: '290px', render: (r: Voyage) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
-        <button onClick={() => navigate(`/voyage/inventory?keyword=${encodeURIComponent(r.voyageNo)}`)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">库存</button>
+        <button onClick={() => openItinerary(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">行程</button>
         <button onClick={() => navigate(`/voyage/pricing?id=${r.id}`)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">定价</button>
+        <button onClick={() => openSupplierBook(r)} className="px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 rounded">分销商价库</button>
         <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
       </div>
     )},
   ]
 
   const timelineStepColors: Record<string, string> = { approved: 'bg-green-500', pending: 'bg-yellow-400', rejected: 'bg-red-500' }
+  const supplierDealerOptions = supplierVoyage ? getSupplierDealerOptions(supplierVoyage, supplierChannelFilter) : []
 
   return (
     <div>
-      <PageHeader title="航次列表" description="管理所有游轮航次信息">
-        <div className="flex items-center gap-2">
-          {selected.size > 0 && <button onClick={() => setBatchOpen(true)} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">设置状态（{selected.size}）</button>}
-          <button onClick={() => { setGenProductId(''); setGenTemplateId(''); setGenStartDate(''); setGenEndDate(''); setGenConflict([]); setGenOpen(true) }} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"><Plus className="w-4 h-4" />生成航次</button>
-        </div>
-      </PageHeader>
+      <PageHeader title="航次列表" description="管理所有游轮航次信息" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">航期</label><div className="flex items-center gap-1.5"><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36 px-2 py-2 border border-gray-300 rounded-lg text-sm" /><span className="text-gray-400">-</span><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 px-2 py-2 border border-gray-300 rounded-lg text-sm" /></div></div>
@@ -229,6 +355,12 @@ export default function VoyagePage() {
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm">{statusOptions.map((s) => <option key={s} value={s}>{s === 'all' ? '全部' : statusLabels[s]}</option>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">上下水</label><select value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)} className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="upstream">上水</option><option value="downstream">下水</option></select></div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <div className="flex items-center gap-3">
+          {selected.size > 0 && <button onClick={() => setBatchOpen(true)} className="inline-flex h-11 items-center rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">设置状态（{selected.size}）</button>}
+          <button onClick={() => { setGenProductId(''); setGenTemplateId(''); setGenStartDate(''); setGenEndDate(''); setGenConflict([]); setGenOpen(true) }} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"><Plus className="w-4 h-4" />添加</button>
+        </div>
+      </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden"><div className="overflow-x-auto"><table className="w-full">
@@ -245,6 +377,162 @@ export default function VoyagePage() {
         <DetailCard title="数据"><DetailRow label="已投放" value={`${detail.totalCabins}间`} /><DetailRow label="已售" value={`${detail.soldCabins}间`} /><DetailRow label="可售" value={<span className="font-medium text-lg">{detail.availableCabins}间</span>} /></DetailCard>
         <DetailCard title="状态"><DetailRow label="航次状态" value={<span className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[detail.status]}`}>{statusLabels[detail.status]}</span>} /><DetailRow label="审批状态" value={detail.approvalStatus || '-'} /></DetailCard>
       </>)}</DetailDrawer>
+
+      {itineraryOpen && itineraryVoyage && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
+          <div className="absolute inset-0 bg-black/40" onClick={closeItinerary} />
+          <div className="relative mx-4 flex max-h-[82vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">编辑航次行程 · {itineraryVoyage.voyageNo}</h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  {itineraryVoyage.productName} · 模板：{itineraryTemplate?.name || itineraryVoyage.templateName || '未找到关联模板'}
+                </p>
+              </div>
+              <button onClick={closeItinerary} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              {!itineraryTemplate ? (
+                <div className="rounded-lg border border-dashed border-gray-300 py-16 text-center text-sm text-gray-400">未找到该航次关联的航次模板</div>
+              ) : (
+                <ItineraryEditor
+                  value={itineraryDraft}
+                  onChange={setItineraryDraft}
+                  compact
+                  emptyText="该模板暂无行程配置"
+                />
+              )}
+            </div>
+            <div className="flex justify-end gap-3 border-t px-6 py-4">
+              <button onClick={closeItinerary} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={saveItinerary} disabled={!itineraryTemplate} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {supplierOpen && supplierVoyage && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[6vh]">
+          <div className="absolute inset-0 bg-black/40" onClick={closeSupplierBook} />
+          <div className="relative mx-4 flex max-h-[88vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">分销商价库 · {supplierVoyage.voyageNo}</h3>
+                <p className="mt-1 text-xs text-gray-500">{supplierVoyage.productName} · {supplierVoyage.routeName}</p>
+              </div>
+              <button onClick={closeSupplierBook} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="border-b px-6 pt-4">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                  <button
+                    onClick={() => setSupplierTab('inventory')}
+                    className={`rounded-md px-4 py-2 text-sm ${supplierTab === 'inventory' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                  >
+                    分销商-库存
+                  </button>
+                  <button
+                    onClick={() => setSupplierTab('price')}
+                    className={`rounded-md px-4 py-2 text-sm ${supplierTab === 'price' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                  >
+                    分销商-价格
+                  </button>
+                </div>
+                <div className="flex items-end gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">组团分类</label>
+                    <select
+                      value={supplierChannelFilter}
+                      onChange={(event) => changeSupplierChannel(event.target.value as SupplierChannelFilter)}
+                      className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      {(Object.keys(supplierChannelLabels) as SupplierChannelFilter[]).map(value => (
+                        <option key={value} value={value}>{supplierChannelLabels[value]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-gray-500">分销商</label>
+                    <select
+                      value={supplierDealerId}
+                      onChange={(event) => changeSupplierDealer(event.target.value)}
+                      className="w-56 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="all">全部分销商</option>
+                      {supplierDealerOptions.map(dealer => (
+                        <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto px-6 py-4">
+              <table className="w-full min-w-[760px] border border-gray-200 text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="sticky left-0 z-10 w-52 border-r bg-gray-50 px-3 py-3 text-left text-xs font-medium text-gray-500">航段</th>
+                    {supplierCabins.map(cabin => (
+                      <th key={cabin} className="min-w-40 border-r px-3 py-3 text-center text-xs font-medium text-gray-500">{cabin}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {supplierSegments.map(segment => (
+                    <tr key={segment.key}>
+                      <td className="sticky left-0 z-10 border-r bg-white px-3 py-3 font-medium text-gray-900">{segment.label}</td>
+                      {supplierCabins.map(cabin => {
+                        const cell = supplierMatrix[segment.key]?.[cabin] || { sold: 0, available: 0, price: 0 }
+                        return (
+                          <td key={`${segment.key}-${cabin}`} className="border-r px-3 py-2">
+                            {supplierTab === 'inventory' ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span>已售</span>
+                                  <span className="font-semibold text-gray-900">{cell.sold}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="shrink-0 text-xs text-gray-500">可售</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={cell.available}
+                                    onChange={(event) => updateSupplierCell(segment.key, cabin, 'available', Number(event.target.value))}
+                                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400">¥</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={cell.price}
+                                  onChange={(event) => updateSupplierCell(segment.key, cabin, 'price', Number(event.target.value))}
+                                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
+                                />
+                              </div>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t px-6 py-4">
+              <button onClick={closeSupplierBook} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={saveSupplierBook} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 生成航次 */}
       {genOpen && (
@@ -351,4 +639,63 @@ export default function VoyagePage() {
       <ConfirmDialog open={confirmOpen} title="删除航次" message="确定要删除该航次吗？" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />
     </div>
   )
+}
+
+function createSupplierSegments(product: (typeof products)[number] | undefined, voyage: Voyage): SupplierSegmentRow[] {
+  if (!product || product.segments.length === 0) {
+    return [{ key: 'whole', label: voyage.routeName || '全航段' }]
+  }
+
+  return [
+    { key: 'whole', label: `${product.startPort}-${product.endPort} 全程` },
+    ...product.segments.map(segment => ({
+      key: `${segment.startPort}-${segment.endPort}`,
+      label: `${segment.startPort}-${segment.endPort}`,
+    })),
+  ]
+}
+
+function createSupplierCabins(product: (typeof products)[number] | undefined) {
+  const cabins = product?.pricing.map(item => item.cabinType).filter(Boolean) || []
+  return [...new Set(cabins)].slice(0, 5)
+}
+
+function createSupplierMatrix(
+  voyage: Voyage,
+  product: (typeof products)[number] | undefined,
+  segments: SupplierSegmentRow[],
+  cabins: string[],
+  channelFilter: SupplierChannelFilter,
+  dealerId: string,
+): SupplierMatrix {
+  const matrix: SupplierMatrix = {}
+  const cabinCount = Math.max(cabins.length, 1)
+  const dealer = dealerId === 'all' ? undefined : dealers.find(item => item.id === dealerId)
+  const channelSeed = channelFilter === 'all' ? 0 : channelFilter === 'group' ? 4 : channelFilter === 'distribution' ? 2 : 1
+  const dealerSeed = dealer ? dealers.findIndex(item => item.id === dealer.id) + 1 : 0
+
+  for (const [segmentIndex, segment] of segments.entries()) {
+    matrix[segment.key] = {}
+    for (const [cabinIndex, cabin] of cabins.entries()) {
+      const pricing = product?.pricing.find(item => item.segmentKey === segment.key && item.cabinType === cabin)
+        || product?.pricing.find(item => item.cabinType === cabin)
+      const soldBase = Math.max(0, Math.round(voyage.soldCabins / cabinCount))
+      const availableBase = Math.max(0, Math.round(voyage.availableCabins / cabinCount))
+      matrix[segment.key][cabin] = {
+        sold: Math.max(0, soldBase - segmentIndex * 2 + cabinIndex + channelSeed + dealerSeed),
+        available: Math.max(0, availableBase - segmentIndex * 3 + cabinIndex * 2 + channelSeed * 2 + dealerSeed),
+        price: (pricing?.basePrice || 2800 + segmentIndex * 180 + cabinIndex * 260) + channelSeed * 60 + dealerSeed * 35,
+      }
+    }
+  }
+
+  return matrix
+}
+
+function getSupplierDealerOptions(voyage: Voyage, channelFilter: SupplierChannelFilter) {
+  return dealers.filter(dealer => {
+    const productMatched = dealer.authorizedProductIds.includes(voyage.productId)
+    const channelMatched = channelFilter === 'all' || dealer.channelTypes.includes(channelFilter)
+    return productMatched && channelMatched
+  })
 }

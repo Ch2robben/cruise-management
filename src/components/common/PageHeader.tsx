@@ -8,10 +8,9 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, description, children }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-4">
+    <div className="mb-5 flex items-start justify-between gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        {description && <p className="text-sm text-gray-500 mt-0.5">{description}</p>}
+        <h2 className="text-[32px] font-semibold text-gray-900">{title}</h2>
       </div>
       {children && <div className="flex items-center gap-2">{children}</div>}
     </div>

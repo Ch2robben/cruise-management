@@ -117,12 +117,7 @@ export default function ReconciliationPage() {
 
   return (
     <div>
-      <PageHeader title="对账批次" description="管理 OTA 与同业分销渠道的银行流水对账与差异处理。">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
-          <Upload className="w-4 h-4" />
-          上传流水对账
-        </button>
-      </PageHeader>
+      <PageHeader title="对账批次" description="管理 OTA 与同业分销渠道的银行流水对账与差异处理。" />
 
       <SearchPanel onSearch={() => fetchData(1)} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -148,6 +143,12 @@ export default function ReconciliationPage() {
           </select>
         </div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <Upload className="w-4 h-4" />
+          添加
+        </button>
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">

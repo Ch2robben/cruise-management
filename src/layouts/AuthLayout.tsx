@@ -8,7 +8,7 @@ export default function AuthLayout() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <Ship className="w-8 h-8 text-gray-900" />
-            <h1 className="text-xl font-bold text-gray-900">长航集团游轮管理系统</h1>
+            <h1 className="text-xl font-bold text-gray-900">某旅游公司游轮管理系统</h1>
           </div>
           <p className="text-sm text-gray-500">中国内河及沿海游轮综合管理平台</p>
         </div>

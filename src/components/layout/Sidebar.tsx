@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -19,6 +19,7 @@ const menuItems: MenuItem[] = [
       { key: 'route', label: '航线管理', path: '/resources/routes' },
       { key: 'ship', label: '船舶管理', path: '/resources/ships' },
       { key: 'room', label: '房间管理', path: '/resources/rooms' },
+      { key: 'cabin', label: '船舱管理', path: '/resources/cabins' },
       { key: 'facility', label: '设施管理', path: '/resources/facilities' },
       { key: 'ticket', label: '票类管理', path: '/resources/tickets' },
       { key: 'product', label: '产品管理', path: '/resources/products' },
@@ -28,9 +29,12 @@ const menuItems: MenuItem[] = [
     key: 'voyage', label: '航次', icon: 'Calendar',
     children: [
       { key: 'voyage_list', label: '航次列表', path: '/voyage/list' },
-      { key: 'voyage_tpl', label: '航次模板', path: '/voyage/templates' },
-      { key: 'voyage_inv', label: '库存看板', path: '/voyage/inventory' },
+      { key: 'voyage_template', label: '航次模板', path: '/voyage/templates' },
+      { key: 'voyage_inv', label: '航次库存看板', path: '/voyage/inventory' },
+      { key: 'pricing_rule', label: '定价规则', path: '/voyage/pricing-rules' },
+      { key: 'sales_control', label: '销售控制', path: '/voyage/sales-control' },
       { key: 'voyage_price', label: '价格日历', path: '/voyage/pricing' },
+      { key: 'price_management', label: '价格管理', path: '/voyage/price-management' },
     ],
   },
   {
@@ -74,6 +78,21 @@ const menuItems: MenuItem[] = [
       { key: 'dictionary', label: '数据字典', path: '/system/dictionaries' },
     ],
   },
+  {
+    key: 'rule', label: '规则中心', icon: 'ClipboardList',
+    children: [
+      { key: 'deposit_rule', label: '定金规则管理', path: '/rule/deposit' },
+      { key: 'payment_rule', label: '船款规则管理', path: '/rule/payment' },
+      { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
+      { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
+      { key: 'tip_config', label: '小费配置', path: '/rule/tip' },
+      { key: 'group_auth', label: '组团社权限管理', path: '/rule/group-auth' },
+      { key: 'refund_rule', label: '分销商退票费规则', path: '/rule/refund' },
+      { key: 'ship_auth', label: '船舶权限管理', path: '/rule/ship-auth' },
+      { key: 'close_rule', label: '关账规则管理', path: '/rule/close' },
+      { key: 'performance_rule', label: '绩效系数规则管理', path: '/rule/performance' },
+    ],
+  },
 ]
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -85,6 +104,7 @@ const iconMap: Record<string, React.ReactNode> = {
   Users: <Users className="w-4 h-4" />,
   Wallet: <Wallet className="w-4 h-4" />,
   PieChart: <PieChart className="w-4 h-4" />,
+  ClipboardList: <ClipboardList className="w-4 h-4" />,
 }
 
 export default function Sidebar() {
@@ -99,6 +119,7 @@ export default function Sidebar() {
     finance: true,
     report: true,
     system: true,
+    rule: true,
   })
 
   const toggle = (key: string) => {
@@ -113,7 +134,7 @@ export default function Sidebar() {
     <aside className="w-56 bg-gray-900 text-gray-300 flex flex-col shrink-0 h-full overflow-y-auto">
       <div className="flex items-center gap-2 px-4 py-4 border-b border-gray-800">
         <Ship className="w-5 h-5 text-blue-400" />
-        <span className="text-base font-semibold text-white">长航集团游轮管理</span>
+        <span className="text-base font-semibold text-white">某旅游公司游轮管理</span>
       </div>
 
       <nav className="flex-1 py-2">

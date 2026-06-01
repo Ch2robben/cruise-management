@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronDown, Edit3, X } from 'lucide-react'
+import { ChevronDown, Edit3, ShipWheel, X } from 'lucide-react'
 import { inventoryApi } from '@/mock/api'
 import { dealers, products, routes, ships, voyageTemplates, voyages } from '@/mock/data'
 import type { Product, ProductSegment, Voyage, VoyageInventory } from '@/types'
@@ -316,7 +316,7 @@ function filterChannelRowsBySupplierGroup(rows: ChannelInventoryRow[], group: Ch
   return rows.filter(row => row.channelTypes.includes(group))
 }
 
-export default function InventoryPage() {
+export default function PriceManagementPage() {
   const [searchParams] = useSearchParams()
   const initialVoyageId = searchParams.get('voyageId') || ''
   const initialKeyword = searchParams.get('keyword') || ''
@@ -369,12 +369,13 @@ export default function InventoryPage() {
       return
     }
     if (selectedVoyageId && filteredVoyages.some(item => item.id === selectedVoyageId)) return
-    setSelectedVoyageId('')
-  }, [filteredVoyages, selectedVoyageId])
+    const queryVoyage = initialKeyword ? filteredVoyages.find(item => item.voyageNo === initialKeyword) : undefined
+    setSelectedVoyageId(initialVoyageId || queryVoyage?.id || filteredVoyages[0].id)
+  }, [filteredVoyages, initialKeyword, initialVoyageId, selectedVoyageId])
 
   const selectedVoyage = useMemo(() => {
-    return voyages.find(item => item.id === selectedVoyageId)
-  }, [selectedVoyageId])
+    return voyages.find(item => item.id === selectedVoyageId) || filteredVoyages[0]
+  }, [filteredVoyages, selectedVoyageId])
 
   const selectedProduct = useMemo(() => getProduct(selectedVoyage), [selectedVoyage])
   const selectedTemplate = useMemo(() => getTemplate(selectedVoyage), [selectedVoyage])
@@ -523,12 +524,12 @@ export default function InventoryPage() {
     setChannelSupplierState(null)
   }
 
-  const pageTitle = selectedVoyage ? `航次库存看板 · ${selectedVoyage.voyageNo}` : '航次库存看板'
+  const pageTitle = selectedVoyage ? `价格管理 · ${selectedVoyage.voyageNo}` : '价格管理'
   const channelSupplierOptions = channelSupplierState ? filterChannelRowsBySupplierGroup(channelRows, channelSupplierState.group) : []
 
   return (
     <div>
-      <PageHeader title={pageTitle} description="按航期、航线、游轮筛选航次，支持航次视角、房型视角和渠道视角查看库存。" />
+      <PageHeader title={pageTitle} description="管理所选航次的价格策略与信息" />
 
       <SearchPanel onSearch={() => setRouteDropdownOpen(false)} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -594,7 +595,7 @@ export default function InventoryPage() {
         </div>
       </SearchPanel>
 
-      <div className="grid grid-cols-[340px_minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-4">
         <aside className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900">筛选结果航次</span>
@@ -605,40 +606,23 @@ export default function InventoryPage() {
               <div className="py-20 text-center text-sm text-gray-400">暂无匹配航次</div>
             ) : filteredVoyages.map(voyage => {
               const selected = selectedVoyage?.id === voyage.id
-              const detailTemplate = selected ? selectedTemplate : undefined
               return (
-                <div key={voyage.id} className="space-y-2">
-                  <button
-                    onClick={() => setSelectedVoyageId(voyage.id)}
-                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                      selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs font-semibold text-gray-900">{voyage.voyageNo}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] ${selected ? 'bg-blue-600 text-white' : voyageStatusClass[voyage.status] || 'bg-gray-100 text-gray-500'}`}>
-                        {voyageStatusLabels[voyage.status] || voyage.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 text-sm font-medium text-gray-900 truncate">{voyage.productName}</div>
-                    <div className="mt-1 text-xs text-gray-500 truncate">{voyage.startDate} · {voyage.shipName}</div>
-                  </button>
-
-                  {selected && (
-                    <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm">
-                      <div className="grid grid-cols-2 gap-2">
-                        <CompactInfoItem label="产品名称" value={voyage.productName} />
-                        <CompactInfoItem label="航行天数" value={`${voyage.days}天`} />
-                        <CompactInfoItem label="开航日期" value={voyage.startDate} />
-                        <CompactInfoItem label="抵达日期" value={voyage.endDate} />
-                        <CompactInfoItem label="游轮" value={voyage.shipName} />
-                        <CompactInfoItem label="开航类型" value={detailTemplate?.sailType || '-'} />
-                        <CompactInfoItem label="航线" value={voyage.routeName} />
-                        <CompactInfoItem label="模板名称" value={detailTemplate?.name || voyage.templateName || '-'} />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <button
+                  key={voyage.id}
+                  onClick={() => setSelectedVoyageId(voyage.id)}
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-gray-900">{voyage.voyageNo}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${selected ? 'bg-blue-600 text-white' : voyageStatusClass[voyage.status] || 'bg-gray-100 text-gray-500'}`}>
+                      {voyageStatusLabels[voyage.status] || voyage.status}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-gray-900 truncate">{voyage.productName}</div>
+                  <div className="mt-1 text-xs text-gray-500 truncate">{voyage.startDate} · {voyage.shipName}</div>
+                </button>
               )
             })}
           </div>
@@ -646,35 +630,12 @@ export default function InventoryPage() {
 
         <section className="space-y-4">
           {selectedVoyage ? (
-            <>
-              <div className="flex items-center justify-end">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-500">视角</label>
-                  <select value={viewMode} onChange={(event) => setViewMode(event.target.value as ViewMode)} className="h-10 w-36 rounded-lg border border-gray-300 bg-white px-3 text-sm">
-                    <option value="voyage">航次视角</option>
-                    <option value="channel">渠道视角</option>
-                  </select>
-                </div>
-              </div>
-
-              {viewMode !== 'channel' && (
-                <RouteInventoryLineBoard product={selectedProduct} rows={selectedInventoryRows} />
-              )}
-
-              {viewMode === 'voyage' && <SalesControlWorkspace embedded />}
-              {viewMode === 'channel' && (
-                <>
-                  <RouteInventoryLineBoard
-                    product={selectedProduct}
-                    channelRows={channelRows}
-                    title="渠道库存线路视图"
-                    lineLabel="渠道"
-                  />
-                  <ChannelInventoryTable rows={channelRows} onRowClick={openChannelSupplierInventory} />
-                </>
-              )}
-            </>
-          ) : null}
+            <div className="bg-white border border-gray-200 rounded-lg py-24 flex flex-col items-center justify-center">
+              <span className="text-gray-500 text-sm">价格管理内容建设中...</span>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-lg py-24 text-center text-sm text-gray-400">请选择左侧航次</div>
+          )}
         </section>
       </div>
 
@@ -842,7 +803,7 @@ function RouteInventoryLineBoard({
   title?: string
   lineLabel?: string
 }) {
-  const mode: RouteLineMode = 'release'
+  const [mode, setMode] = useState<RouteLineMode>('release')
   const [tooltip, setTooltip] = useState<RouteLineTooltip | null>(null)
   const [selectedRouteSegment, setSelectedRouteSegment] = useState('all')
 
@@ -869,6 +830,7 @@ function RouteInventoryLineBoard({
   }
 
   const activeLines = tooltip ? lines.filter(line => line.start <= tooltip.segmentIndex && tooltip.segmentIndex < line.end) : []
+  const aggregate = getLineAggregate(activeLines, mode)
 
   return (
     <div
@@ -878,12 +840,25 @@ function RouteInventoryLineBoard({
       <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-          <p className="mt-1 text-xs text-gray-500">条形图以物理容量为基准，分三段展示库存结构。</p>
+          <p className="mt-1 text-xs text-gray-500">
+            {mode === 'release' ? '绿色表示已投库存，灰色表示可投未占用。' : '绿色表示已售库存，灰色表示已投未售。'}
+          </p>
         </div>
-        <div className="flex shrink-0 items-center gap-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ background: '#16a34a' }} />已售</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ background: '#6366f1' }} />已投未售</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ background: '#cbd5e1' }} />未投</span>
+        <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => setMode('release')}
+            className={`rounded-md px-3 py-1.5 text-sm ${mode === 'release' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            可投库存
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('sales')}
+            className={`rounded-md px-3 py-1.5 text-sm ${mode === 'sales' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            已投库存
+          </button>
         </div>
       </div>
 
@@ -912,30 +887,23 @@ function RouteInventoryLineBoard({
             >
               {Array.from({ length: segmentCount }).map((_, index) => {
                 const segmentLines = lines.filter(line => line.start <= index && index < line.end)
-                const physicalTotal = segmentLines.reduce((sum, l) => sum + l.total, 0)
-                const releasedTotal = segmentLines.reduce((sum, l) => sum + l.released, 0)
-                const soldTotal = segmentLines.reduce((sum, l) => sum + l.sold, 0)
-                const safeTotal = Math.max(physicalTotal, 1)
-                const soldPct = Math.min(100, Math.round((soldTotal / safeTotal) * 100))
-                const releasedUnsoldPct = Math.min(100 - soldPct, Math.round(((releasedTotal - soldTotal) / safeTotal) * 100))
-                const unreleasedPct = 100 - soldPct - releasedUnsoldPct
+                const { total, used, percent } = getLineAggregate(segmentLines, mode)
+                const stockColor = getStockLevelColor(percent)
                 const segmentOptionKey = `${stops[index]}-${stops[index + 1]}`
                 const selected = selectedRouteSegment === segmentOptionKey
-                const highlighted = tooltip?.segmentIndex === index || selected
                 return (
                   <div
                     key={`${stops[index]}-${stops[index + 1]}`}
-                    className={`h-4 cursor-pointer overflow-hidden border transition-transform flex ${
-                      highlighted ? 'translate-y-[-2px] border-gray-900' : 'border-gray-300'
+                    className={`h-4 cursor-pointer overflow-hidden border transition-transform ${
+                      tooltip?.segmentIndex === index || selected ? 'translate-y-[-2px] border-gray-900' : 'border-gray-300'
                     }`}
-                    onMouseEnter={(event) => setTooltip({ segmentIndex: index, x: event.clientX, y: event.clientY })}
-                    onMouseMove={(event) => setTooltip({ segmentIndex: index, x: event.clientX, y: event.clientY })}
-                    title={`${stops[index]} → ${stops[index + 1]}  已售${soldTotal} / 已投${releasedTotal} / 物理${physicalTotal}`}
-                  >
-                    {soldPct > 0 && <div className="h-full" style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
-                    {releasedUnsoldPct > 0 && <div className="h-full" style={{ width: `${releasedUnsoldPct}%`, background: '#6366f1' }} />}
-                    {unreleasedPct > 0 && <div className="h-full" style={{ width: `${unreleasedPct}%`, background: '#cbd5e1' }} />}
-                  </div>
+                    style={{
+                      background: `linear-gradient(to right, ${stockColor} 0 ${percent}%, #d8dee8 ${percent}% 100%)`,
+                    }}
+                    onMouseEnter={(event) => setTooltip({ segmentIndex: index, x: event.clientX + 18, y: event.clientY + 10 })}
+                    onMouseMove={(event) => setTooltip({ segmentIndex: index, x: event.clientX + 18, y: event.clientY + 10 })}
+                    title={`${stops[index]} → ${stops[index + 1]} ${used}/${total}`}
+                  />
                 )
               })}
             </div>
@@ -960,69 +928,36 @@ function RouteInventoryLineBoard({
 
       {tooltip && (
         <div
-          className="fixed z-50 w-[360px] border border-gray-900 bg-white p-3 shadow-xl"
-          style={{ left: Math.min(Math.max(8, tooltip.x - 180), window.innerWidth - 380), top: Math.max(8, tooltip.y - 320) }}
+          className="fixed z-50 w-[340px] border border-gray-900 bg-white p-3 shadow-xl"
+          style={{ left: Math.min(tooltip.x, window.innerWidth - 360), top: tooltip.y }}
         >
           <div className="font-semibold text-gray-900">{stops[tooltip.segmentIndex]} → {stops[tooltip.segmentIndex + 1]}</div>
           <div className="mt-1 text-xs text-gray-500">当前航段共有 {activeLines.length} 条{lineLabel}穿过</div>
-
-          {/* 聚合堆叠条 */}
-          {(() => {
-            const physicalTotal = activeLines.reduce((sum, l) => sum + l.total, 0)
-            const releasedTotal = activeLines.reduce((sum, l) => sum + l.released, 0)
-            const soldTotal = activeLines.reduce((sum, l) => sum + l.sold, 0)
-            const safe = Math.max(physicalTotal, 1)
-            const soldPct = Math.min(100, Math.round((soldTotal / safe) * 100))
-            const relPct = Math.min(100 - soldPct, Math.round(((releasedTotal - soldTotal) / safe) * 100))
-            const unPct = 100 - soldPct - relPct
-            return (
-              <>
-                <div className="mt-3 flex h-3 overflow-hidden rounded-sm">
-                  {soldPct > 0 && <div style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
-                  {relPct > 0 && <div style={{ width: `${relPct}%`, background: '#6366f1' }} />}
-                  {unPct > 0 && <div style={{ width: `${unPct}%`, background: '#cbd5e1' }} />}
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1 border-t pt-2 text-xs">
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: '#16a34a' }} />
-                    已售
-                    <span className="ml-auto font-semibold text-gray-900">{soldTotal}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: '#6366f1' }} />
-                    已投未售
-                    <span className="ml-auto font-semibold text-gray-900">{releasedTotal - soldTotal}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: '#cbd5e1' }} />
-                    未投
-                    <span className="ml-auto font-semibold text-gray-900">{physicalTotal - releasedTotal}</span>
-                  </div>
-                </div>
-                <div className="mt-1 flex items-center justify-between border-t pt-1.5 text-xs text-gray-500">
-                  <span>物理容量合计</span>
-                  <strong className="text-gray-900">{physicalTotal}</strong>
-                </div>
-              </>
-            )
-          })()}
-
+          <div className="mt-2 h-2 bg-gray-100">
+            <div className="h-full" style={{ width: `${aggregate.percent}%`, backgroundColor: getStockLevelColor(aggregate.percent) }} />
+          </div>
+          <div className="mt-2 flex items-center justify-between border-t pt-2 text-xs text-gray-600">
+            <span>本航段合计 {mode === 'release' ? '已投 / 可投' : '已售 / 已投'}</span>
+            <strong className="text-sm text-gray-900">{aggregate.used}/{aggregate.total}</strong>
+          </div>
+          <div className="mt-2 flex items-center justify-between border-t pt-2 text-xs text-gray-600">
+            <span>本航段占用率</span>
+            <strong className="text-sm text-gray-900">{aggregate.percent}%</strong>
+          </div>
           <div className="mt-3 space-y-2">
             {activeLines.map(line => {
-              const safe = Math.max(line.total, 1)
-              const soldPct = Math.min(100, Math.round((line.sold / safe) * 100))
-              const relPct = Math.min(100 - soldPct, Math.round(((line.released - line.sold) / safe) * 100))
-              const unPct = 100 - soldPct - relPct
+              const itemTotal = mode === 'release' ? line.total : line.released
+              const itemUsed = mode === 'release' ? line.released : line.sold
+              const itemPercent = itemTotal <= 0 ? 0 : Math.round((itemUsed / itemTotal) * 100)
+              const itemColor = getStockLevelColor(itemPercent)
               return (
                 <div key={line.id} className="border border-gray-200 bg-gray-50 p-2">
                   <div className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-900">
                     <span>{line.name}</span>
-                    <span className="text-gray-500 font-normal">已售 {line.sold} / 已投 {line.released} / 总 {line.total}</span>
+                    <span>{itemUsed}/{itemTotal}</span>
                   </div>
-                  <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-sm">
-                    {soldPct > 0 && <div style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
-                    {relPct > 0 && <div style={{ width: `${relPct}%`, background: '#6366f1' }} />}
-                    {unPct > 0 && <div style={{ width: `${unPct}%`, background: '#cbd5e1' }} />}
+                  <div className="mt-2 h-1.5 bg-gray-200">
+                    <div className="h-full" style={{ width: `${itemPercent}%`, backgroundColor: itemColor }} />
                   </div>
                 </div>
               )
@@ -1145,11 +1080,11 @@ function getStockLevelColor(percent: number) {
   return '#16a34a'
 }
 
-function CompactInfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-gray-50 px-2.5 py-1">
-      <div className="text-[11px] leading-3 text-gray-500">{label}</div>
-      <div className="truncate text-xs font-medium leading-5 text-gray-900">{value || '-'}</div>
+    <div className="rounded-lg bg-gray-50 px-3 py-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="mt-1 truncate font-medium text-gray-900">{value || '-'}</div>
     </div>
   )
 }

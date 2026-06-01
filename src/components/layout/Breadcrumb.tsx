@@ -7,6 +7,8 @@ const routeLabels: Record<string, string> = {
   '/resources/ports': '港口管理',
   '/resources/attractions': '景点管理',
   '/resources/routes': '航线管理',
+  '/resources/cabins': '船舱管理',
+  '/voyage/pricing-rules': '定价规则',
   '/system': '系统设置',
   '/system/users': '用户管理',
   '/system/roles': '角色管理',

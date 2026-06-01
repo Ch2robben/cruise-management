@@ -775,7 +775,17 @@ export const dashboardData: DashboardData = {
 
 // ===================== 航次数据 =====================
 export const voyages: import('@/types').Voyage[] = [
-  { id: 'v01', voyageNo: 'CJ20260501-TXS', shipName: '长江探索号', routeName: '重庆-宜昌三峡航线（下水）', productName: '三峡经典下水之旅', days: 4, startDate: '2026-05-15', endDate: '2026-05-18', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 142, availableCabins: 68, shipId: 's01', routeId: 'r01', productId: 'prod01', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-01 08:00:00' },
+  {
+    id: 'v01', voyageNo: 'CJ20260501-TXS', shipName: '长江探索号', routeName: '重庆-宜昌三峡航线（下水）', productName: '三峡经典下水之旅', days: 4, startDate: '2026-05-15', endDate: '2026-05-18', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 142, availableCabins: 68, shipId: 's01', routeId: 'r01', productId: 'prod01', templateName: '三峡下水准模板', templateId: 'vt01', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],
+    itinerary: [
+      { id: 'vit01_1', portName: '重庆港', day: 0, arrivalTime: '', departureTime: '20:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'vit01_2', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', theme: '景点', startTime: '08:30', endTime: '11:30', description: '游览丰都鬼城', agency: '中青旅', attraction: '丰都鬼城' },
+      { id: 'vit01_3', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', theme: '用餐', startTime: '12:00', endTime: '13:00', description: '船上自助午餐', agency: '', attraction: '' },
+      { id: 'vit01_4', portName: '奉节', day: 2, arrivalTime: '07:00', departureTime: '14:00', theme: '景点', startTime: '08:00', endTime: '12:00', description: '游览白帝城', agency: '春秋旅游', attraction: '' },
+      { id: 'vit01_5', portName: '宜昌港', day: 4, arrivalTime: '09:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+    ],
+    updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-01 08:00:00',
+  },
   { id: 'v02', voyageNo: 'CJ20260502-TXS', shipName: '长江探索号', routeName: '重庆-宜昌三峡航线（下水）', productName: '三峡经典下水之旅', days: 4, startDate: '2026-05-19', endDate: '2026-05-22', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 89, availableCabins: 121, shipId: 's01', routeId: 'r01', productId: 'prod01', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'v03', voyageNo: 'CJ20260503-SJ', shipName: '世纪游轮', routeName: '重庆-宜昌三峡航线（下水）', productName: '世纪游轮三峡下水游', days: 4, startDate: '2026-05-16', endDate: '2026-05-19', status: 'ticketing', direction: 'downstream', totalCabins: 230, soldCabins: 195, availableCabins: 35, shipId: 's02', routeId: 'r01', productId: 'prod02', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-02 09:00:00' },
   { id: 'v04', voyageNo: 'CJ20260504-HJ', shipName: '黄金游轮', routeName: '宜昌-重庆三峡航线（上水）', productName: '三峡深度上水游', days: 5, startDate: '2026-05-14', endDate: '2026-05-18', status: 'ticketing', direction: 'upstream', totalCabins: 165, soldCabins: 110, availableCabins: 55, shipId: 's03', routeId: 'r02', productId: 'prod03', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-02 09:00:00' },
@@ -1289,6 +1299,24 @@ export const productInventories: import('@/types').ProductInventory[] = [
 
 // ===================== 扩展模块基础常量 =====================
 const dealerRegions = ['重庆/渝中', '重庆/江北', '湖北/宜昌', '湖北/武汉', '江苏/南京', '上海/浦东', '广东/广州', '福建/厦门']
+const dealerNames = [
+  '携程邮轮旗舰店',
+  '同程旅行邮轮事业部',
+  '飞猪度假邮轮频道',
+  '春秋旅游三峡专线',
+  '上海锦江游轮分销中心',
+  '重庆海外旅业集团',
+  '湖北峡州国旅',
+  '宜昌交运旅行社',
+  '南京中北国际旅行社',
+  '广东南湖国旅邮轮部',
+  '厦门建发国旅',
+  '武汉长江国旅',
+  '上海悠游假期',
+  '成都环球国旅邮轮中心',
+  '杭州新世界旅游',
+  '深圳招商国旅',
+]
 const dealerChannelPool: DealerChannelType[][] = [
   ['ota'],
   ['distribution'],
@@ -1377,7 +1405,7 @@ export const dealers: Dealer[] = Array.from({ length: 16 }, (_, index) => {
   const product = products[index % products.length]
   return {
     id: `dealer${String(index + 1).padStart(2, '0')}`,
-    name: `长航合作经销商${index + 1}`,
+    name: dealerNames[index % dealerNames.length],
     code: `DLR2026${String(index + 1).padStart(3, '0')}`,
     socialCreditCode: `9150010${String(index + 1).padStart(10, '0')}`,
     channelTypes: dealerChannelPool[index % dealerChannelPool.length],

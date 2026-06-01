@@ -465,7 +465,7 @@ export default function ShipPage() {
             <thead><tr className="bg-gray-100 border-b border-gray-200">
               <th className="px-2 py-1.5 text-left text-gray-600 w-14">层数</th><th className="px-2 py-1.5 text-left text-gray-600">甲板名称</th>
               <th className="px-2 py-1.5 text-left text-gray-600">船舱名称</th><th className="px-2 py-1.5 text-left text-gray-600">英文</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">数量</th>
-              <th className="px-2 py-1.5 text-left text-gray-600 w-14">床位</th><th className="px-2 py-1.5 text-left text-gray-600 w-14">客容</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">面积</th>
+              <th className="px-2 py-1.5 text-left text-gray-600 w-14">床位</th><th className="px-2 py-1.5 text-left text-gray-600 w-14">加床数</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">面积</th>
               <th className="px-2 py-1.5 text-left text-gray-600 w-14">排序</th><th className="px-2 py-1.5 text-center text-gray-600 w-12">按间</th>
               <th className="px-2 py-1.5 text-center text-gray-600 w-14">操作</th>
             </tr></thead>
@@ -480,7 +480,7 @@ export default function ShipPage() {
                   <td className="px-2 py-2"><input value={cab.nameEn} onChange={(e) => updateCabin(dIdx, cIdx, 'nameEn', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" placeholder="英文" /></td>
                   <td className="px-2 py-2"><input type="number" value={cab.cabinCount || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'cabinCount', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
                   <td className="px-2 py-2"><input type="number" value={cab.bedCount || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'bedCount', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                  <td className="px-2 py-2"><input type="number" value={cab.capacity || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'capacity', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
+                  <td className="px-2 py-2"><input type="number" value={cab.extraBed || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'extraBed', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
                   <td className="px-2 py-2"><input type="number" value={cab.area || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'area', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
                   <td className="px-2 py-2"><input type="number" value={cab.sort || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'sort', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
                   <td className="px-2 py-2 text-center"><input type="checkbox" checked={cab.sellByRoom} onChange={(e) => updateCabin(dIdx, cIdx, 'sellByRoom', e.target.checked)} className="w-3 h-3 rounded border-gray-300 cursor-pointer" /></td>
@@ -510,11 +510,7 @@ export default function ShipPage() {
 
   return (
     <div>
-      <PageHeader title="游轮管理" description="管理执航游轮的基础信息、物理规格、设施配置与甲板规划">
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800">
-          <Plus className="w-4 h-4" />新增游轮
-        </button>
-      </PageHeader>
+      <PageHeader title="游轮管理" description="管理执航游轮的基础信息、物理规格、设施配置与甲板规划" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -523,6 +519,11 @@ export default function ShipPage() {
             className="w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
         </div>
       </SearchPanel>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <Plus className="w-4 h-4" />添加
+        </button>
+      </div>
 
       {/* 自定义表格（支持序号列） */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
