@@ -843,7 +843,7 @@ function RouteInventoryLineBoard({
   lineLabel?: string
 }) {
   const mode: RouteLineMode = 'release'
-  const [tooltip, setTooltip] = useState<RouteLineTooltip | null>(null)
+  const [modalSegmentIndex, setModalSegmentIndex] = useState<number | null>(null)
   const [selectedRouteSegment, setSelectedRouteSegment] = useState('all')
 
   const segments = product?.segments || []
@@ -868,17 +868,44 @@ function RouteInventoryLineBoard({
     return null
   }
 
-  const activeLines = tooltip ? lines.filter(line => line.start <= tooltip.segmentIndex && tooltip.segmentIndex < line.end) : []
+  const modalLines = modalSegmentIndex !== null
+    ? lines.filter(line => line.start <= modalSegmentIndex && modalSegmentIndex < line.end)
+    : []
+
+  // 舱型数据（用于弹窗内的表格）
+  const cabinTypes = [...new Set(rows.map(r => r.cabinTypeName))]
+  const overallPhysical = Math.max(rows.reduce((s, r) => s + r.physicalCapacity, 0), 1)
+  const overallReleased = Math.max(rows.reduce((s, r) => s + r.totalRooms, 0), 1)
+  const overallSold = Math.max(rows.reduce((s, r) => s + r.sold, 0), 1)
+
+  const getCabinCell = (line: RouteInventoryLine, cabinType: string) => {
+    const cabinRow = rows.find(r => r.cabinTypeName === cabinType)
+    if (!cabinRow) return { physical: 0, released: 0, sold: 0, releasedUnsold: 0, unreleased: 0 }
+    const physical = Math.round(line.total * (cabinRow.physicalCapacity / overallPhysical))
+    const released = Math.round(line.released * (cabinRow.totalRooms / overallReleased))
+    const sold = Math.round(line.sold * (cabinRow.sold / Math.max(overallSold, 1)))
+    return {
+      physical,
+      released,
+      sold,
+      releasedUnsold: Math.max(0, released - sold),
+      unreleased: Math.max(0, physical - released),
+    }
+  }
+
+  const metrics: { key: keyof ReturnType<typeof getCabinCell>; label: string; color: string; bg: string }[] = [
+    { key: 'released',       label: '已投',   color: '#6366f1', bg: '#eef2ff' },
+    { key: 'sold',           label: '已售',   color: '#16a34a', bg: '#f0fdf4' },
+    { key: 'releasedUnsold', label: '未售',   color: '#7c3aed', bg: '#faf5ff' },
+    { key: 'unreleased',     label: '未投',   color: '#64748b', bg: '#f8fafc' },
+  ]
 
   return (
-    <div
-      className="relative overflow-visible rounded-lg border border-gray-200 bg-white"
-      onMouseLeave={() => setTooltip(null)}
-    >
+    <div className="relative overflow-visible rounded-lg border border-gray-200 bg-white">
       <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-          <p className="mt-1 text-xs text-gray-500">条形图以物理容量为基准，分三段展示库存结构。</p>
+          <p className="mt-1 text-xs text-gray-500">条形图以物理容量为基准，分三段展示库存结构。点击航段条查看明细。</p>
         </div>
         <div className="flex shrink-0 items-center gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-5 rounded-sm" style={{ background: '#16a34a' }} />已售</span>
@@ -921,16 +948,15 @@ function RouteInventoryLineBoard({
                 const unreleasedPct = 100 - soldPct - releasedUnsoldPct
                 const segmentOptionKey = `${stops[index]}-${stops[index + 1]}`
                 const selected = selectedRouteSegment === segmentOptionKey
-                const highlighted = tooltip?.segmentIndex === index || selected
+                const highlighted = modalSegmentIndex === index || selected
                 return (
                   <div
                     key={`${stops[index]}-${stops[index + 1]}`}
-                    className={`h-4 cursor-pointer overflow-hidden border transition-transform flex ${
-                      highlighted ? 'translate-y-[-2px] border-gray-900' : 'border-gray-300'
+                    className={`h-4 cursor-pointer overflow-hidden border transition-all flex ${
+                      highlighted ? 'translate-y-[-2px] border-gray-900 ring-1 ring-gray-900' : 'border-gray-300 hover:border-gray-500'
                     }`}
-                    onMouseEnter={(event) => setTooltip({ segmentIndex: index, x: event.clientX, y: event.clientY })}
-                    onMouseMove={(event) => setTooltip({ segmentIndex: index, x: event.clientX, y: event.clientY })}
-                    title={`${stops[index]} → ${stops[index + 1]}  已售${soldTotal} / 已投${releasedTotal} / 物理${physicalTotal}`}
+                    onClick={() => setModalSegmentIndex(index)}
+                    title={`点击查看 ${stops[index]} → ${stops[index + 1]} 明细`}
                   >
                     {soldPct > 0 && <div className="h-full" style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
                     {releasedUnsoldPct > 0 && <div className="h-full" style={{ width: `${releasedUnsoldPct}%`, background: '#6366f1' }} />}
@@ -958,75 +984,145 @@ function RouteInventoryLineBoard({
         </div>
       </div>
 
-      {tooltip && (
-        <div
-          className="fixed z-50 w-[360px] border border-gray-900 bg-white p-3 shadow-xl"
-          style={{ left: Math.min(Math.max(8, tooltip.x - 180), window.innerWidth - 380), top: Math.max(8, tooltip.y - 320) }}
-        >
-          <div className="font-semibold text-gray-900">{stops[tooltip.segmentIndex]} → {stops[tooltip.segmentIndex + 1]}</div>
-          <div className="mt-1 text-xs text-gray-500">当前航段共有 {activeLines.length} 条{lineLabel}穿过</div>
+      {/* 点击弹出的大弹窗 */}
+      {modalSegmentIndex !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setModalSegmentIndex(null)} />
+          <div className="relative flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
 
-          {/* 聚合堆叠条 */}
-          {(() => {
-            const physicalTotal = activeLines.reduce((sum, l) => sum + l.total, 0)
-            const releasedTotal = activeLines.reduce((sum, l) => sum + l.released, 0)
-            const soldTotal = activeLines.reduce((sum, l) => sum + l.sold, 0)
-            const safe = Math.max(physicalTotal, 1)
-            const soldPct = Math.min(100, Math.round((soldTotal / safe) * 100))
-            const relPct = Math.min(100 - soldPct, Math.round(((releasedTotal - soldTotal) / safe) * 100))
-            const unPct = 100 - soldPct - relPct
-            return (
-              <>
-                <div className="mt-3 flex h-3 overflow-hidden rounded-sm">
-                  {soldPct > 0 && <div style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
-                  {relPct > 0 && <div style={{ width: `${relPct}%`, background: '#6366f1' }} />}
-                  {unPct > 0 && <div style={{ width: `${unPct}%`, background: '#cbd5e1' }} />}
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1 border-t pt-2 text-xs">
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: '#16a34a' }} />
-                    已售
-                    <span className="ml-auto font-semibold text-gray-900">{soldTotal}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: '#6366f1' }} />
-                    已投未售
-                    <span className="ml-auto font-semibold text-gray-900">{releasedTotal - soldTotal}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: '#cbd5e1' }} />
-                    未投
-                    <span className="ml-auto font-semibold text-gray-900">{physicalTotal - releasedTotal}</span>
-                  </div>
-                </div>
-                <div className="mt-1 flex items-center justify-between border-t pt-1.5 text-xs text-gray-500">
-                  <span>物理容量合计</span>
-                  <strong className="text-gray-900">{physicalTotal}</strong>
-                </div>
-              </>
-            )
-          })()}
+            {/* 弹窗头部 */}
+            <div className="flex items-start justify-between gap-4 border-b px-6 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {stops[modalSegmentIndex]} → {stops[modalSegmentIndex + 1]}
+                </h3>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  当前航段共有 {modalLines.length} 条 {lineLabel} 穿过
+                </p>
+              </div>
+              <button
+                onClick={() => setModalSegmentIndex(null)}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-          <div className="mt-3 space-y-2">
-            {activeLines.map(line => {
-              const safe = Math.max(line.total, 1)
-              const soldPct = Math.min(100, Math.round((line.sold / safe) * 100))
-              const relPct = Math.min(100 - soldPct, Math.round(((line.released - line.sold) / safe) * 100))
+            {/* 聚合总览条 */}
+            {(() => {
+              const physicalTotal = modalLines.reduce((sum, l) => sum + l.total, 0)
+              const releasedTotal = modalLines.reduce((sum, l) => sum + l.released, 0)
+              const soldTotal = modalLines.reduce((sum, l) => sum + l.sold, 0)
+              const safe = Math.max(physicalTotal, 1)
+              const soldPct = Math.min(100, Math.round((soldTotal / safe) * 100))
+              const relPct = Math.min(100 - soldPct, Math.round(((releasedTotal - soldTotal) / safe) * 100))
               const unPct = 100 - soldPct - relPct
               return (
-                <div key={line.id} className="border border-gray-200 bg-gray-50 p-2">
-                  <div className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-900">
-                    <span>{line.name}</span>
-                    <span className="text-gray-500 font-normal">已售 {line.sold} / 已投 {line.released} / 总 {line.total}</span>
-                  </div>
-                  <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-sm">
+                <div className="border-b bg-gray-50 px-6 py-4">
+                  <div className="flex h-4 overflow-hidden rounded-md">
                     {soldPct > 0 && <div style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
                     {relPct > 0 && <div style={{ width: `${relPct}%`, background: '#6366f1' }} />}
                     {unPct > 0 && <div style={{ width: `${unPct}%`, background: '#cbd5e1' }} />}
                   </div>
+                  <div className="mt-3 grid grid-cols-4 gap-3">
+                    {[
+                      { label: '已售',     value: soldTotal,                    color: '#16a34a', bg: '#f0fdf4' },
+                      { label: '已投未售', value: releasedTotal - soldTotal,    color: '#6366f1', bg: '#eef2ff' },
+                      { label: '未投',     value: physicalTotal - releasedTotal, color: '#64748b', bg: '#f8fafc' },
+                      { label: '物理容量', value: physicalTotal,                color: '#1e293b', bg: '#f1f5f9' },
+                    ].map(item => (
+                      <div key={item.label} className="rounded-lg px-3 py-2" style={{ background: item.bg }}>
+                        <div className="text-xs text-gray-500">{item.label}</div>
+                        <div className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: item.color }}>{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )
-            })}
+            })()}
+
+            {/* 明细表格 */}
+            <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
+              {cabinTypes.length === 0 ? (
+                <div className="space-y-2">
+                  {modalLines.map(line => (
+                    <div key={line.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+                      <span className="font-medium text-gray-800">{line.name}</span>
+                      <span className="text-gray-500">已售 {line.sold} / 已投 {line.released} / 总 {line.total}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <table className="w-full border-separate border-spacing-0 overflow-hidden rounded-lg border border-gray-200 text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">
+                        航段
+                      </th>
+                      <th className="border-b border-r border-gray-200 px-3 py-3 text-left text-xs font-semibold text-gray-600">
+                        指标
+                      </th>
+                      {cabinTypes.map(cabin => (
+                        <th key={cabin} className="border-b border-gray-200 px-4 py-3 text-right text-xs font-semibold text-gray-600 whitespace-nowrap">
+                          {cabin}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalLines.map((line, lineIdx) =>
+                      metrics.map((metric, mIdx) => (
+                        <tr
+                          key={`${line.id}-${metric.key}`}
+                          style={{ background: mIdx % 2 === 0 ? metric.bg : 'white' }}
+                          className={mIdx === 0 && lineIdx > 0 ? 'border-t-2 border-gray-300' : ''}
+                        >
+                          {mIdx === 0 && (
+                            <td
+                              rowSpan={metrics.length}
+                              className="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-2 align-middle text-sm font-semibold text-gray-800 whitespace-nowrap"
+                              style={{ borderTop: lineIdx > 0 ? '2px solid #d1d5db' : undefined }}
+                            >
+                              {line.name}
+                            </td>
+                          )}
+                          <td className="border-r border-gray-100 px-3 py-1.5 text-xs font-medium whitespace-nowrap" style={{ color: metric.color }}>
+                            {metric.label}
+                          </td>
+                          {cabinTypes.map(cabin => {
+                            const cell = getCabinCell(line, cabin)
+                            const value = cell[metric.key] as number
+                            return (
+                              <td key={cabin} className="border-l border-gray-100 px-4 py-1.5 text-right text-sm font-bold tabular-nums text-gray-900">
+                                {value}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* 弹窗底部 */}
+            <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-3">
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                {metrics.map(m => (
+                  <span key={m.key} className="flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-3 rounded-sm" style={{ background: m.color }} />
+                    {m.label}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={() => setModalSegmentIndex(null)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                关闭
+              </button>
+            </div>
           </div>
         </div>
       )}

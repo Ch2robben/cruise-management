@@ -18,6 +18,7 @@ import CabinPage from '@/pages/resources/CabinPage'
 import InventoryPage from '@/pages/voyage/InventoryPage'
 import PriceManagementPage from '@/pages/voyage/PriceManagementPage'
 import TemplateInventoryPage from '@/pages/voyage/TemplateInventoryPage'
+import TemplatePricePage from '@/pages/voyage/TemplatePricePage'
 import PricingPage from '@/pages/voyage/PricingPage'
 import PricingRulePage from '@/pages/voyage/PricingRulePage'
 import SalesControlPage from '@/pages/voyage/SalesControlPage'
@@ -36,8 +37,10 @@ import DataReportPage from '@/pages/report/DataReportPage'
 import DepositRulePage from '@/pages/rule/DepositRulePage'
 import PaymentRulePage from '@/pages/rule/PaymentRulePage'
 import PenaltyRulePage from '@/pages/rule/PenaltyRulePage'
+import PenaltyHandlingDictPage from '@/pages/rule/PenaltyHandlingDictPage'
 import DiscountRulePage from '@/pages/rule/DiscountRulePage'
 import TipConfigPage from '@/pages/rule/TipConfigPage'
+import OrderValidityRulePage from '@/pages/rule/OrderValidityRulePage'
 import GroupAuthPage from '@/pages/rule/GroupAuthPage'
 import RefundRulePage from '@/pages/rule/RefundRulePage'
 import ShipAuthPage from '@/pages/rule/ShipAuthPage'
@@ -70,6 +73,7 @@ export const router = createBrowserRouter([
       { path: '/resources/ships', element: <ShipPage /> },
       { path: '/voyage/list', element: <VoyagePage /> },
       { path: '/voyage/templates', element: <TemplatePage /> },
+      { path: '/voyage/templates/:id/price', element: <TemplatePricePage /> },
       { path: '/voyage/inventory', element: <InventoryPage /> },
       { path: '/voyage/pricing-rules', element: <PricingRulePage /> },
       { path: '/voyage/price-management', element: <PriceManagementPage /> },
@@ -94,8 +98,10 @@ export const router = createBrowserRouter([
       { path: '/rule/deposit', element: <DepositRulePage /> },
       { path: '/rule/payment', element: <PaymentRulePage /> },
       { path: '/rule/penalty', element: <PenaltyRulePage /> },
+      { path: '/rule/penalty-handling', element: <PenaltyHandlingDictPage /> },
       { path: '/rule/discount', element: <DiscountRulePage /> },
       { path: '/rule/tip', element: <TipConfigPage /> },
+      { path: '/rule/order-validity', element: <OrderValidityRulePage /> },
       { path: '/rule/group-auth', element: <GroupAuthPage /> },
       { path: '/rule/refund', element: <RefundRulePage /> },
       { path: '/rule/ship-auth', element: <ShipAuthPage /> },

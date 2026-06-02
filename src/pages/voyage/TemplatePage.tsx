@@ -11,6 +11,9 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import ItineraryEditor, { createTemplateItineraryItem } from '@/components/voyage/ItineraryEditor'
 
+
+
+
 const statusLabels: Record<string, string> = { draft: '草稿', enabled: '已启用', disabled: '已停用' }
 const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-600', enabled: 'bg-green-100 text-green-700', disabled: 'bg-red-100 text-red-600' }
 
@@ -56,12 +59,8 @@ export default function TemplatePage() {
   const [detail, setDetail] = useState<VoyageTemplate | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
-  const [pricingOpen, setPricingOpen] = useState(false)
-  const [pricingEditing, setPricingEditing] = useState(false)
-  const [pricingTemplate, setPricingTemplate] = useState<VoyageTemplate | null>(null)
-  const [pricingProduct, setPricingProduct] = useState<Product | null>(null)
-  const [pricingRows, setPricingRows] = useState<PricingRow[]>([])
-  const [pricingSaving, setPricingSaving] = useState(false)
+
+
 
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true)
@@ -105,30 +104,10 @@ export default function TemplatePage() {
     const selectedTemplate = data.data.find((item) => selectedIds.has(item.id))
     if (selectedTemplate) openEdit(selectedTemplate)
   }
-  const openPricing = (template: VoyageTemplate) => {
-    const product = products.find((item) => item.id === template.productId) || null
-    const mergedPricing = product
-      ? Array.from(
-          product.pricing.reduce((map, item) => {
-            if (!map.has(item.segmentKey)) {
-              map.set(item.segmentKey, { ...item, cabinType: '标准间' })
-            }
-            return map
-          }, new Map<string, PricingRow>()),
-        ).map(([, item]) => item)
-      : []
-    setPricingTemplate(template)
-    setPricingProduct(product)
-    setPricingRows(mergedPricing)
-    setPricingEditing(false)
-    setPricingOpen(true)
-  }
-  const closePricing = () => {
-    setPricingOpen(false)
-    setPricingEditing(false)
-    setPricingTemplate(null)
-    setPricingProduct(null)
-    setPricingRows([])
+
+
+  const openPriceRule = (template: VoyageTemplate) => {
+    navigate(`/voyage/templates/${template.id}/price`)
   }
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -148,21 +127,7 @@ export default function TemplatePage() {
   const cabinLabels: Record<string, string> = { suite: '套房', balcony: '阳台房', window: '海景房', inside: '内舱房' }
   const directionLabels: Record<string, string> = { upstream: '上水', downstream: '下水' }
   const getTemplateDirection = (r: VoyageTemplate) => directionLabels[products.find((p) => p.id === r.productId)?.routeType || ''] || '-'
-  const groupedPricingRows = (() => {
-    const rows: { row: PricingRow; idx: number; isFirst: boolean; rowSpan: number }[] = []
-    let i = 0
-    while (i < pricingRows.length) {
-      const key = pricingRows[i].segmentKey
-      let j = i
-      while (j < pricingRows.length && pricingRows[j].segmentKey === key) j++
-      const span = j - i
-      for (let k = i; k < j; k++) {
-        rows.push({ row: pricingRows[k], idx: k, isFirst: k === i, rowSpan: span })
-      }
-      i = j
-    }
-    return rows
-  })()
+
 
   // Product auto-fill: 初始化库存(船舶舱房) + 行程(航线停靠港)
   const onProductChange = (pid: string) => {
@@ -217,27 +182,7 @@ export default function TemplatePage() {
   const addDep = () => setForm((f) => ({ ...f, deposits: [...f.deposits, emptyDep()] }))
   const removeDep = (idx: number) => setForm((f) => ({ ...f, deposits: f.deposits.filter((_, i) => i !== idx) }))
 
-  const updatePricingBasePrice = (index: number, basePrice: number) => {
-    setPricingRows((prev) => {
-      const next = [...prev]
-      const current = next[index]
-      next[index] = { ...current, basePrice }
-      return next
-    })
-  }
-  const savePricing = async () => {
-    if (!pricingProduct) return
-    setPricingSaving(true)
-    const updatedPricing = pricingProduct.pricing.map((item) => {
-      const matched = pricingRows.find((pricingRow) => pricingRow.segmentKey === item.segmentKey)
-      if (!matched) return item
-      return { ...item, basePrice: matched.basePrice }
-    })
-    await productApi.updatePricing(pricingProduct.id, updatedPricing)
-    setPricingSaving(false)
-    setPricingEditing(false)
-    setPricingProduct({ ...pricingProduct, pricing: updatedPricing })
-  }
+
 
   // Toggle multi-select
   const toggleArray = (arr: string[], val: string): string[] => arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]
@@ -274,7 +219,8 @@ export default function TemplatePage() {
     { key: 'updatedAt', title: '修改时间', render: (r: VoyageTemplate) => formatDateTime(r.updatedAt) },
     { key: 'actions', title: '操作', width: '320px', render: (r: VoyageTemplate) => (
       <div className="flex items-center gap-1">
-        <button onClick={() => openPricing(r)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">定价</button>
+
+        <button onClick={() => openPriceRule(r)} className="px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded">定价管理</button>
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">编辑</button>
         <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">{r.status === 'enabled' ? '停用' : '启用'}</button>
@@ -438,109 +384,8 @@ export default function TemplatePage() {
 
       <ConfirmDialog open={confirmOpen} title="删除模板" message="确定要删除该模板吗？此操作不可恢复。" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />
 
-      {pricingOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 py-[6vh] backdrop-blur-[2px]">
-          <div className="absolute inset-0" onClick={closePricing} />
-          <div className="relative flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
-            <div className="shrink-0 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-white px-7 py-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-[28px] font-semibold tracking-tight text-gray-900">
-                    模板定价
-                  </h3>
-                  <p className="mt-1 text-lg font-medium text-gray-700">
-                    {pricingTemplate?.name || '-'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {pricingProduct && (
-                    <button
-                      onClick={() => setPricingEditing((prev) => !prev)}
-                      className={`rounded-xl px-4 py-2.5 text-sm font-medium transition focus:outline-none ${
-                        pricingEditing
-                          ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                    >
-                      {pricingEditing ? '取消编辑' : '编辑'}
-                    </button>
-                  )}
-                  <button onClick={closePricing} className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus:outline-none">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
 
-              <div className="mt-4 flex flex-wrap gap-3">
-                <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  <div className="text-xs text-gray-400">关联产品</div>
-                  <div className="mt-1 text-sm font-medium text-gray-700">{pricingProduct?.name || '-'}</div>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  <div className="text-xs text-gray-400">价格规则</div>
-                  <div className="mt-1 text-sm font-medium text-gray-700">{pricingRows.length} 条</div>
-                </div>
-              </div>
-            </div>
 
-            <div className="flex-1 overflow-y-auto bg-slate-50/60 px-7 py-6">
-              {!pricingProduct ? (
-                <div className="rounded-2xl border border-dashed border-gray-300 bg-white py-20 text-center text-sm text-gray-400">未找到该模板关联的产品定价数据</div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="px-5 py-4 text-left text-sm font-semibold text-gray-600">航段</th>
-                        <th className="px-5 py-4 text-right text-sm font-semibold text-gray-600">标准间基准价(¥)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {groupedPricingRows.map(({ row, idx }) => {
-                        return (
-                          <tr key={`${row.segmentKey}-${row.cabinType}-${idx}`} className="transition hover:bg-slate-50">
-                            <td className="px-5 py-4 text-[15px] font-medium text-gray-700">
-                              {row.startPort} - {row.endPort}
-                            </td>
-                            <td className="px-5 py-4">
-                              {pricingEditing ? (
-                                <div className="flex justify-end">
-                                  <input
-                                    type="number"
-                                    value={row.basePrice}
-                                    onChange={(e) => updatePricingBasePrice(idx, Number(e.target.value))}
-                                    className="w-36 rounded-xl border border-gray-300 bg-white px-3 py-2 text-right text-[15px] text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="text-right text-[28px] font-semibold tracking-tight text-gray-800">
-                                  <span className="mr-0.5 text-lg font-medium text-gray-400">¥</span>
-                                  {row.basePrice}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 border-t border-gray-200 bg-white px-7 py-5 shrink-0">
-              <button onClick={closePricing} className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none">
-                关闭
-              </button>
-              {pricingEditing && pricingProduct && (
-                <button onClick={savePricing} disabled={pricingSaving} className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-50 focus:outline-none">
-                  {pricingSaving ? '保存中...' : '保存'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
