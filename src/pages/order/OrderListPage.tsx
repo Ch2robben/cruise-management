@@ -384,7 +384,7 @@ const filterFields = [
 const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: string; render?: (record: CruiseOrder) => ReactNode }[] = [
   { key: 'index', title: '序号', width: '58px' },
   { key: 'history', title: '历史', width: '70px', render: (record) => <span className="text-blue-600 underline">{record.history}</span> },
-  { key: 'orderNo', title: '订单号', width: '110px', render: (record) => <span className="font-mono text-blue-700 underline">{record.orderNo}</span> },
+  { key: 'orderNo', title: '订单号', width: '110px' },
   { key: 'groupName', title: '团名', width: '160px' },
   { key: 'voyageNo', title: '航次', width: '88px' },
   { key: 'orderStatus', title: '订单状态', width: '96px', render: (record) => <span className={`rounded px-2 py-1 text-xs ${statusColor[record.orderStatus]}`}>{record.orderStatus}</span> },
@@ -647,6 +647,10 @@ export default function OrderListPage() {
                         <button onClick={() => setDetail(order)} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
                           操作
                           <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                      ) : column.key === 'orderNo' ? (
+                        <button onClick={() => setDetail(order)} className="font-mono text-blue-700 underline underline-offset-2 hover:text-blue-900">
+                          {order.orderNo}
                         </button>
                       ) : column.render ? (
                         column.render(order)
