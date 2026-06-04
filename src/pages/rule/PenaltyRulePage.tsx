@@ -1,10 +1,11 @@
 import RuleCrudPage, { createRuleRecord } from './RuleCrudPage'
+import { createDefaultApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
 
 const defaultForm = {
   code: 'PEN-NEW',
   name: '',
   approvalStatus: 'pending' as const,
-  applyScope: '经销商订单',
+  applyScope: createDefaultApplicableScope(),
   channel: '全部分销商',
   triggerPoint: '船款逾期',
   amountType: 'percent' as const,

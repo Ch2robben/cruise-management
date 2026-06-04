@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList, ShoppingCart } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -14,9 +14,11 @@ const menuItems: MenuItem[] = [
   {
     key: 'resources', label: '资源', icon: 'Package',
     children: [
-      { key: 'port', label: '港口管理', path: '/resources/ports' },
+      { key: 'port', label: '码头管理', path: '/resources/ports' },
+      { key: 'port_distance', label: '码头距离库', path: '/resources/port-distances' },
       { key: 'attraction', label: '景点管理', path: '/resources/attractions' },
       { key: 'route', label: '航线管理', path: '/resources/routes' },
+      { key: 'itinerary', label: '行程管理', path: '/resources/itineraries' },
       { key: 'ship', label: '船舶管理', path: '/resources/ships' },
       { key: 'room', label: '房间管理', path: '/resources/rooms' },
       { key: 'cabin', label: '船舱管理', path: '/resources/cabins' },
@@ -38,9 +40,17 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
+    key: 'order', label: '订单管理', icon: 'ShoppingCart',
+    children: [
+      { key: 'order_list', label: '订单列表', path: '/orders/list' },
+    ],
+  },
+  {
     key: 'distribution', label: '分销合作', icon: 'Ship',
     children: [
-      { key: 'dealer', label: '经销商管理', path: '/distribution/dealers' },
+      { key: 'dealer', label: '合作分销商', path: '/distribution/dealers' },
+      { key: 'dealer_approval', label: '合作审核', path: '/distribution/dealer-approvals' },
+      { key: 'dealer_change_log', label: '分销商变更记录', path: '/distribution/dealer-change-logs' },
       { key: 'cabin_hold', label: '锁舱记录', path: '/distribution/cabin-holds' },
     ],
   },
@@ -85,6 +95,7 @@ const menuItems: MenuItem[] = [
       { key: 'payment_rule', label: '船款规则管理', path: '/rule/payment' },
       { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
       { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
+      { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
       { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
       { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
       { key: 'order_validity_rule', label: '订单有效期规则', path: '/rule/order-validity' },
@@ -107,6 +118,7 @@ const iconMap: Record<string, React.ReactNode> = {
   Wallet: <Wallet className="w-4 h-4" />,
   PieChart: <PieChart className="w-4 h-4" />,
   ClipboardList: <ClipboardList className="w-4 h-4" />,
+  ShoppingCart: <ShoppingCart className="w-4 h-4" />,
 }
 
 export default function Sidebar() {
@@ -115,6 +127,7 @@ export default function Sidebar() {
     // dashboard: true,
     resources: true,
     voyage: true,
+    order: true,
     distribution: true,
     service: true,
     customer: true,

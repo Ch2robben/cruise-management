@@ -7,6 +7,7 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import ApplicableScopeTransfer, { createDefaultApplicableScope, formatApplicableScope, formatApplicableScopeDetail, type ApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
 import { formatDateTime, generateId } from '@/utils/format'
 import type { Status } from '@/types'
 
@@ -18,7 +19,8 @@ interface PenaltyHandlingRule {
   code: string
   name: string
   penaltyScene: string
-  applyScope: string
+  dealerScope: string
+  applyScope: ApplicableScope
   affectSubsequentOrder: boolean
   orderImpactMode: OrderImpactMode
   autoDeduct: boolean
@@ -52,14 +54,15 @@ const deductSourceLabels: Record<DeductSource, string> = {
 }
 
 const sceneOptions = ['船款逾期']
-const scopeOptions = ['所有经销商']
+const dealerScopeOptions = ['所有经销商']
 const notifyRoleOptions = ['财务专员', '销售经理', '运营主管', '经销商管理员', '无需通知']
 
 const emptyForm: PenaltyHandlingForm = {
   code: 'PHD-NEW',
   name: '',
   penaltyScene: '船款逾期',
-  applyScope: '所有经销商',
+  dealerScope: '所有经销商',
+  applyScope: createDefaultApplicableScope(),
   affectSubsequentOrder: true,
   orderImpactMode: 'warning',
   autoDeduct: false,
@@ -89,7 +92,7 @@ const initialRules: PenaltyHandlingRule[] = [
     code: 'PHD-001',
     name: '全体经销商船款逾期自动扣减',
     penaltyScene: '船款逾期',
-    applyScope: '所有经销商',
+    dealerScope: '所有经销商',
     affectSubsequentOrder: true,
     orderImpactMode: 'hold',
     autoDeduct: true,
@@ -104,7 +107,7 @@ const initialRules: PenaltyHandlingRule[] = [
     code: 'PHD-002',
     name: '全体经销商船款逾期禁止下单',
     penaltyScene: '船款逾期',
-    applyScope: '所有经销商',
+    dealerScope: '所有经销商',
     affectSubsequentOrder: true,
     orderImpactMode: 'block',
     autoDeduct: false,
@@ -119,7 +122,7 @@ const initialRules: PenaltyHandlingRule[] = [
     code: 'PHD-003',
     name: '全体经销商船款逾期提醒',
     penaltyScene: '船款逾期',
-    applyScope: '所有经销商',
+    dealerScope: '所有经销商',
     affectSubsequentOrder: true,
     orderImpactMode: 'warning',
     autoDeduct: false,
@@ -222,7 +225,8 @@ export default function PenaltyHandlingDictPage() {
     { key: 'code', title: '规则编码', render: (r: PenaltyHandlingRule) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '处理规则名称', dataIndex: 'name' as keyof PenaltyHandlingRule },
     { key: 'scene', title: '罚金场景', dataIndex: 'penaltyScene' as keyof PenaltyHandlingRule },
-    { key: 'scope', title: '作用对象', dataIndex: 'applyScope' as keyof PenaltyHandlingRule },
+    { key: 'applyScope', title: '适用范围', render: (r: PenaltyHandlingRule) => formatApplicableScope(r.applyScope) },
+    { key: 'dealerScope', title: '作用对象', dataIndex: 'dealerScope' as keyof PenaltyHandlingRule },
     { key: 'affectOrder', title: '影响后续下单', render: (r: PenaltyHandlingRule) => booleanText(r.affectSubsequentOrder) },
     { key: 'impactMode', title: '下单控制', render: (r: PenaltyHandlingRule) => orderImpactLabels[r.orderImpactMode] },
     { key: 'autoDeduct', title: '自动扣减', render: (r: PenaltyHandlingRule) => booleanText(r.autoDeduct) },
@@ -286,7 +290,7 @@ export default function PenaltyHandlingDictPage() {
         pagination={{ current: page, pageSize, total: filteredRecords.length, onChange: setPage }}
       />
 
-      <FormDialog open={formOpen} title={editingId ? '编辑罚金处理规则' : '新增罚金处理规则'} width="max-w-4xl" onCancel={() => setFormOpen(false)} onSubmit={submit}>
+      <FormDialog open={formOpen} title={editingId ? '编辑罚金处理规则' : '新增罚金处理规则'} width="max-w-5xl" onCancel={() => setFormOpen(false)} onSubmit={submit}>
         <div className="space-y-5">
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
@@ -295,10 +299,12 @@ export default function PenaltyHandlingDictPage() {
               <div><label className="block text-sm text-gray-700 mb-1">处理规则名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">优先级</label><input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">罚金场景</label><select value={form.penaltyScene} onChange={(e) => setForm({ ...form, penaltyScene: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{sceneOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">作用对象</label><select value={form.applyScope} onChange={(e) => setForm({ ...form, applyScope: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{scopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">作用对象</label><select value={form.dealerScope} onChange={(e) => setForm({ ...form, dealerScope: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{dealerScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">通知角色</label><select value={form.notifyRole} onChange={(e) => setForm({ ...form, notifyRole: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{notifyRoleOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
             </div>
           </div>
+
+          <ApplicableScopeTransfer value={form.applyScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">处理动作</h4>
@@ -325,9 +331,13 @@ export default function PenaltyHandlingDictPage() {
             <DetailRow label="规则编码" value={detail.code} mono />
             <DetailRow label="处理规则名称" value={detail.name} />
             <DetailRow label="罚金场景" value={detail.penaltyScene} />
-            <DetailRow label="作用对象" value={detail.applyScope} />
+            <DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} />
+            <DetailRow label="作用对象" value={detail.dealerScope} />
             <DetailRow label="优先级" value={detail.priority} />
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
+          </DetailCard>
+          <DetailCard title="适用范围">
+            <DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
           </DetailCard>
           <DetailCard title="处理动作">
             <DetailRow label="影响后续下单" value={booleanText(detail.affectSubsequentOrder)} />

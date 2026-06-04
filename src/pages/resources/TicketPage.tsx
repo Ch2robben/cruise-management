@@ -12,10 +12,10 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
 const guestTypeLabels: Record<string, string> = { adult: '成人', baby: '婴儿', child: '儿童' }
-const tipTypes = ['不收取', '按天收取', '按人收取', '按房收取']
+const occupancyTypeOptions: TicketForm['occupancyType'][] = ['不拼房', '拼房', '加床', '不占座']
 
 const emptyForm: TicketForm = {
-  name: '', guestType: 'adult', priceCoefficient: 1.0,
+  name: '', guestType: 'adult', occupancyType: '不拼房', priceCoefficient: 1.0,
   shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0,
   extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0,
   tipType: '不收取', tipValue: 0,
@@ -54,7 +54,7 @@ export default function TicketPage() {
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setFormOpen(true) }
   const openEdit = (r: Ticket) => {
     setEditingId(r.id)
-    setForm({ name: r.name, guestType: r.guestType, priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase', shareRoomValue: r.shareRoomValue, extraBedType: r.extraBedType, extraBedDirection: r.extraBedDirection || 'increase', extraBedValue: r.extraBedValue, tipType: r.tipType, tipValue: r.tipValue })
+    setForm({ name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase', shareRoomValue: r.shareRoomValue, extraBedType: r.extraBedType, extraBedDirection: r.extraBedDirection || 'increase', extraBedValue: r.extraBedValue, tipType: r.tipType, tipValue: r.tipValue })
     setFormOpen(true)
   }
   const openDetail = async (r: Ticket) => { const t = await ticketApi.getById(r.id); setDetail(t || null); setDetailOpen(true) }
@@ -72,19 +72,10 @@ export default function TicketPage() {
   const handleDelete = (id: string) => { setConfirmId(id); setConfirmOpen(true) }
   const confirmDelete = async () => { await ticketApi.remove(confirmId); setConfirmOpen(false); fetchData(data.page) }
 
-  const formatAdjust = (type: string, dir: string, value: number) => {
-    const sign = dir === 'decrease' ? '-' : '+'
-    return type === 'amount' ? `${sign}¥${value}` : `${sign}${value}%`
-  }
-  const formatTip = (type: string, value: number) => { if (type === '不收取') return '不收取'; if (type === '按天收取') return `${value}元/天`; if (type === '按人收取') return `${value}元/人`; return `${value}元/房` }
-
   const columns = [
     { key: 'name', title: '票名称', dataIndex: 'name' as keyof Ticket },
-    { key: 'guestType', title: '入住类型', render: (r: Ticket) => <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{guestTypeLabels[r.guestType]}</span> },
-    { key: 'coefficient', title: '价格系数', render: (r: Ticket) => r.priceCoefficient.toFixed(1) },
-    { key: 'shareRoom', title: '拼房规则', render: (r: Ticket) => formatAdjust(r.shareRoomType, r.shareRoomDirection || 'increase', r.shareRoomValue) },
-    { key: 'extraBed', title: '加床规则', render: (r: Ticket) => formatAdjust(r.extraBedType, r.extraBedDirection || 'increase', r.extraBedValue) },
-    { key: 'tip', title: '小费规则', render: (r: Ticket) => formatTip(r.tipType, r.tipValue) },
+    { key: 'guestType', title: '游客类型', render: (r: Ticket) => <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{guestTypeLabels[r.guestType]}</span> },
+    { key: 'occupancyType', title: '入住类型', render: (r: Ticket) => r.occupancyType || '-' },
     { key: 'status', title: '状态', render: (r: Ticket) => <StatusBadge status={r.status} /> },
     { key: 'updatedBy', title: '修改人', dataIndex: 'updatedBy' as keyof Ticket },
     { key: 'updatedAt', title: '修改时间', render: (r: Ticket) => formatDateTime(r.updatedAt) },
@@ -100,7 +91,7 @@ export default function TicketPage() {
 
   return (
     <div>
-      <PageHeader title="票类管理" description="管理游轮票类规则：价格系数、拼房/加床调价、小费策略" />
+      <PageHeader title="票类管理" description="管理游轮票类基础信息、游客类型和入住类型。" />
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="票名称" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="enabled">启用</option><option value="disabled">禁用</option></select></div>
@@ -115,28 +106,8 @@ export default function TicketPage() {
           <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
             <div className="grid grid-cols-3 gap-4">
               <div><label className="block text-sm text-gray-700 mb-1">票名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">入住类型</label><select value={form.guestType} onChange={(e) => { const gt = e.target.value as TicketForm['guestType']; const defaults: Record<string, number> = { adult: 1.0, baby: 0.1, child: 0.3 }; setForm({ ...form, guestType: gt, priceCoefficient: defaults[gt] }) }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="adult">成人</option><option value="baby">婴儿</option><option value="child">儿童</option></select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">价格系数</label><input type="number" step="0.1" value={form.priceCoefficient} onChange={(e) => setForm({ ...form, priceCoefficient: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-            </div>
-          </div>
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">拼房规则</h4>
-            <div className="flex items-center gap-2">
-              <select value={form.shareRoomDirection} onChange={(e) => setForm({ ...form, shareRoomDirection: e.target.value as 'increase' | 'decrease' })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="increase">增加</option><option value="decrease">减少</option></select>
-              <input type="number" value={form.shareRoomValue || ''} onChange={(e) => setForm({ ...form, shareRoomValue: Number(e.target.value) })} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <select value={form.shareRoomType} onChange={(e) => setForm({ ...form, shareRoomType: e.target.value as 'amount' | 'percent' })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="amount">元</option><option value="percent">%</option></select>
-            </div>
-          </div>
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">加床规则</h4>
-            <div className="flex items-center gap-2">
-              <select value={form.extraBedDirection} onChange={(e) => setForm({ ...form, extraBedDirection: e.target.value as 'increase' | 'decrease' })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="increase">增加</option><option value="decrease">减少</option></select>
-              <input type="number" value={form.extraBedValue || ''} onChange={(e) => setForm({ ...form, extraBedValue: Number(e.target.value) })} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <select value={form.extraBedType} onChange={(e) => setForm({ ...form, extraBedType: e.target.value as 'amount' | 'percent' })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="amount">元</option><option value="percent">%</option></select>
-            </div>
-          </div>
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">小费规则</h4>
-            <div className="flex items-center gap-3">
-              <select value={form.tipType} onChange={(e) => setForm({ ...form, tipType: e.target.value, tipValue: e.target.value === '不收取' ? 0 : form.tipValue })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{tipTypes.map((t) => <option key={t} value={t}>{t}</option>)}</select>
-              {form.tipType !== '不收取' && <input type="number" value={form.tipValue || ''} onChange={(e) => setForm({ ...form, tipValue: Number(e.target.value) })} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm" />}
+              <div><label className="block text-sm text-gray-700 mb-1">游客类型</label><select value={form.guestType} onChange={(e) => { const gt = e.target.value as TicketForm['guestType']; const defaults: Record<string, number> = { adult: 1.0, baby: 0.1, child: 0.3 }; setForm({ ...form, guestType: gt, priceCoefficient: defaults[gt] }) }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="adult">成人</option><option value="baby">婴儿</option><option value="child">儿童</option></select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">入住类型</label><select value={form.occupancyType} onChange={(e) => setForm({ ...form, occupancyType: e.target.value as TicketForm['occupancyType'] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{occupancyTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
             </div>
           </div>
         </div>
@@ -144,10 +115,7 @@ export default function TicketPage() {
 
       <DetailDrawer open={detailOpen} title="票类详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
-          <DetailCard title="基本信息"><DetailRow label="票名称" value={detail.name} /><DetailRow label="入住类型" value={guestTypeLabels[detail.guestType]} /><DetailRow label="价格系数" value={detail.priceCoefficient.toFixed(1)} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
-          <DetailCard title="拼房规则"><DetailRow label="调价方式" value={formatAdjust(detail.shareRoomType, detail.shareRoomDirection || 'increase', detail.shareRoomValue)} /></DetailCard>
-          <DetailCard title="加床规则"><DetailRow label="调价方式" value={formatAdjust(detail.extraBedType, detail.extraBedDirection || 'increase', detail.extraBedValue)} /></DetailCard>
-          <DetailCard title="小费规则"><DetailRow label="收取方式" value={formatTip(detail.tipType, detail.tipValue)} /></DetailCard>
+          <DetailCard title="基本信息"><DetailRow label="票名称" value={detail.name} /><DetailRow label="游客类型" value={guestTypeLabels[detail.guestType]} /><DetailRow label="入住类型" value={detail.occupancyType || '-'} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
         </>)}
       </DetailDrawer>

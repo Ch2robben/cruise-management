@@ -7,7 +7,9 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import ApplicableScopeTransfer, { createDefaultApplicableScope, formatApplicableScope, formatApplicableScopeDetail, type ApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
+import { DEFAULT_MARKET_CATEGORY, MARKET_CATEGORY_GROUPS, MARKET_CATEGORY_OPTIONS, getMarketCategoryLabel } from '@/utils/constants'
 
 type PaymentStatus = 'effective' | 'disabled'
 
@@ -15,6 +17,7 @@ interface PaymentRule {
   id: string
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
+  applyScope: ApplicableScope
   marketCategory: string
   sailingStart: string
   sailingEnd: string
@@ -27,11 +30,10 @@ interface PaymentRule {
 
 type PaymentRuleForm = Omit<PaymentRule, 'id' | 'approvalStatus' | 'updatedBy' | 'updatedAt' | 'createdAt'>
 
-const marketCategories = ['内宾', '外宾', '欧美', '中东', '团队', '包船']
-
 const emptyForm: PaymentRuleForm = {
   name: '',
-  marketCategory: '内宾',
+  applyScope: createDefaultApplicableScope(),
+  marketCategory: DEFAULT_MARKET_CATEGORY,
   sailingStart: '2025-06-01',
   sailingEnd: '2026-12-31',
   deadlineDaysBeforeSail: 7,
@@ -56,9 +58,9 @@ function createPaymentRule(form: PaymentRuleForm): PaymentRule {
 }
 
 const initialRules: PaymentRule[] = [
-  createPaymentRule({ ...emptyForm, name: '内宾', marketCategory: '内宾', deadlineDaysBeforeSail: 7 }),
-  createPaymentRule({ ...emptyForm, name: '外宾', marketCategory: '外宾', sailingStart: '2025-07-01', deadlineDaysBeforeSail: 15 }),
-  createPaymentRule({ ...emptyForm, name: '包船', marketCategory: '包船', sailingStart: '2025-06-01', sailingEnd: '2026-12-31', deadlineDaysBeforeSail: 30 }),
+  createPaymentRule({ ...emptyForm, name: '内宾巫山船款', marketCategory: 'domestic_wushan', deadlineDaysBeforeSail: 7 }),
+  createPaymentRule({ ...emptyForm, name: '外宾日本船款', marketCategory: 'foreign_japan', sailingStart: '2025-07-01', deadlineDaysBeforeSail: 15 }),
+  createPaymentRule({ ...emptyForm, name: '外宾美国船款', marketCategory: 'foreign_usa', sailingStart: '2025-06-01', sailingEnd: '2026-12-31', deadlineDaysBeforeSail: 30 }),
 ]
 
 export default function PaymentRulePage() {
@@ -132,7 +134,8 @@ export default function PaymentRulePage() {
 
   const columns = [
     { key: 'name', title: '船款规则名称', dataIndex: 'name' as keyof PaymentRule },
-    { key: 'marketCategory', title: '市场类别', dataIndex: 'marketCategory' as keyof PaymentRule },
+    { key: 'applyScope', title: '适用范围', render: (r: PaymentRule) => formatApplicableScope(r.applyScope) },
+    { key: 'marketCategory', title: '市场类别', render: (r: PaymentRule) => getMarketCategoryLabel(r.marketCategory) },
     { key: 'sailingPeriod', title: '船期', render: (r: PaymentRule) => `${formatDate(r.sailingStart)} 至 ${formatDate(r.sailingEnd)}` },
     { key: 'deadline', title: '船款期限', render: (r: PaymentRule) => `开船前 ${r.deadlineDaysBeforeSail} 天` },
     { key: 'approvalStatus', title: '审批状态', render: (r: PaymentRule) => <StatusBadge status={r.approvalStatus} /> },
@@ -153,7 +156,7 @@ export default function PaymentRulePage() {
       <PageHeader title="船款规则管理" description="维护船款规则名称、市场类别、船期与开船前付款期限" />
       <SearchPanel onSearch={() => setPage(1)} onReset={() => { setKeyword(''); setMarketFilter('all'); setStatusFilter('all'); setPage(1) }}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="船款规则名称" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">市场类别</label><select value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{marketCategories.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">市场类别</label><select value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
       </SearchPanel>
 
@@ -163,7 +166,7 @@ export default function PaymentRulePage() {
 
       <DataTable columns={columns} dataSource={pagedRecords} rowKey="id" pagination={{ current: page, pageSize, total: filteredRecords.length, onChange: setPage }} />
 
-      <FormDialog open={formOpen} title={editingId ? '编辑船款规则信息' : '新增船款规则信息'} width="max-w-4xl" onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
+      <FormDialog open={formOpen} title={editingId ? '编辑船款规则信息' : '新增船款规则信息'} width="max-w-5xl" onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
         <div className="space-y-5">
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
@@ -174,10 +177,12 @@ export default function PaymentRulePage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">市场类别</label>
-                <select value={form.marketCategory} onChange={(e) => setForm({ ...form, marketCategory: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{marketCategories.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                <select value={form.marketCategory} onChange={(e) => setForm({ ...form, marketCategory: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select>
               </div>
             </div>
           </div>
+
+          <ApplicableScopeTransfer value={form.applyScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">船期与期限</h4>
@@ -209,8 +214,9 @@ export default function PaymentRulePage() {
 
       <DetailDrawer open={detailOpen} title="船款规则详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
-          <DetailCard title="基本信息"><DetailRow label="规则名称" value={detail.name} /><DetailRow label="市场类别" value={detail.marketCategory} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
+          <DetailCard title="基本信息"><DetailRow label="规则名称" value={detail.name} /><DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} /><DetailRow label="市场类别" value={getMarketCategoryLabel(detail.marketCategory)} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
           <DetailCard title="船款规则"><DetailRow label="船期" value={`${formatDate(detail.sailingStart)} 至 ${formatDate(detail.sailingEnd)}`} /><DetailRow label="船款期限" value={`开船前 ${detail.deadlineDaysBeforeSail} 天`} /></DetailCard>
+          <DetailCard title="适用范围"><DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
         </>)}
       </DetailDrawer>

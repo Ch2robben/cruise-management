@@ -42,10 +42,18 @@ export function createCrudApi<T extends { id: string; status: string }>(
         }
       }
 
-      // 港口筛选
+      // 码头筛选
       if (params.portId && params.portId !== 'all') {
         const itemVal = (item as Record<string, unknown>)['portId']
         if (itemVal !== params.portId) return false
+      }
+
+      // 码头距离库起终点筛选
+      for (const key of ['fromPortId', 'toPortId', 'waterway'] as const) {
+        if (params[key] && params[key] !== 'all') {
+          const itemVal = (item as Record<string, unknown>)[key]
+          if (itemVal !== params[key]) return false
+        }
       }
 
       // 日期范围
@@ -134,6 +142,7 @@ export function createCrudApi<T extends { id: string; status: string }>(
 // ========== 导出各模块 API ==========
 import {
   ports,
+  portDistances,
   attractions,
   routes,
   users,
@@ -151,6 +160,9 @@ import {
   voyageInventories,
   voyagePrices,
   dealers,
+  dealerGroups,
+  dealerCooperationRule,
+  dealerChangeLogs,
   cabinHolds,
   charterOrders,
   complaintTickets,
@@ -161,6 +173,7 @@ import {
 } from './data'
 import type {
   Port,
+  PortDistance,
   Attraction,
   Route,
   User,
@@ -178,6 +191,8 @@ import type {
   VoyageInventory,
   VoyagePrice,
   Dealer,
+  DealerCooperationRule,
+  DealerChangeLog,
   CabinHold,
   CharterOrder,
   ComplaintTicket,
@@ -193,11 +208,15 @@ export const shipApi = createCrudApi<Ship>(ships, {
 })
 
 export const portApi = createCrudApi<Port>(ports, {
-  searchFields: ['name', 'nameEn', 'code'],
+  searchFields: ['name', 'nameEn', 'code', 'city', 'province', 'address'],
+})
+
+export const portDistanceApi = createCrudApi<PortDistance>(portDistances, {
+  searchFields: ['fromPortName', 'toPortName', 'waterway', 'remark'],
 })
 
 export const attractionApi = createCrudApi<Attraction>(attractions, {
-  searchFields: ['name', 'nameEn', 'description'],
+  searchFields: ['name', 'nameEn', 'portName', 'city', 'category', 'description'],
 })
 
 export const userApi = createCrudApi<User>(users, {
@@ -547,10 +566,27 @@ export const dealerApi = {
     if (params.level && params.level !== 'all') filtered = filtered.filter((item) => item.level === params.level)
     if (params.channelType && params.channelType !== 'all') filtered = filtered.filter((item) => item.channelTypes.includes(params.channelType as Dealer['channelTypes'][number]))
     if (params.region && params.region !== 'all') filtered = filtered.filter((item) => item.region === params.region)
+    if (params.groupId && params.groupId !== 'group_all' && params.groupId !== 'all') filtered = filtered.filter((item) => item.groupId === params.groupId)
+    if (params.purchasePermission && params.purchasePermission !== 'all') filtered = filtered.filter((item) => item.purchasePermission === params.purchasePermission)
+    if (params.subjectType && params.subjectType !== 'all') filtered = filtered.filter((item) => item.subjectType === params.subjectType)
     return paginate(filtered, params)
   },
   async getById(id: string): Promise<Dealer | undefined> { await delay(300); return dealers.find((item) => item.id === id) },
-  async create(item: Omit<Dealer, 'id'>): Promise<Dealer> { await delay(300); const next = { ...item, id: generateId() } as Dealer; dealers.unshift(next); return next },
+  async create(item: Omit<Dealer, 'id'>): Promise<Dealer> {
+    await delay(300)
+    const next = { ...item, id: generateId() } as Dealer
+    dealers.unshift(next)
+    dealerChangeLogs.unshift({
+      id: generateId(),
+      operationType: 'add',
+      dealerName: next.name,
+      operationContent: `添加分销商至：${next.groupName}`,
+      operator: '当前用户',
+      operationStatus: 'success',
+      operatedAt: new Date().toISOString(),
+    })
+    return next
+  },
   async update(id: string, updates: Partial<Dealer>): Promise<Dealer | undefined> {
     await delay(300)
     const index = dealers.findIndex((item) => item.id === id)
@@ -569,8 +605,86 @@ export const dealerApi = {
     await delay(300)
     const index = dealers.findIndex((item) => item.id === id)
     if (index === -1) return undefined
-    dealers[index] = { ...dealers[index], status: dealers[index].status === 'cooperating' ? 'terminated' : 'cooperating' }
+    const enabled = dealers[index].purchasePermission === 'enabled'
+    dealers[index] = {
+      ...dealers[index],
+      status: enabled ? 'terminated' : 'cooperating',
+      purchasePermission: enabled ? 'disabled' : 'enabled',
+      disabledReason: enabled ? '手动禁用购票资格。' : '',
+      disabledUntil: enabled ? '2026-06-30' : '',
+      updatedAt: new Date().toISOString(),
+      updatedBy: '当前用户',
+    }
+    dealerChangeLogs.unshift({
+      id: generateId(),
+      operationType: enabled ? 'disable' : 'enable',
+      dealerName: dealers[index].name,
+      operationContent: enabled ? '禁用购票资格，临时禁用，时间：30天，原因：手动禁用' : '启用购票资格',
+      operator: '当前用户',
+      operationStatus: 'success',
+      operatedAt: new Date().toISOString(),
+    })
     return dealers[index]
+  },
+  async moveGroup(ids: string[], groupId: string): Promise<boolean> {
+    await delay(300)
+    const group = dealerGroups.find((item) => item.id === groupId)
+    if (!group) return false
+    dealers.forEach((item, index) => {
+      if (ids.includes(item.id)) dealers[index] = { ...item, groupId: group.id, groupName: group.name, updatedAt: new Date().toISOString(), updatedBy: '当前用户' }
+    })
+    dealerChangeLogs.unshift({
+      id: generateId(),
+      operationType: 'move_group',
+      dealerName: ids.length > 1 ? `${ids.length}个分销商` : dealers.find((item) => item.id === ids[0])?.name || '分销商',
+      operationContent: `批量移动至：${group.name}`,
+      operator: '当前用户',
+      operationStatus: 'success',
+      operatedAt: new Date().toISOString(),
+    })
+    return true
+  },
+  async groups() {
+    await delay(120)
+    return dealerGroups.map((group) => ({
+      ...group,
+      dealerCount: group.id === 'group_all' ? dealers.length : dealers.filter((dealer) => dealer.groupId === group.id).length,
+    }))
+  },
+}
+
+export const dealerCooperationRuleApi = {
+  async get(): Promise<DealerCooperationRule> {
+    await delay(200)
+    return dealerCooperationRule
+  },
+  async update(updates: Partial<DealerCooperationRule>): Promise<DealerCooperationRule> {
+    await delay(300)
+    Object.assign(dealerCooperationRule, updates, { updatedBy: '当前用户', updatedAt: new Date().toISOString() })
+    return dealerCooperationRule
+  },
+}
+
+export const dealerChangeLogApi = {
+  async list(params: SearchParams = {}): Promise<PaginatedResult<DealerChangeLog>> {
+    await delay(250)
+    let filtered = [...dealerChangeLogs]
+    if (params.keyword && typeof params.keyword === 'string' && params.keyword.trim()) {
+      const kw = params.keyword.toLowerCase()
+      filtered = filtered.filter((item) => item.dealerName.toLowerCase().includes(kw) || item.operationContent.toLowerCase().includes(kw))
+    }
+    if (params.operationType && params.operationType !== 'all') filtered = filtered.filter((item) => item.operationType === params.operationType)
+    if (params.operationStatus && params.operationStatus !== 'all') filtered = filtered.filter((item) => item.operationStatus === params.operationStatus)
+    if (params.operator && params.operator !== 'all') filtered = filtered.filter((item) => item.operator === params.operator)
+    if (params.dateFrom && typeof params.dateFrom === 'string') {
+      const dateFrom = params.dateFrom
+      filtered = filtered.filter((item) => item.operatedAt.slice(0, 10) >= dateFrom)
+    }
+    if (params.dateTo && typeof params.dateTo === 'string') {
+      const dateTo = params.dateTo
+      filtered = filtered.filter((item) => item.operatedAt.slice(0, 10) <= dateTo)
+    }
+    return paginate(filtered, params)
   },
 }
 

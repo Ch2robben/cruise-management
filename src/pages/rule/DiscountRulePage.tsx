@@ -7,7 +7,9 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import ApplicableScopeTransfer, { createDefaultApplicableScope, formatApplicableScope, formatApplicableScopeDetail, type ApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
+import { DEFAULT_MARKET_CATEGORY, MARKET_CATEGORY_GROUPS, MARKET_CATEGORY_OPTIONS, getMarketCategoryLabel } from '@/utils/constants'
 import type { Status } from '@/types'
 
 type DiscountBenefitType = 'none' | 'escortRatio' | 'fixedFree' | 'everyFullFree'
@@ -28,6 +30,7 @@ interface DiscountPolicy {
   code: string
   name: string
   marketCategory: string
+  applyScope: ApplicableScope
   effectiveStart: string
   effectiveEnd: string
   tiers: DiscountTierRule[]
@@ -39,8 +42,6 @@ interface DiscountPolicy {
 }
 
 type DiscountPolicyForm = Omit<DiscountPolicy, 'id' | 'status' | 'updatedBy' | 'updatedAt' | 'createdAt'>
-
-const marketCategories = ['内宾', '外宾', '欧美', '中东', '团队', '包船']
 
 const benefitTypeOptions: { value: DiscountBenefitType; label: string }[] = [
   { value: 'none', label: '无优惠' },
@@ -63,7 +64,8 @@ const emptyTier = (): DiscountTierRule => ({
 const emptyForm: DiscountPolicyForm = {
   code: 'DIS-NEW',
   name: '',
-  marketCategory: '内宾',
+  marketCategory: DEFAULT_MARKET_CATEGORY,
+  applyScope: createDefaultApplicableScope(),
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
   tiers: [emptyTier()],
@@ -86,8 +88,8 @@ const initialPolicies: DiscountPolicy[] = [
   createPolicy({
     ...emptyForm,
     code: 'DIS-001',
-    name: '内宾团队优惠政策',
-    marketCategory: '内宾',
+    name: '内宾巫山团队优惠政策',
+    marketCategory: 'domestic_wushan',
     tiers: [
       { id: generateId(), startPeople: 1, endPeople: 16, benefitType: 'none', escortTicketRatio: 0, fullPeople: 0, freePeople: 0, fixedFreePeople: 0 },
       { id: generateId(), startPeople: 16, endPeople: 50, benefitType: 'everyFullFree', escortTicketRatio: 0, fullPeople: 16, freePeople: 1, fixedFreePeople: 0 },
@@ -98,8 +100,8 @@ const initialPolicies: DiscountPolicy[] = [
   createPolicy({
     ...emptyForm,
     code: 'DIS-002',
-    name: '外宾全陪票优惠政策',
-    marketCategory: '外宾',
+    name: '外宾日本全陪票优惠政策',
+    marketCategory: 'foreign_japan',
     tiers: [
       { id: generateId(), startPeople: 1, endPeople: 20, benefitType: 'none', escortTicketRatio: 0, fullPeople: 0, freePeople: 0, fixedFreePeople: 0 },
       { id: generateId(), startPeople: 20, endPeople: 40, benefitType: 'escortRatio', escortTicketRatio: 50, fullPeople: 0, freePeople: 0, fixedFreePeople: 0 },
@@ -266,7 +268,8 @@ export default function DiscountRulePage() {
   const columns = [
     { key: 'code', title: '政策编码', render: (r: DiscountPolicy) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '政策名称', dataIndex: 'name' as keyof DiscountPolicy },
-    { key: 'marketCategory', title: '市场类别', dataIndex: 'marketCategory' as keyof DiscountPolicy },
+    { key: 'marketCategory', title: '市场类别', render: (r: DiscountPolicy) => getMarketCategoryLabel(r.marketCategory) },
+    { key: 'applyScope', title: '适用范围', render: (r: DiscountPolicy) => formatApplicableScope(r.applyScope) },
     { key: 'tiers', title: '阶梯规则', render: (r: DiscountPolicy) => (
       <div className="space-y-1 text-xs">
         {r.tiers.slice(0, 3).map((tier) => (
@@ -303,7 +306,7 @@ export default function DiscountRulePage() {
           <label className="text-xs text-gray-500">市场类别</label>
           <select value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm">
             <option value="all">全部</option>
-            {marketCategories.map((item) => <option key={item} value={item}>{item}</option>)}
+            {MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -336,12 +339,14 @@ export default function DiscountRulePage() {
             <div className="grid grid-cols-4 gap-4">
               <div><label className="block text-sm text-gray-700 mb-1">政策编码 <span className="text-red-500">*</span></label><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">政策名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">市场类别</label><select value={form.marketCategory} onChange={(e) => setForm({ ...form, marketCategory: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{marketCategories.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+              <div><label className="block text-sm text-gray-700 mb-1">市场类别</label><select value={form.marketCategory} onChange={(e) => setForm({ ...form, marketCategory: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">阶梯数量</label><div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">{form.tiers.length} 条</div></div>
               <div><label className="block text-sm text-gray-700 mb-1">生效开始日期</label><input type="date" value={form.effectiveStart} onChange={(e) => setForm({ ...form, effectiveStart: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">生效结束日期</label><input type="date" value={form.effectiveEnd} onChange={(e) => setForm({ ...form, effectiveEnd: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
             </div>
           </div>
+
+          <ApplicableScopeTransfer value={form.applyScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
 
           <div>
             <div className="mb-3 flex items-center justify-between">
@@ -403,9 +408,13 @@ export default function DiscountRulePage() {
           <DetailCard title="基本信息">
             <DetailRow label="政策编码" value={detail.code} mono />
             <DetailRow label="政策名称" value={detail.name} />
-            <DetailRow label="市场类别" value={detail.marketCategory} />
+            <DetailRow label="市场类别" value={getMarketCategoryLabel(detail.marketCategory)} />
+            <DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} />
             <DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} 至 ${formatDate(detail.effectiveEnd)}`} />
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
+          </DetailCard>
+          <DetailCard title="适用范围">
+            <DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
           </DetailCard>
           <DetailCard title={`阶梯规则（${detail.tiers.length}条）`}>
             <div className="space-y-3">

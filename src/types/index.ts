@@ -91,7 +91,7 @@ export interface Pier {
   sort: number
 }
 
-// ========== 港口 ==========
+// ========== 码头 ==========
 export interface Port {
   id: string
   name: string
@@ -99,6 +99,18 @@ export interface Port {
   code: string
   city: string
   province: string
+  address?: string
+  longitude?: number
+  latitude?: number
+  pierType?: string
+  berthCount?: number
+  maxShipLength?: number
+  maxDraft?: number
+  dockingWindow?: string
+  supportedShipTypes?: string
+  services?: string
+  transferInfo?: string
+  remark?: string
   sort: number
   piers: Pier[]
   status: Status
@@ -112,8 +124,46 @@ export interface PortForm {
   nameEn: string
   code: string
   city: string
+  province: string
+  address: string
+  longitude: number
+  latitude: number
+  pierType: string
+  berthCount: number
+  maxShipLength: number
+  maxDraft: number
+  dockingWindow: string
+  supportedShipTypes: string
+  services: string
+  transferInfo: string
+  remark: string
   sort: number
-  piers: Omit<Pier, 'id' | 'portId'>[]
+}
+
+// ========== 码头距离 ==========
+export interface PortDistance {
+  id: string
+  fromPortId: string
+  fromPortName: string
+  toPortId: string
+  toPortName: string
+  distanceKm: number
+  speedKmH: number
+  waterway: string
+  remark: string
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface PortDistanceForm {
+  fromPortId: string
+  toPortId: string
+  distanceKm: number
+  speedKmH: number
+  waterway: string
+  remark: string
 }
 
 // ========== 景点 ==========
@@ -124,7 +174,23 @@ export interface Attraction {
   portId: string
   portName: string
   city: string
+  province?: string
+  address?: string
+  longitude?: number
+  latitude?: number
+  category?: string
   visitDuration: string
+  suggestedDurationMin?: number
+  minStopoverMin?: number
+  portDistanceKm?: number
+  transferDurationMin?: number
+  openSeason?: string
+  openHours?: string
+  difficulty?: string
+  suitableGroups?: string
+  bookingRequired?: boolean
+  ticketPolicy?: string
+  validationNotes?: string
   description: string
   status: Status
   updatedBy: string
@@ -136,7 +202,23 @@ export interface AttractionForm {
   name: string
   nameEn: string
   portId: string
+  city: string
+  province: string
+  address: string
+  longitude: number
+  latitude: number
+  category: string
   visitDuration: string
+  suggestedDurationMin: number
+  minStopoverMin: number
+  portDistanceKm: number
+  transferDurationMin: number
+  openSeason: string
+  openHours: string
+  difficulty: string
+  suitableGroups: string
+  bookingRequired: boolean
+  ticketPolicy: string
   description: string
 }
 
@@ -457,6 +539,7 @@ export interface VoyageTemplate {
 
 // ========== 票类管理 ==========
 export type GuestType = 'adult' | 'baby' | 'child'
+export type TicketOccupancyType = '不拼房' | '拼房' | '加床' | '不占座'
 export type PriceAdjustType = 'amount' | 'percent'
 export type AdjustDirection = 'increase' | 'decrease'
 
@@ -464,6 +547,7 @@ export interface Ticket {
   id: string
   name: string
   guestType: GuestType
+  occupancyType: TicketOccupancyType
   priceCoefficient: number
   shareRoomType: PriceAdjustType
   shareRoomDirection: AdjustDirection
@@ -482,6 +566,7 @@ export interface Ticket {
 export interface TicketForm {
   name: string
   guestType: GuestType
+  occupancyType: TicketOccupancyType
   priceCoefficient: number
   shareRoomType: PriceAdjustType
   shareRoomDirection: AdjustDirection
@@ -643,27 +728,47 @@ export type DealerRefundPermission = 'none' | 'self' | 'with_subordinate'
 export type DealerRebateDimension = 'sales' | 'orders' | 'product'
 export type DealerRebateCycle = 'monthly' | 'quarterly' | 'yearly'
 export type DealerStatus = 'cooperating' | 'terminated'
+export type DealerSubjectType = 'travel_agency' | 'hotel' | 'homestay' | 'other'
+export type DealerPurchasePermission = 'enabled' | 'disabled'
+export type DealerSettlementMethod = 'unlimited' | 'credit_only' | 'prepaid_only'
+export type DealerCertificationStatus = 'verified' | 'unverified'
+export type DealerChangeType = 'add' | 'move_group' | 'settlement_change' | 'enable' | 'disable'
+export type DealerChangeStatus = 'success' | 'failed'
 
 export interface Dealer {
   id: string
   name: string
   code: string
+  account: string
+  groupId: string
+  groupName: string
+  subjectType: DealerSubjectType
   socialCreditCode: string
   channelTypes: DealerChannelType[]
   region: string
   level: DealerLevel
   contact: string
   phone: string
+  email: string
+  address: string
   qualificationFiles: string[]
+  businessLicenseNo: string
+  travelAgencyPermitNo: string
+  certificationStatus: DealerCertificationStatus
   creditLimit: number
   guaranteeAmount: number
   settlementCycle: DealerSettlementCycle
+  settlementMethod: DealerSettlementMethod
   priceSystems: DealerPriceSystem[]
   otaServiceRate: number | null
   refundPermission: DealerRefundPermission
   rebateDimensions: DealerRebateDimension[]
   rebateCycle: DealerRebateCycle
   authorizedProductIds: string[]
+  purchasePermission: DealerPurchasePermission
+  disabledReason: string
+  disabledUntil: string
+  cooperationStartedAt: string
   status: DealerStatus
   updatedBy: string
   updatedAt: string
@@ -673,22 +778,60 @@ export interface Dealer {
 export interface DealerForm {
   name: string
   code: string
+  account: string
+  groupId: string
+  subjectType: DealerSubjectType
   socialCreditCode: string
   channelTypes: DealerChannelType[]
   region: string
   level: DealerLevel
   contact: string
   phone: string
+  email: string
+  address: string
   qualificationFiles: string[]
+  businessLicenseNo: string
+  travelAgencyPermitNo: string
   creditLimit: number
   guaranteeAmount: number
   settlementCycle: DealerSettlementCycle
+  settlementMethod: DealerSettlementMethod
   priceSystems: DealerPriceSystem[]
   otaServiceRate: number | null
   refundPermission: DealerRefundPermission
   rebateDimensions: DealerRebateDimension[]
   rebateCycle: DealerRebateCycle
   authorizedProductIds: string[]
+}
+
+export interface DealerGroup {
+  id: string
+  name: string
+  dealerCount: number
+  sort: number
+  remark: string
+}
+
+export interface DealerCooperationRule {
+  id: string
+  allowSelfApply: boolean
+  serviceTerms: string
+  agreementFileName: string
+  merchantTypes: DealerSubjectType[]
+  attachmentRequirement: string
+  attachmentRequired: boolean
+  updatedBy: string
+  updatedAt: string
+}
+
+export interface DealerChangeLog {
+  id: string
+  operationType: DealerChangeType
+  dealerName: string
+  operationContent: string
+  operator: string
+  operationStatus: DealerChangeStatus
+  operatedAt: string
 }
 
 // ========== 锁舱记录 ==========

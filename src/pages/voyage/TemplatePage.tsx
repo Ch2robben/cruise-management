@@ -5,6 +5,7 @@ import { productApi, templateApi } from '@/mock/api'
 import { products, ships, routes } from '@/mock/data'
 import type { VoyageTemplate, TemplateInventory, TemplateItinerary, TemplateDeposit, PaginatedResult, PricingRow, Product, SearchParams } from '@/types'
 import { formatDateTime, generateId } from '@/utils/format'
+import { MARKET_CATEGORY_GROUPS, MARKET_CATEGORY_OPTIONS, getMarketCategoryLabel } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
@@ -18,7 +19,6 @@ const statusLabels: Record<string, string> = { draft: '草稿', enabled: '已启
 const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-600', enabled: 'bg-green-100 text-green-700', disabled: 'bg-red-100 text-red-600' }
 
 const TABS = ['航次库存', '航次行程', '航次定金', '计价配置', '销售规则']
-const marketCategories = ['欧美', '中东', '内宾']
 const settlementRules = ['月结30天', '预付款50%', '全额预付']
 const refundPolicies = ['标准退改', '严格退改', '灵活退改']
 const materialOptions = ['宣传册', '行程单', '保险单', '签证指南']
@@ -265,7 +265,7 @@ export default function TemplatePage() {
           </tr></thead><tbody className="divide-y divide-gray-100">
             {form.deposits.map((d, idx) => (
               <tr key={idx}>
-                <td className="px-3 py-2"><select value={d.marketCategory} onChange={(e) => updateDep(idx, 'marketCategory', e.target.value)} className="px-2 py-1 border border-gray-300 rounded text-sm"><option value="">选择</option>{marketCategories.map((m) => <option key={m} value={m}>{m}</option>)}</select></td>
+                <td className="px-3 py-2"><select value={d.marketCategory} onChange={(e) => updateDep(idx, 'marketCategory', e.target.value)} className="px-2 py-1 border border-gray-300 rounded text-sm"><option value="">选择</option>{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select></td>
                 <td className="px-3 py-2"><input type="number" value={d.deposit || ''} onChange={(e) => updateDep(idx, 'deposit', Number(e.target.value))} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-center" /></td>
                 <td className="px-3 py-2"><button onClick={() => removeDep(idx)} className="text-xs text-red-500 hover:bg-red-50 rounded px-2 py-0.5">删除</button></td>
               </tr>
@@ -375,7 +375,7 @@ export default function TemplatePage() {
           <DetailCard title="基本信息"><DetailRow label="模板编码" value={detail.code} mono /><DetailRow label="名称" value={detail.name} /><DetailRow label="关联产品" value={detail.productName} /><DetailRow label="适用游轮" value={detail.shipName} /><DetailRow label="开始时间" value={detail.voyageStartTime} /><DetailRow label="结束时间" value={detail.voyageEndTime} /><DetailRow label="开航类型" value={detail.sailType === '周内固定' ? `每周${detail.sailDay}` : `每${detail.sailDay}天`} /><DetailRow label="开航时间" value={detail.sailTime} /><DetailRow label="总时长" value={`${detail.totalDays}天`} /><DetailRow label="状态" value={<span className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[detail.status]}`}>{statusLabels[detail.status]}</span>} /></DetailCard>
           <DetailCard title={`库存（${detail.inventory.length}项）`}>{detail.inventory.map((inv) => <div key={inv.id} className="flex gap-3 text-sm py-0.5"><span className="text-gray-700 font-medium">{inv.cabinName}</span><span className="text-gray-500">床位{inv.totalBeds} 投放{inv.released}</span><span className={inv.status === 'open' ? 'text-green-600' : 'text-gray-400'}>{inv.status === 'open' ? '开启' : '关闭'}</span></div>)}</DetailCard>
           <DetailCard title={`行程（${detail.itinerary.length}项）`}>{detail.itinerary.map((itin) => <div key={itin.id} className="flex gap-2 text-sm py-0.5"><span className="text-gray-700">{itin.portName} 第{itin.day}天</span><span className="text-gray-500">{itin.theme && `${itin.theme} ${itin.description}`}</span></div>)}</DetailCard>
-          <DetailCard title={`定金（${detail.deposits.length}项）`}>{detail.deposits.map((d) => <div key={d.id} className="flex gap-3 text-sm py-0.5"><span className="text-gray-700">{d.marketCategory}</span><span className="text-gray-500">¥{d.deposit}/人</span></div>)}</DetailCard>
+          <DetailCard title={`定金（${detail.deposits.length}项）`}>{detail.deposits.map((d) => <div key={d.id} className="flex gap-3 text-sm py-0.5"><span className="text-gray-700">{getMarketCategoryLabel(d.marketCategory)}</span><span className="text-gray-500">¥{d.deposit}/人</span></div>)}</DetailCard>
           <DetailCard title="计价配置"><DetailRow label="基准价参考" value={`¥${detail.basePriceRef}`} /><DetailRow label="结算规则" value={detail.settlementRule} /><DetailRow label="提前购优惠" value={`¥${detail.earlyBirdDiscount}`} /><DetailRow label="附加费策略" value={detail.surchargeStrategy.join('、') || '-'} /></DetailCard>
           <DetailCard title="销售规则"><DetailRow label="预售期" value={`${detail.presaleDays}天`} /><DetailRow label="截止售卖" value={`${detail.cutoffDays}天前`} /><DetailRow label="退改策略" value={detail.refundPolicy} /><DetailRow label="物料需求" value={detail.materialReq.join('、') || '-'} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
