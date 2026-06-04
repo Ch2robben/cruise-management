@@ -44,8 +44,32 @@ export const ROLE_OPTIONS = [
   { value: 'system_admin', label: '系统管理员' },
   { value: 'operation_manager', label: '运营经理' },
   { value: 'route_planner', label: '航线规划师' },
-  { value: 'port_manager', label: '港口管理员' },
+  { value: 'port_manager', label: '码头管理员' },
   { value: 'ship_captain', label: '船长' },
   { value: 'ticket_agent', label: '票务员' },
   { value: 'viewer', label: '普通用户' },
 ]
+
+export type MarketCategoryParent = '内宾' | '外宾'
+
+export interface MarketCategoryOption {
+  value: string
+  label: string
+  parent: MarketCategoryParent
+}
+
+export const MARKET_CATEGORY_GROUPS: MarketCategoryParent[] = ['内宾', '外宾']
+
+export const MARKET_CATEGORY_OPTIONS: MarketCategoryOption[] = [
+  { value: 'domestic_wushan', label: '内宾-巫山县', parent: '内宾' },
+  { value: 'domestic_fengjie', label: '内宾-奉节县', parent: '内宾' },
+  { value: 'domestic_yunyang', label: '内宾-云阳县', parent: '内宾' },
+  { value: 'foreign_japan', label: '外宾-日本', parent: '外宾' },
+  { value: 'foreign_usa', label: '外宾-美国', parent: '外宾' },
+]
+
+export const DEFAULT_MARKET_CATEGORY = MARKET_CATEGORY_OPTIONS[0].value
+
+export function getMarketCategoryLabel(value: string) {
+  return MARKET_CATEGORY_OPTIONS.find((item) => item.value === value)?.label || value || '-'
+}

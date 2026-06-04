@@ -60,6 +60,8 @@ export function getStatusLabel(status: string): string {
     unsettled: '未结清',
     settled: '已结清',
     published: '已发布',
+    success: '成功',
+    failed: '失败',
   }
   return map[status] || status
 }
@@ -98,6 +100,8 @@ export function getStatusColor(status: string): string {
     unsettled: 'bg-red-100 text-red-600',
     settled: 'bg-green-100 text-green-700',
     published: 'bg-blue-100 text-blue-700',
+    success: 'bg-green-100 text-green-700',
+    failed: 'bg-red-100 text-red-600',
   }
   return map[status] || 'bg-gray-100 text-gray-600'
 }

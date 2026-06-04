@@ -7,6 +7,8 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import ApplicableScopeTransfer, { formatApplicableScope, formatApplicableScopeDetail, scopeIncludesProduct, type ApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
+import { products } from '@/mock/data'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
 import type { Status } from '@/types'
 
@@ -17,7 +19,7 @@ export interface RuleRecord {
   code: string
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
-  applyScope: string
+  applyScope: ApplicableScope
   channel: string
   triggerPoint: string
   amountType: RuleAmountType
@@ -114,9 +116,9 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
   const filteredRecords = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return records.filter((item) => {
-      const matchedKeyword = !kw || [item.code, item.name, item.remark].some((value) => value.toLowerCase().includes(kw))
+      const matchedKeyword = !kw || [item.code, item.name, item.remark, formatApplicableScopeDetail(item.applyScope)].some((value) => value.toLowerCase().includes(kw))
       const matchedStatus = statusFilter === 'all' || item.status === statusFilter
-      const matchedScope = scopeFilter === 'all' || item.applyScope === scopeFilter
+      const matchedScope = scopeFilter === 'all' || scopeIncludesProduct(item.applyScope, scopeFilter)
       const matchedChannel = channelFilter === 'all' || item.channel === channelFilter
       return matchedKeyword && matchedStatus && matchedScope && matchedChannel
     })
@@ -176,7 +178,7 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
   const columns = [
     { key: 'code', title: '规则编码', render: (r: RuleRecord) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '规则名称', dataIndex: 'name' as keyof RuleRecord },
-    { key: 'scope', title: config.scopeLabel || '适用范围', dataIndex: 'applyScope' as keyof RuleRecord },
+    { key: 'scope', title: '适用范围', render: (r: RuleRecord) => formatApplicableScope(r.applyScope) },
     { key: 'channel', title: config.channelLabel || '适用渠道', dataIndex: 'channel' as keyof RuleRecord },
     { key: 'trigger', title: config.triggerLabel, dataIndex: 'triggerPoint' as keyof RuleRecord },
     { key: 'amount', title: config.amountLabel, render: (r: RuleRecord) => formatAmount(r.amountType, r.amountValue) },
@@ -205,10 +207,10 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="编码/名称/备注" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">{config.scopeLabel || '适用范围'}</label>
+          <label className="text-xs text-gray-500">适用产品</label>
           <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm">
             <option value="all">全部</option>
-            {config.scopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            {products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -247,11 +249,12 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
               <div><label className="block text-sm text-gray-700 mb-1">规则编码 <span className="text-red-500">*</span></label><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">规则名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               <div><label className="block text-sm text-gray-700 mb-1">优先级</label><input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">{config.scopeLabel || '适用范围'}</label><select value={form.applyScope} onChange={(e) => setForm({ ...form, applyScope: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{config.scopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">{config.channelLabel || '适用渠道'}</label><select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{config.channelOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
               <div><label className="block text-sm text-gray-700 mb-1">{config.triggerLabel}</label><select value={form.triggerPoint} onChange={(e) => setForm({ ...form, triggerPoint: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{config.triggerOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
             </div>
           </div>
+
+          <ApplicableScopeTransfer value={form.applyScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">规则口径</h4>
@@ -283,7 +286,7 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
           <DetailCard title="基本信息">
             <DetailRow label="规则编码" value={detail.code} mono />
             <DetailRow label="规则名称" value={detail.name} />
-            <DetailRow label={config.scopeLabel || '适用范围'} value={detail.applyScope} />
+            <DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} />
             <DetailRow label={config.channelLabel || '适用渠道'} value={detail.channel} />
             <DetailRow label="优先级" value={detail.priority} />
             <DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} />
@@ -299,6 +302,9 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
             <DetailRow label="生效开始" value={formatDate(detail.effectiveStart)} />
             <DetailRow label="生效结束" value={formatDate(detail.effectiveEnd)} />
             <DetailRow label="规则说明" value={detail.remark || '-'} />
+          </DetailCard>
+          <DetailCard title="适用范围">
+            <DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
           </DetailCard>
           <DetailCard title="操作信息">
             <DetailRow label="修改人" value={detail.updatedBy} />
