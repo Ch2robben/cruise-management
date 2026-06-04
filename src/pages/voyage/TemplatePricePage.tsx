@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Save } from 'lucide-react'
 import { templateApi } from '@/mock/api'
-import { products } from '@/mock/data'
+import { products, ships, dictionaries } from '@/mock/data'
 import type { VoyageTemplate } from '@/types'
 
 type CabinPricingRule = {
@@ -104,9 +104,16 @@ export default function TemplatePricePage() {
   const navigate = useNavigate()
   
   const [template, setTemplate] = useState<VoyageTemplate | null>(null)
-  const [priceRule, setPriceRule] = useState<CabinPricingRule | null>(null)
+  const [priceRules, setPriceRules] = useState<Record<string, CabinPricingRule>>({})
+  const [activeCabin, setActiveCabin] = useState<string>('')
+  const [cabinTypes, setCabinTypes] = useState<string[]>([])
   const [editMode, setEditMode] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  const getCabinName = (code: string) => {
+    const dict = dictionaries.find(d => d.dictCode === 'CABIN_TYPE' && d.itemCode === code)
+    return dict ? dict.itemName : code
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -117,7 +124,17 @@ export default function TemplatePricePage() {
         setTemplate(t)
         const product = products.find(p => p.id === t.productId)
         const segmentsCount = product?.segments?.length || 1
-        setPriceRule(mockRulesStore[t.id] || createDefaultPricingRule(segmentsCount))
+        
+        const shipObj = ships.find(s => s.name === t.shipName)
+        const cTypes = shipObj?.cabinTypes || ['standard']
+        setCabinTypes(cTypes)
+        
+        const initialRules: Record<string, CabinPricingRule> = {}
+        cTypes.forEach(cabin => {
+          initialRules[cabin] = mockRulesStore[`${t.id}_${cabin}`] || createDefaultPricingRule(segmentsCount)
+        })
+        setPriceRules(initialRules)
+        setActiveCabin(cTypes[0])
       }
       setLoading(false)
     }
@@ -125,75 +142,102 @@ export default function TemplatePricePage() {
   }, [id])
 
   const savePriceRule = () => {
-    if (!template || !priceRule) return
-    mockRulesStore[template.id] = priceRule
+    if (!template) return
+    Object.entries(priceRules).forEach(([cabin, rule]) => {
+      mockRulesStore[`${template.id}_${cabin}`] = rule
+    })
     setEditMode(false)
   }
 
   if (loading) return <div className="p-8 text-center text-gray-500">加载中...</div>
-  if (!template || !priceRule) return <div className="p-8 text-center text-gray-500">未找到模板数据</div>
+  if (!template || !activeCabin) return <div className="p-8 text-center text-gray-500">未找到模板数据</div>
+
+  const priceRule = priceRules[activeCabin]
+  if (!priceRule) return <div className="p-8 text-center text-gray-500">数据错误</div>
 
   const productObj = products.find(p => p.id === template.productId)
   const segmentsList = productObj?.segments || []
   const segmentsCount = Math.max(1, priceRule.variables.P?.length || 1)
 
   const updatePriceRuleDate = (field: 'effectiveStart' | 'effectiveEnd', value: string) => {
-    setPriceRule(prev => prev ? { ...prev, [field]: value } : prev)
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      return { ...prev, [activeCabin]: { ...current, [field]: value } }
+    })
   }
   const toggleExcludeDate = (date: string) => {
-    setPriceRule(prev => {
-      if (!prev) return prev
-      const dates = prev.excludeDates || []
-      return { ...prev, excludeDates: dates.includes(date) ? dates.filter(d => d !== date) : [...dates, date].sort() }
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      const dates = current.excludeDates || []
+      return { ...prev, [activeCabin]: { ...current, excludeDates: dates.includes(date) ? dates.filter(d => d !== date) : [...dates, date].sort() } }
     })
   }
   const updatePriceVariableArray = (key: PricingVariableKey, index: number, value: number) => {
-    setPriceRule(prev => {
-      if (!prev) return prev
-      const arr = [...prev.variables[key]]
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      const arr = [...current.variables[key]]
       arr[index] = value
-      return { ...prev, variables: { ...prev.variables, [key]: arr } }
+      return { ...prev, [activeCabin]: { ...current, variables: { ...current.variables, [key]: arr } } }
     })
   }
   const updateFloorRule = (index: number, field: keyof FloorPricingRule, value: string | number) => {
-    setPriceRule(prev => {
-      if (!prev) return prev
-      const floorRules = [...prev.floorRules]
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      const floorRules = [...current.floorRules]
       floorRules[index] = { ...floorRules[index], [field]: value }
-      return { ...prev, floorRules }
+      return { ...prev, [activeCabin]: { ...current, floorRules } }
     })
   }
   const updateFormulaRule = (index: number, field: keyof Pick<FormulaPricingRule, 'formula' | 'enabled' | 'floor' | 'scenarioName'>, value: string | boolean) => {
-    setPriceRule(prev => {
-      if (!prev) return prev
-      const formulaRules = [...prev.formulaRules]
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      const formulaRules = [...current.formulaRules]
       formulaRules[index] = { ...formulaRules[index], [field]: value }
-      return { ...prev, formulaRules }
+      return { ...prev, [activeCabin]: { ...current, formulaRules } }
     })
   }
   const addFormulaRule = () => {
-    setPriceRule(prev => {
-      if (!prev) return prev
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
       return {
         ...prev,
-        formulaRules: [...prev.formulaRules, { id: 'custom-' + Date.now(), floor: '全部', scenario: 'custom' as const, scenarioName: '新规则', formula: 'P', enabled: true }],
+        [activeCabin]: {
+          ...current,
+          formulaRules: [...current.formulaRules, { id: 'custom-' + Date.now(), floor: '全部', scenario: 'custom' as const, scenarioName: '新规则', formula: 'P', enabled: true }],
+        }
       }
     })
   }
   const removeFormulaRule = (id: string) => {
-    setPriceRule(prev => prev ? { ...prev, formulaRules: prev.formulaRules.filter(r => r.id !== id) } : prev)
+    setPriceRules(prev => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      return {
+        ...prev,
+        [activeCabin]: {
+          ...current,
+          formulaRules: current.formulaRules.filter(r => r.id !== id)
+        }
+      }
+    })
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-50/60">
       {/* 头部导航区域 */}
-      <div className="shrink-0 border-b border-gray-200 bg-white px-6 py-4">
+      <div className="shrink-0 border-b border-gray-200 bg-white px-6 pt-4">
         <div className="mb-4">
           <button onClick={() => navigate('/voyage/templates')} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 transition-colors">
             <ChevronLeft className="w-4 h-4" /> 返回模板列表
           </button>
         </div>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 mb-2">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900">定价规则管理</h1>
             <div className="mt-2 flex items-center gap-2">
@@ -219,6 +263,23 @@ export default function TemplatePricePage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* 房型 Tabs */}
+        <div className="mt-4 flex gap-6 overflow-x-auto">
+          {cabinTypes.map((cabin) => (
+            <button
+              key={cabin}
+              onClick={() => setActiveCabin(cabin)}
+              className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
+                activeCabin === cabin
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              {getCabinName(cabin)}
+            </button>
+          ))}
         </div>
       </div>
 
