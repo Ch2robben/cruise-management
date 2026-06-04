@@ -318,7 +318,7 @@ export default function DepositRulePage() {
         {detail && (<>
           <DetailCard title="基本信息"><DetailRow label="规则名称" value={detail.name} /><DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} /><DetailRow label="是否收取定金" value={detail.collectDeposit ? '是' : '否'} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
           <DetailCard title="定金规则"><DetailRow label="市场类别" value={getMarketCategoryLabel(detail.marketCategory)} /><DetailRow label="维度" value={detail.dimension} /><DetailRow label="收取定金" value={detail.collectDeposit ? `${detail.depositAmount}${getDepositUnit(detail.dimension)}` : '不收取'} /><DetailRow label="船期" value={`${formatDate(detail.sailingStart)} 至 ${formatDate(detail.sailingEnd)}`} /><DetailRow label="预订期间" value={`${detail.bookingDaysFrom}${getTimeUnitLabel(detail.bookingTimeUnit)} - ${detail.bookingDaysTo}${getTimeUnitLabel(detail.bookingTimeUnit)}`} /><DetailRow label="定金期限" value={formatDeadline(detail)} /></DetailCard>
-          <DetailCard title="适用范围"><DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} /></DetailCard>
+          <DetailCard title="适用范围"><DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
         </>)}
       </DetailDrawer>

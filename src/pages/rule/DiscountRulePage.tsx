@@ -414,7 +414,7 @@ export default function DiscountRulePage() {
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
           </DetailCard>
           <DetailCard title="适用范围">
-            <DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
+            <DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
           </DetailCard>
           <DetailCard title={`阶梯规则（${detail.tiers.length}条）`}>
             <div className="space-y-3">

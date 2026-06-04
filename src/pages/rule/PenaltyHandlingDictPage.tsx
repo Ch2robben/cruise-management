@@ -337,7 +337,7 @@ export default function PenaltyHandlingDictPage() {
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
           </DetailCard>
           <DetailCard title="适用范围">
-            <DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
+            <DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
           </DetailCard>
           <DetailCard title="处理动作">
             <DetailRow label="影响后续下单" value={booleanText(detail.affectSubsequentOrder)} />

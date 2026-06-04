@@ -304,7 +304,7 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
             <DetailRow label="规则说明" value={detail.remark || '-'} />
           </DetailCard>
           <DetailCard title="适用范围">
-            <DetailRow label="产品/航次" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
+            <DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
           </DetailCard>
           <DetailCard title="操作信息">
             <DetailRow label="修改人" value={detail.updatedBy} />
