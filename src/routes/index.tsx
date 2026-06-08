@@ -44,6 +44,7 @@ import PenaltyHandlingDictPage from '@/pages/rule/PenaltyHandlingDictPage'
 import DiscountRulePage from '@/pages/rule/DiscountRulePage'
 import TipConfigPage from '@/pages/rule/TipConfigPage'
 import OrderValidityRulePage from '@/pages/rule/OrderValidityRulePage'
+import WarningRulePage from '@/pages/rule/WarningRulePage'
 import GroupAuthPage from '@/pages/rule/GroupAuthPage'
 import RefundRulePage from '@/pages/rule/RefundRulePage'
 import ShipAuthPage from '@/pages/rule/ShipAuthPage'
@@ -112,6 +113,7 @@ export const router = createBrowserRouter([
       { path: '/rule/discount', element: <DiscountRulePage /> },
       { path: '/rule/tip', element: <TipConfigPage /> },
       { path: '/rule/order-validity', element: <OrderValidityRulePage /> },
+      { path: '/rule/warning', element: <WarningRulePage /> },
       { path: '/rule/group-auth', element: <GroupAuthPage /> },
       { path: '/rule/refund', element: <RefundRulePage /> },
       { path: '/rule/ship-auth', element: <ShipAuthPage /> },

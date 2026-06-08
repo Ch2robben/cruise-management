@@ -17,7 +17,6 @@ const statusColors: Record<string, string> = { ticketing: 'bg-green-100 text-gre
 const approvalColors: Record<string, string> = { '已审批': 'text-green-600', '审批中': 'text-yellow-600', '已驳回': 'text-red-600' }
 const statusOptions = ['all', 'ticketing', 'suspended', 'chartered', 'deadhead', 'pending', 'transfer']
 
-type SupplierTab = 'inventory' | 'price'
 type SupplierChannelFilter = 'all' | DealerChannelType
 
 interface SupplierSegmentRow {
@@ -28,7 +27,6 @@ interface SupplierSegmentRow {
 interface SupplierCell {
   sold: number
   available: number
-  price: number
 }
 
 type SupplierMatrix = Record<string, Record<string, SupplierCell>>
@@ -89,7 +87,6 @@ export default function VoyagePage() {
   // 分销商价库
   const [supplierOpen, setSupplierOpen] = useState(false)
   const [supplierVoyage, setSupplierVoyage] = useState<Voyage | null>(null)
-  const [supplierTab, setSupplierTab] = useState<SupplierTab>('inventory')
   const [supplierChannelFilter, setSupplierChannelFilter] = useState<SupplierChannelFilter>('all')
   const [supplierDealerId, setSupplierDealerId] = useState('all')
   const [supplierSegments, setSupplierSegments] = useState<SupplierSegmentRow[]>([])
@@ -101,7 +98,6 @@ export default function VoyagePage() {
     const segments = createSupplierSegments(product, voyage)
     const cabins = createSupplierCabins(product)
     setSupplierVoyage(voyage)
-    setSupplierTab('inventory')
     setSupplierChannelFilter('all')
     setSupplierDealerId('all')
     setSupplierSegments(segments)
@@ -134,14 +130,14 @@ export default function VoyagePage() {
     refreshSupplierMatrix(supplierVoyage, supplierChannelFilter, value)
   }
 
-  const updateSupplierCell = (segmentKey: string, cabin: string, field: 'available' | 'price', value: number) => {
+  const updateSupplierCell = (segmentKey: string, cabin: string, value: number) => {
     setSupplierMatrix(prev => ({
       ...prev,
       [segmentKey]: {
         ...prev[segmentKey],
         [cabin]: {
           ...prev[segmentKey]?.[cabin],
-          [field]: Math.max(0, value || 0),
+          available: Math.max(0, value || 0),
         },
       },
     }))
@@ -426,19 +422,9 @@ export default function VoyagePage() {
 
             <div className="border-b px-6 pt-4">
               <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                  <button
-                    onClick={() => setSupplierTab('inventory')}
-                    className={`rounded-md px-4 py-2 text-sm ${supplierTab === 'inventory' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                  >
-                    分销商-库存
-                  </button>
-                  <button
-                    onClick={() => setSupplierTab('price')}
-                    className={`rounded-md px-4 py-2 text-sm ${supplierTab === 'price' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                  >
-                    分销商-价格
-                  </button>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">分销商库存</h4>
+                  <p className="mt-1 text-xs text-gray-500">按分销商、航段和房型调整可售库存；已售数仅展示不可编辑。</p>
                 </div>
                 <div className="flex items-end gap-3">
                   <div>
@@ -485,38 +471,25 @@ export default function VoyagePage() {
                     <tr key={segment.key}>
                       <td className="sticky left-0 z-10 border-r bg-white px-3 py-3 font-medium text-gray-900">{segment.label}</td>
                       {supplierCabins.map(cabin => {
-                        const cell = supplierMatrix[segment.key]?.[cabin] || { sold: 0, available: 0, price: 0 }
+                        const cell = supplierMatrix[segment.key]?.[cabin] || { sold: 0, available: 0 }
                         return (
                           <td key={`${segment.key}-${cabin}`} className="border-r px-3 py-2">
-                            {supplierTab === 'inventory' ? (
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between text-xs text-gray-500">
-                                  <span>已售</span>
-                                  <span className="font-semibold text-gray-900">{cell.sold}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="shrink-0 text-xs text-gray-500">可售</span>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={cell.available}
-                                    onChange={(event) => updateSupplierCell(segment.key, cabin, 'available', Number(event.target.value))}
-                                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
-                                  />
-                                </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <span>已售</span>
+                                <span className="font-semibold text-gray-900">{cell.sold}</span>
                               </div>
-                            ) : (
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-400">¥</span>
+                                <span className="shrink-0 text-xs text-gray-500">可售</span>
                                 <input
                                   type="number"
                                   min={0}
-                                  value={cell.price}
-                                  onChange={(event) => updateSupplierCell(segment.key, cabin, 'price', Number(event.target.value))}
+                                  value={cell.available}
+                                  onChange={(event) => updateSupplierCell(segment.key, cabin, Number(event.target.value))}
                                   className="w-full rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
                                 />
                               </div>
-                            )}
+                            </div>
                           </td>
                         )
                       })}
@@ -677,14 +650,11 @@ function createSupplierMatrix(
   for (const [segmentIndex, segment] of segments.entries()) {
     matrix[segment.key] = {}
     for (const [cabinIndex, cabin] of cabins.entries()) {
-      const pricing = product?.pricing.find(item => item.segmentKey === segment.key && item.cabinType === cabin)
-        || product?.pricing.find(item => item.cabinType === cabin)
       const soldBase = Math.max(0, Math.round(voyage.soldCabins / cabinCount))
       const availableBase = Math.max(0, Math.round(voyage.availableCabins / cabinCount))
       matrix[segment.key][cabin] = {
         sold: Math.max(0, soldBase - segmentIndex * 2 + cabinIndex + channelSeed + dealerSeed),
         available: Math.max(0, availableBase - segmentIndex * 3 + cabinIndex * 2 + channelSeed * 2 + dealerSeed),
-        price: (pricing?.basePrice || 2800 + segmentIndex * 180 + cabinIndex * 260) + channelSeed * 60 + dealerSeed * 35,
       }
     }
   }

@@ -4,9 +4,10 @@ import { groupItineraryRows, itineraryActivityColumns } from '@/components/voyag
 import { voyageTemplates, voyages } from '@/mock/data'
 import type { TemplateItinerary, Voyage, VoyageTemplate } from '@/types'
 
-type ControlTab = 'inventory' | 'sales' | 'itinerary'
+type ControlTab = 'inventory' | 'sales' | 'itinerary' | 'warning'
 type PolicyType = 'all' | 'ota' | 'dealer' | 'group'
 type PriceStatus = 'enabled' | 'paused' | 'soldout'
+type InventoryThresholdType = 'quantity' | 'percent'
 
 interface CabinStockRow {
   id: string
@@ -22,6 +23,15 @@ interface VoyageInventoryRow {
   release: number
   sold: number
   status: 'open' | 'closed'
+}
+
+type InventoryWarningLevel = 'high' | 'medium' | 'low'
+
+interface InventoryWarningRow extends VoyageInventoryRow {
+  threshold: number
+  thresholdType: InventoryThresholdType
+  owner: string
+  handled: boolean
 }
 
 interface PolicyRow {
@@ -47,6 +57,7 @@ const tabs: Array<{ key: ControlTab; label: string }> = [
   { key: 'inventory', label: '航次库存' },
   { key: 'sales', label: '销售控制' },
   { key: 'itinerary', label: '航次行程' },
+  { key: 'warning', label: '库存预警' },
 ]
 
 const cabinRows: CabinStockRow[] = [
@@ -71,6 +82,33 @@ const voyageInventoryRows: VoyageInventoryRow[] = [
   { id: 'vip-balcony-standard', name: '长江叁号豪华阳台标准间', stock: 202, release: 202, sold: 0, status: 'open' },
   { id: 'deluxe-suite', name: '长江壹号豪华套房', stock: 12, release: 12, sold: 0, status: 'open' },
   { id: 'presidential-suite', name: '长江壹号总统套房', stock: 4, release: 4, sold: 0, status: 'open' },
+]
+
+const inventoryWarningRows: InventoryWarningRow[] = [
+  {
+    ...voyageInventoryRows[0],
+    sold: 188,
+    threshold: 10,
+    thresholdType: 'quantity',
+    owner: '运营专员',
+    handled: true,
+  },
+  {
+    ...voyageInventoryRows[1],
+    sold: 5,
+    threshold: 5,
+    thresholdType: 'quantity',
+    owner: '库存专员',
+    handled: false,
+  },
+  {
+    ...voyageInventoryRows[2],
+    sold: 4,
+    threshold: 2,
+    thresholdType: 'quantity',
+    owner: '系统自动',
+    handled: false,
+  },
 ]
 
 const currentVoyage = voyages[0]
@@ -117,6 +155,33 @@ const statusClass: Record<PriceStatus, string> = {
   enabled: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   paused: 'bg-amber-50 text-amber-700 ring-amber-200',
   soldout: 'bg-rose-50 text-rose-700 ring-rose-200',
+}
+
+const inventoryWarningLabels: Record<InventoryWarningLevel, string> = {
+  high: '高风险',
+  medium: '中风险',
+  low: '低风险',
+}
+
+const inventoryWarningClass: Record<InventoryWarningLevel, string> = {
+  high: 'bg-rose-50 text-rose-700 ring-rose-200',
+  medium: 'bg-amber-50 text-amber-700 ring-amber-200',
+  low: 'bg-blue-50 text-blue-700 ring-blue-200',
+}
+
+function getEffectiveThreshold(release: number, threshold: number, thresholdType: InventoryThresholdType) {
+  if (thresholdType === 'percent') return Math.ceil((release * threshold) / 100)
+  return threshold
+}
+
+function formatThreshold(row: InventoryWarningRow) {
+  return row.thresholdType === 'percent' ? `${row.threshold}%` : String(row.threshold)
+}
+
+function getInventoryWarningLevel(releaseUnsold: number, threshold: number): InventoryWarningLevel {
+  if (releaseUnsold <= threshold) return 'high'
+  if (releaseUnsold <= threshold * 2) return 'medium'
+  return 'low'
 }
 
 export default function SalesControlPage() {
@@ -171,6 +236,8 @@ export function SalesControlWorkspace({ embedded = false }: { embedded?: boolean
       <div className="overflow-hidden p-2.5">
         {activeTab === 'inventory' ? (
           <VoyageInventoryTab />
+        ) : activeTab === 'warning' ? (
+          <InventoryWarningTab />
         ) : activeTab === 'itinerary' ? (
           <VoyageItineraryTab
             voyage={currentVoyage}
@@ -479,6 +546,267 @@ function VoyageInventoryTab() {
         />
       )}
     </>
+  )
+}
+
+function InventoryWarningTab() {
+  const [rows, setRows] = useState<InventoryWarningRow[]>(inventoryWarningRows)
+  const [editingRow, setEditingRow] = useState<InventoryWarningRow | null>(null)
+
+  const total = rows.reduce((acc, row) => {
+    const releaseUnsold = row.release - row.sold
+    acc.release += row.release
+    acc.sold += row.sold
+    acc.releaseUnsold += releaseUnsold
+    if (!row.handled) acc.unhandled += 1
+    return acc
+  }, { release: 0, sold: 0, releaseUnsold: 0, unhandled: 0 })
+
+  const handleSaveThreshold = (rowId: string, threshold: number, thresholdType: InventoryThresholdType) => {
+    setRows(prev => prev.map(row => row.id === rowId ? { ...row, threshold, thresholdType } : row))
+    setEditingRow(null)
+  }
+
+  return (
+    <>
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-4 py-2.5">
+          <h2 className="text-sm font-semibold text-slate-900">库存预警</h2>
+          <p className="mt-0.5 text-xs text-slate-500">共 {rows.length} 条预警，未处理 {total.unhandled} 条；预警基于投放未售数和阈值判断。</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-separate border-spacing-0 text-xs text-slate-700">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500">
+                <th className="w-12 border-b border-slate-200 px-3 py-2.5 text-center font-medium">序号</th>
+                <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">船舱名称</th>
+                <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">投放数量</th>
+                <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已售数</th>
+                <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">投放未售数</th>
+                <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">预警阈值</th>
+                <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">预警等级</th>
+                <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">处理人</th>
+                <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">处理状态</th>
+                <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const releaseUnsold = row.release - row.sold
+                const effectiveThreshold = getEffectiveThreshold(row.release, row.threshold, row.thresholdType)
+                const warningLevel = getInventoryWarningLevel(releaseUnsold, effectiveThreshold)
+                return (
+                  <tr key={row.id} className="hover:bg-slate-50">
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-center text-slate-400">{index + 1}</td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 font-medium text-slate-800">{row.name}</td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-right text-slate-700">{row.release}</td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-emerald-600">{row.sold}</td>
+                    <td className={`border-b border-slate-100 px-3 py-2.5 text-right font-medium ${releaseUnsold <= effectiveThreshold ? 'text-rose-600' : 'text-slate-700'}`}>{releaseUnsold}</td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-right text-slate-700">
+                      <div className="font-medium">{formatThreshold(row)}</div>
+                      {row.thresholdType === 'percent' && <div className="mt-0.5 text-[10px] text-slate-400">折算 {effectiveThreshold}</div>}
+                    </td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-center">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${inventoryWarningClass[warningLevel]}`}>
+                        {inventoryWarningLabels[warningLevel]}
+                      </span>
+                    </td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-center text-slate-600">{row.owner}</td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-center">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${
+                        row.handled
+                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                          : 'bg-amber-50 text-amber-700 ring-amber-200'
+                      }`}>
+                        {row.handled ? '已处理' : '待处理'}
+                      </span>
+                    </td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setEditingRow(row)}
+                        className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        调整阈值
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-slate-50 font-semibold text-slate-800">
+                <td className="border-t border-slate-200 px-3 py-2.5 text-center text-slate-400">—</td>
+                <td className="border-t border-slate-200 px-3 py-2.5 text-slate-500">合计</td>
+                <td className="border-t border-slate-200 px-3 py-2.5 text-right text-slate-600">{total.release}</td>
+                <td className="border-t border-slate-200 px-3 py-2.5 text-right text-emerald-600">{total.sold}</td>
+                <td className="border-t border-slate-200 px-3 py-2.5 text-right">{total.releaseUnsold}</td>
+                <td className="border-t border-slate-200 px-3 py-2.5" />
+                <td className="border-t border-slate-200 px-3 py-2.5" />
+                <td className="border-t border-slate-200 px-3 py-2.5 text-center text-slate-500">未处理 {total.unhandled} 条</td>
+                <td className="border-t border-slate-200 px-3 py-2.5" />
+                <td className="border-t border-slate-200 px-3 py-2.5" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div className="border-t bg-gray-50 px-4 py-3 text-xs text-gray-500">调整阈值后，预警等级会按当前投放未售数重新计算；后续可接入阈值模板和操作记录。</div>
+      </section>
+
+      {editingRow && (
+        <WarningThresholdModal
+          row={editingRow}
+          onSave={handleSaveThreshold}
+          onClose={() => setEditingRow(null)}
+        />
+      )}
+    </>
+  )
+}
+
+function WarningThresholdModal({
+  row,
+  onSave,
+  onClose,
+}: {
+  row: InventoryWarningRow
+  onSave: (rowId: string, threshold: number, thresholdType: InventoryThresholdType) => void
+  onClose: () => void
+}) {
+  const [threshold, setThreshold] = useState(String(row.threshold))
+  const [thresholdType, setThresholdType] = useState<InventoryThresholdType>(row.thresholdType)
+  const thresholdNum = parseInt(threshold, 10)
+  const releaseUnsold = row.release - row.sold
+  const isValid = threshold !== ''
+    && Number.isFinite(thresholdNum)
+    && !isNaN(thresholdNum)
+    && thresholdNum >= 0
+    && (thresholdType === 'quantity' || thresholdNum <= 100)
+  const nextEffectiveThreshold = getEffectiveThreshold(row.release, isValid ? thresholdNum : row.threshold, thresholdType)
+  const nextLevel = getInventoryWarningLevel(releaseUnsold, nextEffectiveThreshold)
+
+  const handleKey = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') onClose()
+    if (event.key === 'Enter' && isValid) onSave(row.id, thresholdNum, thresholdType)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="warning-threshold-title"
+      onKeyDown={handleKey}
+    >
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={onClose} />
+
+      <div className="relative z-10 w-full max-w-[420px] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
+        <div className="flex items-start justify-between bg-white px-6 pb-4 pt-5">
+          <div>
+            <h3 id="warning-threshold-title" className="text-sm font-semibold text-slate-900">调整预警阈值</h3>
+            <p className="mt-0.5 max-w-[280px] truncate text-xs font-normal text-slate-400">{row.name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            aria-label="关闭"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 14 14" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M1 1l12 12M13 1L1 13" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mx-6 mb-4 grid grid-cols-3 divide-x divide-slate-100 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+          <div className="px-4 py-3 text-center">
+            <div className="mb-1 text-[10px] text-slate-400">投放数量</div>
+            <div className="text-lg font-bold leading-none text-slate-800">{row.release}</div>
+          </div>
+          <div className="px-4 py-3 text-center">
+            <div className="mb-1 text-[10px] text-slate-400">已售数</div>
+            <div className="text-lg font-bold leading-none text-emerald-600">{row.sold}</div>
+          </div>
+          <div className="px-4 py-3 text-center">
+            <div className="mb-1 text-[10px] text-slate-400">投放未售</div>
+            <div className="text-lg font-bold leading-none text-slate-800">{releaseUnsold}</div>
+          </div>
+        </div>
+
+        <div className="space-y-4 px-6 pb-5">
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-700">预警阈值</label>
+              <span className="text-[10px] text-slate-400">
+                {thresholdType === 'percent' ? '按投放数量百分比折算阈值' : '投放未售数小于等于阈值时触发高风险'}
+              </span>
+            </div>
+            <div className="grid grid-cols-[1fr_116px] gap-2">
+              <input
+                type="number"
+                min={0}
+                max={thresholdType === 'percent' ? 100 : undefined}
+                value={threshold}
+                onChange={event => setThreshold(event.target.value)}
+                autoFocus
+                className={`h-9 w-full rounded-lg border px-3 text-center text-sm font-semibold tabular-nums transition-colors focus:outline-none focus:ring-2 ${
+                  isValid
+                    ? 'border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-blue-100'
+                    : 'border-rose-300 text-rose-700 focus:border-rose-400 focus:ring-rose-100'
+                }`}
+              />
+              <select
+                value={thresholdType}
+                onChange={event => setThresholdType(event.target.value as InventoryThresholdType)}
+                className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="quantity">值类型</option>
+                <option value="percent">百分比</option>
+              </select>
+            </div>
+            {!isValid && (
+              <div className="mt-2 text-xs text-rose-500">
+                {thresholdType === 'percent' ? '请输入 0 到 100 的整数百分比' : '请输入大于等于 0 的整数阈值'}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">保存后预警等级</span>
+                <span className={`inline-flex rounded-full px-2 py-0.5 font-medium ring-1 ${inventoryWarningClass[nextLevel]}`}>
+                  {inventoryWarningLabels[nextLevel]}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-400">
+                <span>实际触发阈值</span>
+                <span className="font-medium text-slate-600">{isValid ? nextEffectiveThreshold : '-'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => isValid && onSave(row.id, thresholdNum, thresholdType)}
+            disabled={!isValid}
+            className="h-9 rounded-lg bg-blue-600 px-6 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            保存修改
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

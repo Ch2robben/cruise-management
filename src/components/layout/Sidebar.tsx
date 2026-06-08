@@ -99,6 +99,7 @@ const menuItems: MenuItem[] = [
       { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
       { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
       { key: 'order_validity_rule', label: '订单有效期规则', path: '/rule/order-validity' },
+      { key: 'warning_rule', label: '预警规则', path: '/rule/warning' },
       { key: 'group_auth', label: '组团社权限管理', path: '/rule/group-auth' },
       { key: 'refund_rule', label: '分销商退票费规则', path: '/rule/refund' },
       { key: 'ship_auth', label: '船舶权限管理', path: '/rule/ship-auth' },

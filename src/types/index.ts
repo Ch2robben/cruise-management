@@ -382,6 +382,7 @@ export interface PricingRow {
 export interface Product {
   id: string
   name: string
+  category?: string
   routeId: string
   routeName: string
   routeType: 'upstream' | 'downstream'
@@ -410,6 +411,7 @@ export interface Product {
 
 export interface ProductForm {
   name: string
+  category: string
   routeId: string
   shipId: string
   icon: string
@@ -687,6 +689,18 @@ export interface VoyagePrice {
   adultPrice: number
   childPrice: number
   babyPrice: number
+  priceDetails?: Partial<Record<'adultPrice' | 'childPrice' | 'babyPrice', {
+    retailPrice: number
+    contractPrice: number
+    settlementPrice: number
+    portPrice: number
+  }>>
+  segmentPriceDetails?: Record<string, Partial<Record<'adultPrice' | 'childPrice' | 'babyPrice', {
+    retailPrice: number
+    contractPrice: number
+    settlementPrice: number
+    portPrice: number
+  }>>>
   updatedBy: string
   updatedAt: string
   createdAt: string

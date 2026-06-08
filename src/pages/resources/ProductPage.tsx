@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, ChevronDown, ChevronRight, RotateCcw, X } from 'lucide-react'
 import { productApi } from '@/mock/api'
 import { routes, ships, tickets } from '@/mock/data'
@@ -15,9 +16,11 @@ import StatusBadge from '@/components/common/StatusBadge'
 // ========== 常量 ==========
 const shipLevels = [...new Set(ships.map((s) => s.level))]
 const routeOptions = routes.slice(0, 5) // 选5条航线做下拉
+const productCategoryOptions = ['三峡游轮', '长江游轮', '海洋游轮', '短线游轮', '定制游轮']
 
 type ProductForm = {
   name: string
+  category: string
   routeId: string
   shipId: string
   icon: string
@@ -37,7 +40,7 @@ interface ProductTicketConfig {
 }
 
 const emptyForm: ProductForm = {
-  name: '', routeId: '', shipId: '', icon: '', images: [], description: '',
+  name: '', category: '三峡游轮', routeId: '', shipId: '', icon: '', images: [], description: '',
 }
 
 const cabinTypeLabels: Record<string, string> = { suite: '套房', balcony: '阳台房', window: '海景房', inside: '内舱房' }
@@ -85,12 +88,23 @@ function calcTotalDays(stops: StopInfo[]): number {
   return stops[stops.length - 1].day - stops[0].day
 }
 
+function getProductCategory(product: Product): string {
+  if (product.category) return product.category
+  if (product.name.includes('三峡') || product.routeName.includes('三峡')) return '三峡游轮'
+  if (product.name.includes('长江') || product.routeName.includes('长江')) return '长江游轮'
+  if (product.name.includes('短线') || product.duration.includes('3天')) return '短线游轮'
+  if (product.name.includes('定制')) return '定制游轮'
+  return '海洋游轮'
+}
+
 // ========== 页面组件 ==========
 export default function ProductPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   // 列表状态
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<PaginatedResult<Product>>({ data: [], total: 0, page: 1, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [shipLevel, setShipLevel] = useState('all')
   const [routeId, setRouteId] = useState('all')
   const [routeType, setRouteType] = useState('all')
@@ -138,6 +152,7 @@ export default function ProductPage() {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     if (keyword.trim()) params.keyword = keyword.trim()
+    if (categoryFilter !== 'all') params.category = categoryFilter
     if (shipLevel !== 'all') params.shipLevel = shipLevel
     if (routeId !== 'all') params.routeId = routeId
     if (routeType !== 'all') params.routeType = routeType
@@ -147,13 +162,13 @@ export default function ProductPage() {
     const result = await productApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, shipLevel, routeId, routeType, statusFilter, minMileage, maxMileage])
+  }, [keyword, categoryFilter, shipLevel, routeId, routeType, statusFilter, minMileage, maxMileage])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const handleSearch = () => fetchData(1)
   const handleReset = () => {
-    setKeyword(''); setShipLevel('all'); setRouteId('all'); setRouteType('all')
+    setKeyword(''); setCategoryFilter('all'); setShipLevel('all'); setRouteId('all'); setRouteType('all')
     setStatusFilter('all'); setMinMileage(''); setMaxMileage('')
   }
 
@@ -211,17 +226,24 @@ export default function ProductPage() {
     onRouteChange(form.routeId)
   }
 
-  const openCreate = () => {
+  const openCreate = (defaults?: Partial<ProductForm>) => {
     setEditingId(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, ...defaults })
     setSegments([])
     setFormOpen(true)
   }
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return
+    openCreate({ name: searchParams.get('name') || '' })
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const openEdit = (record: Product) => {
     setEditingId(record.id)
     setForm({
       name: record.name,
+      category: getProductCategory(record),
       routeId: record.routeId,
       shipId: record.shipId,
       icon: record.icon,
@@ -266,6 +288,7 @@ export default function ProductPage() {
     const now = new Date().toISOString()
     const productData = {
       name: form.name,
+      category: form.category,
       routeId: form.routeId,
       routeName: route.name,
       routeType: autoFill.routeType,
@@ -444,6 +467,7 @@ export default function ProductPage() {
   const treeColumns = [
     { key: 'id', title: '产品ID', parent: (r: Product) => r.id, child: () => '' },
     { key: 'name', title: '产品名称', parent: (r: Product) => r.name, child: () => '' },
+    { key: 'category', title: '产品分类', parent: (r: Product) => getProductCategory(r), child: () => '' },
     { key: 'routeName', title: '航线', parent: (r: Product) => r.routeName, child: () => '' },
     { key: 'routeType', title: '上下水', parent: (r: Product) => (
       <span className={r.routeType === 'upstream' ? 'text-blue-600' : 'text-green-600'}>
@@ -497,6 +521,14 @@ export default function ProductPage() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">产品分类</label>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+            <option value="all">全部</option>
+            {productCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">游轮等级</label>
           <select value={shipLevel} onChange={(e) => setShipLevel(e.target.value)}
             className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
@@ -547,7 +579,7 @@ export default function ProductPage() {
         </div>
       </SearchPanel>
       <div className="bg-white px-9 py-6">
-        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+        <button onClick={() => openCreate()} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
           <Plus className="w-4 h-4" />添加
         </button>
       </div>
@@ -630,6 +662,13 @@ export default function ProductPage() {
                 <label className="block text-sm text-gray-700 mb-1">产品名称 <span className="text-red-500">*</span></label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">产品分类 <span className="text-red-500">*</span></label>
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+                  {productCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">航线 <span className="text-red-500">*</span></label>
@@ -754,6 +793,7 @@ export default function ProductPage() {
             <DetailCard title="基本信息">
               <DetailRow label="产品名称" value={detail.name} />
               <DetailRow label="产品ID" value={detail.id} mono />
+              <DetailRow label="产品分类" value={getProductCategory(detail)} />
               <DetailRow label="航线" value={detail.routeName} />
               <DetailRow label="上下水" value={<span className={detail.routeType === 'upstream' ? 'text-blue-600' : 'text-green-600'}>{detail.routeType === 'upstream' ? '上水' : '下水'}</span>} />
               <DetailRow label="游轮" value={`${detail.shipName}（${detail.shipLevel}）`} />

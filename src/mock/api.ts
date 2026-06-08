@@ -1,6 +1,15 @@
 import { delay, generateId } from '@/utils/format'
 import type { SearchParams, PaginatedResult, PricingRow } from '@/types'
 
+const getProductCategory = (product: Product) => {
+  if (product.category) return product.category
+  if (product.name.includes('三峡') || product.routeName.includes('三峡')) return '三峡游轮'
+  if (product.name.includes('长江') || product.routeName.includes('长江')) return '长江游轮'
+  if (product.name.includes('短线') || product.duration.includes('3天')) return '短线游轮'
+  if (product.name.includes('定制')) return '定制游轮'
+  return '海洋游轮'
+}
+
 // ========== 通用 CRUD API 工厂 ==========
 interface CrudConfig<T> {
   searchFields: (keyof T & string)[]
@@ -343,6 +352,11 @@ export const productApi = {
       filtered = filtered.filter((p) => p.shipLevel === params.shipLevel)
     }
 
+    // 产品分类筛选
+    if (params.category && params.category !== 'all') {
+      filtered = filtered.filter((p) => getProductCategory(p) === params.category)
+    }
+
     // 航线筛选
     if (params.routeId && params.routeId !== 'all') {
       filtered = filtered.filter((p) => p.routeId === params.routeId)
@@ -370,18 +384,22 @@ export const productApi = {
     const pageSize = params.pageSize || 10
     const total = filtered.length
     const start = (page - 1) * pageSize
-    const paged = filtered.slice(start, start + pageSize)
+    const paged = filtered.slice(start, start + pageSize).map((product) => ({
+      ...product,
+      category: getProductCategory(product),
+    }))
     return { data: paged, total, page, pageSize }
   },
 
   async getById(id: string): Promise<Product | undefined> {
     await delay(300)
-    return products.find((p) => p.id === id)
+    const product = products.find((p) => p.id === id)
+    return product ? { ...product, category: getProductCategory(product) } : undefined
   },
 
   async create(item: Omit<Product, 'id'>): Promise<Product> {
     await delay(300)
-    const newItem = { ...item, id: generateId() } as Product
+    const newItem = { ...item, category: item.category || getProductCategory(item as Product), id: generateId() } as Product
     products.unshift(newItem)
     return newItem
   },
@@ -391,6 +409,7 @@ export const productApi = {
     const idx = products.findIndex((p) => p.id === id)
     if (idx === -1) return undefined
     products[idx] = { ...products[idx], ...updates }
+    products[idx].category = products[idx].category || getProductCategory(products[idx])
     return products[idx]
   },
 

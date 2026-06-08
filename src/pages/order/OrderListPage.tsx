@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronLeft, Eye, RotateCcw, Search } from 'lucide-react'
+import { ChevronDown, ChevronLeft, RotateCcw, Search } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
+import { formatCurrency } from '@/utils/format'
 
 type OrderStatus = '取消' | '船款确认' | '已预订' | '已完成'
 
@@ -381,6 +382,10 @@ const filterFields = [
   { key: 'salesPerson', label: '分管业务员', type: 'select', options: ['全部', '彭辉', '栾伶伶'] },
 ]
 
+const primaryFilterKeys = ['keyword', 'orderStatus', 'voyageNo', 'marketCategory', 'sailDate', 'groupName']
+const primaryFilterFields = filterFields.filter((field) => primaryFilterKeys.includes(field.key))
+const advancedFilterFields = filterFields.filter((field) => !primaryFilterKeys.includes(field.key))
+
 const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: string; render?: (record: CruiseOrder) => ReactNode }[] = [
   { key: 'index', title: '序号', width: '58px' },
   { key: 'history', title: '历史', width: '70px', render: (record) => <span className="text-blue-600 underline">{record.history}</span> },
@@ -427,32 +432,143 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'actions', title: '操作', width: '110px' },
 ]
 
+const amountColumnKeys = new Set<keyof CruiseOrder>([
+  'unitPrice',
+  'receivableTicket',
+  'smallFee',
+  'localFee',
+  'combinedProduct',
+  'totalAmount',
+  'paidAmount',
+  'arrears',
+  'depositAmount',
+  'ticketBalance',
+])
+
+const numericColumnKeys = new Set<keyof CruiseOrder>([
+  'totalPeople',
+  'adult',
+  'child',
+  'infant',
+  'companion',
+  ...amountColumnKeys,
+])
+
 function createEmptyFilters() {
   return Object.fromEntries(filterFields.map((field) => [field.key, ''])) as Record<string, string>
 }
 
-function InfoSection({ title, children }: { title: string; children: ReactNode }) {
+function OrderStatusPill({ status }: { status: OrderStatus }) {
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="mb-4 text-base font-semibold text-gray-900">{title}</h3>
-      {children}
+    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${statusColor[status]}`}>
+      {status}
+    </span>
+  )
+}
+
+function MetricItem({ label, value, highlight }: { label: string; value: ReactNode; highlight?: boolean }) {
+  return (
+    <div className="rounded-lg bg-gray-50 px-4 py-3">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className={`mt-1 text-lg font-semibold ${highlight ? 'text-blue-600' : 'text-gray-900'}`}>{value}</div>
+    </div>
+  )
+}
+
+function DetailSection({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
+  return (
+    <section className={`overflow-hidden rounded-lg border border-gray-200 bg-white ${className}`}>
+      <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
+        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+      </div>
+      <div className="p-5">{children}</div>
     </section>
   )
 }
 
-function SimpleTable({ rows }: { rows: { label: string; value: ReactNode }[][] }) {
+function FieldGrid({ children, columns = 2 }: { children: ReactNode; columns?: 2 | 3 }) {
+  const columnClass = columns === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'
+  return <div className={`grid gap-x-8 gap-y-3 ${columnClass}`}>{children}</div>
+}
+
+function FieldItem({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
-    <div className="overflow-hidden border border-gray-200">
-      <table className="w-full table-fixed text-sm">
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {row.map((item) => (
-                <td key={item.label} className="border-b border-r border-gray-200 last:border-r-0">
-                  <div className="bg-gray-50 px-3 py-2 text-center text-gray-500">{item.label}</div>
-                  <div className="min-h-11 px-3 py-3 text-center text-gray-700">{item.value || '-'}</div>
-                </td>
-              ))}
+    <div className="grid min-h-8 grid-cols-[108px_1fr] items-start gap-3 text-sm">
+      <span className="text-gray-500">{label}</span>
+      <span className={`min-w-0 break-words text-gray-900 ${mono ? 'font-mono' : ''}`}>{value || '-'}</span>
+    </div>
+  )
+}
+
+function formatOrderCellValue(order: CruiseOrder, key: keyof CruiseOrder) {
+  const value = order[key]
+  if (amountColumnKeys.has(key)) return formatCurrency(Number(value || 0))
+  return value === '' || value == null ? '-' : String(value)
+}
+
+function renderHeaderTitle(title: string) {
+  if (title === '序号') {
+    return (
+      <>
+        序<br />号
+      </>
+    )
+  }
+  return title
+}
+
+function FilterControl({ field, value, onChange }: { field: (typeof filterFields)[number]; value: string; onChange: (key: string, value: string) => void }) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-xs text-gray-500">{field.label}</span>
+      {field.type === 'select' ? (
+        <select value={value || '全部'} onChange={(event) => onChange(field.key, event.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-500">
+          {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      ) : (
+        <input type="text" value={value || ''} onChange={(event) => onChange(field.key, event.target.value)} placeholder={field.placeholder} className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-blue-500" />
+      )}
+    </label>
+  )
+}
+
+function RoomPriceTable({ order }: { order: CruiseOrder }) {
+  const rows = [
+    {
+      roomType: order.roomType,
+      ageGroup: order.ageGroup,
+      occupancyType: order.occupancyType,
+      coefficient: order.priceCoefficient,
+      price: order.unitPrice,
+      people: order.totalPeople,
+      subtotal: order.receivableTicket,
+    },
+  ]
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[820px] text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50">
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">房型</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">年龄段</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">入住类型</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">价格系数</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">结算价</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">人数</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">小计</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.map((row) => (
+            <tr key={`${row.roomType}-${row.ageGroup}`}>
+              <td className="px-4 py-3 text-gray-700">{row.roomType}</td>
+              <td className="px-4 py-3 text-gray-700">{row.ageGroup}</td>
+              <td className="px-4 py-3 text-gray-700">{row.occupancyType}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.coefficient}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(row.price)}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.people}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(row.subtotal)}</td>
             </tr>
           ))}
         </tbody>
@@ -463,30 +579,38 @@ function SimpleTable({ rows }: { rows: { label: string; value: ReactNode }[][] }
 
 function AmountTable({ order }: { order: CruiseOrder }) {
   const rows = [
-    ['1', '定金', '', '0.00', '0.00'],
-    ['2', '船票尾款', '', '', order.receivableTicket.toFixed(2)],
-    ['3', '陪同款', '', '', '0.00'],
-    ['4', '船票总款', '', '', order.receivableTicket.toFixed(2)],
-    ['5', '升舱费', '', '', '0.00'],
-    ['6', '地接费', '', '', order.localFee.toFixed(2)],
-    ['7', '罚金', '', '', order.depositAmount.toFixed(2)],
-    ['8', '小费', '', order.smallFee.toFixed(2), order.smallFee.toFixed(2)],
-    ['9', '组合产品', '', '', order.combinedProduct.toFixed(2)],
-    ['10', '其他', '', '', '0.00'],
-    ['11', '结算总价', '', '', order.totalAmount.toFixed(2)],
+    ['1', '定金', '-', 0, 0],
+    ['2', '船票尾款', '-', 0, order.receivableTicket],
+    ['3', '陪同款', '-', 0, 0],
+    ['4', '船票总款', '-', 0, order.receivableTicket],
+    ['5', '升舱费', '-', 0, 0],
+    ['6', '地接费', '-', 0, order.localFee],
+    ['7', '罚金', '-', 0, order.depositAmount],
+    ['8', '小费', '-', order.smallFee, order.smallFee],
+    ['9', '组合产品', '-', 0, order.combinedProduct],
+    ['10', '其他', '-', 0, 0],
+    ['11', '结算总价', '-', 0, order.totalAmount],
   ]
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] border border-gray-300 text-sm">
+      <table className="w-full min-w-[820px] text-sm">
         <thead>
-          <tr className="bg-gray-50">
-            {['序号', '名称', '系数', '单价', '总价'].map((item) => <th key={item} className="border border-gray-300 px-3 py-2 text-center font-medium text-gray-600">{item}</th>)}
+          <tr className="border-b border-gray-200 bg-gray-50">
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">序号</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">名称</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">系数</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">单价</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">总价</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-gray-100">
           {rows.map((row) => (
             <tr key={row[0]}>
-              {row.map((cell, index) => <td key={`${row[0]}-${index}`} className="border border-gray-300 px-3 py-2 text-center text-gray-700">{cell || '-'}</td>)}
+              <td className="px-4 py-3 text-gray-700">{row[0]}</td>
+              <td className="px-4 py-3 text-gray-700">{row[1]}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row[2]}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(Number(row[3]))}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(Number(row[4]))}</td>
             </tr>
           ))}
         </tbody>
@@ -497,7 +621,7 @@ function AmountTable({ order }: { order: CruiseOrder }) {
 
 export default function OrderListPage() {
   const [filters, setFilters] = useState<Record<string, string>>(createEmptyFilters)
-  const [filtersExpanded, setFiltersExpanded] = useState(true)
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [page, setPage] = useState(1)
   const [detail, setDetail] = useState<CruiseOrder | null>(null)
 
@@ -516,7 +640,6 @@ export default function OrderListPage() {
   const pageSize = 10
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize))
   const pagedOrders = filteredOrders.slice((page - 1) * pageSize, page * pageSize)
-  const visibleFilterFields = filtersExpanded ? filterFields : filterFields.slice(0, 4)
 
   const updateFilter = (key: string, value: string) => setFilters((prev) => ({ ...prev, [key]: value }))
   const resetFilters = () => {
@@ -528,58 +651,132 @@ export default function OrderListPage() {
     return (
       <div className="space-y-5">
         <PageHeader title="订单详情">
-          <button onClick={() => setDetail(null)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
+          <button onClick={() => setDetail(null)} className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-base text-gray-600 transition hover:bg-gray-50">
             <ChevronLeft className="h-4 w-4" />
             返回列表
           </button>
         </PageHeader>
-        <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+        <div className="border border-gray-200 bg-white px-9 py-6">
           <div className="mb-4 text-sm text-blue-600">订单管理 / 订单详情</div>
-          <div className="space-y-5">
-            <InfoSection title="订单信息">
-              <p className="mb-3 text-sm text-red-500">特别提示：订单变更后如遇紧急情况（航次停航、变更等）客服人员会及时与您电话联系</p>
-              <SimpleTable rows={[[{ label: '订单号', value: detail.orderNo }, { label: '预定时间', value: detail.bookingTime }, { label: '订单状态', value: detail.orderStatus }]]} />
-            </InfoSection>
+          <p className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            特别提示：订单变更后如遇紧急情况（航次停航、变更等）客服人员会及时与您电话联系。
+          </p>
 
-            <InfoSection title="游轮产品信息">
-              <SimpleTable rows={[
-                [{ label: '游轮', value: detail.ship }, { label: '旅游天数', value: `${detail.voyageDays}` }, { label: '航次号', value: detail.voyageNo }, { label: '出发日期', value: detail.sailDate }, { label: '终到日期', value: '2021/10/03' }, { label: '开航时间', value: `${detail.sailDate} 21:00:00` }],
-                [{ label: '出发港', value: detail.departurePort }, { label: '终到港', value: detail.arrivalPort }, { label: '途经港', value: detail.transitPort }, { label: '供应商', value: detail.supplier }],
-              ]} />
-            </InfoSection>
+          <DetailSection title="订单概览" className="mb-5">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              <MetricItem label="订单状态" value={<OrderStatusPill status={detail.orderStatus} />} />
+              <MetricItem label="订单总额" value={formatCurrency(detail.totalAmount)} highlight />
+              <MetricItem label="实收总额" value={formatCurrency(detail.paidAmount)} />
+              <MetricItem label="欠款" value={formatCurrency(detail.arrears)} />
+              <MetricItem label="总人数" value={`${detail.totalPeople} 人`} />
+            </div>
+          </DetailSection>
 
-            <InfoSection title="组团社及政策">
-              <SimpleTable rows={[[{ label: '组团社', value: detail.dealer }, { label: '组团社用户', value: detail.advanceAccount }, { label: '价格政策', value: detail.policyName }, { label: '市场类别', value: detail.marketCategory }, { label: '国籍', value: detail.nationality }]]} />
-            </InfoSection>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <DetailSection title="订单信息">
+              <FieldGrid>
+                <FieldItem label="订单号" value={detail.orderNo} mono />
+                <FieldItem label="总单号" value={detail.parentOrderNo} mono />
+                <FieldItem label="第三方订单号" value={detail.thirdPartyOrderNo || '-'} mono />
+                <FieldItem label="预订时间" value={detail.bookingTime} />
+                <FieldItem label="订单类型" value={detail.orderType} />
+                <FieldItem label="分管业务员" value={detail.salesPerson} />
+              </FieldGrid>
+            </DetailSection>
 
-            <InfoSection title="人数信息">
-              <SimpleTable rows={[[{ label: '总人数', value: detail.totalPeople }, { label: '成人', value: detail.adult }, { label: '儿童', value: detail.child }, { label: '婴儿', value: detail.infant }, { label: '16免1数', value: 0 }, { label: '陪同', value: detail.companion }]]} />
-            </InfoSection>
+            <DetailSection title="游轮产品信息">
+              <FieldGrid>
+                <FieldItem label="游轮" value={detail.ship} />
+                <FieldItem label="航次号" value={detail.voyageNo} mono />
+                <FieldItem label="航线" value={detail.line} />
+                <FieldItem label="开船日期" value={detail.sailDate} />
+                <FieldItem label="行程天数" value={`${detail.voyageDays} 天`} />
+                <FieldItem label="供应商" value={detail.supplier} />
+              </FieldGrid>
+            </DetailSection>
 
-            <InfoSection title="费用信息">
-              <SimpleTable rows={[[{ label: '定金单价', value: '0元/床位' }, { label: '定金总额', value: '0元' }, { label: '定金时限', value: '-' }, { label: '小费单价', value: `${detail.smallFee || 150}元/人` }, { label: '小费总额', value: `${detail.smallFee}元` }, { label: '船款时限', value: detail.sailDeadline }]]} />
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[920px] border border-gray-300 text-sm">
-                  <thead><tr className="bg-gray-50">{['房型', '年龄段', '入住类型', '价格系数', '结算价', '人数', '小计'].map((item) => <th key={item} className="border border-gray-300 px-3 py-2 text-center font-medium text-gray-600">{item}</th>)}</tr></thead>
-                  <tbody><tr>{[detail.roomType, detail.ageGroup, detail.occupancyType, detail.priceCoefficient, detail.unitPrice, detail.totalPeople, `${detail.receivableTicket}元`].map((item, index) => <td key={index} className="border border-gray-300 px-3 py-2 text-center text-gray-700">{item}</td>)}</tr></tbody>
-                </table>
+            <DetailSection title="港口与行程">
+              <FieldGrid>
+                <FieldItem label="出发港" value={detail.departurePort} />
+                <FieldItem label="终到港" value={detail.arrivalPort} />
+                <FieldItem label="途经港" value={detail.transitPort} />
+                <FieldItem label="线路" value={detail.route} />
+                <FieldItem label="航次状态" value={detail.voyageStatus} />
+                <FieldItem label="船款日期" value={detail.sailDeadline} />
+              </FieldGrid>
+            </DetailSection>
+
+            <DetailSection title="组团社及政策">
+              <FieldGrid>
+                <FieldItem label="组团社" value={detail.dealer} />
+                <FieldItem label="组团社用户" value={detail.advanceAccount} />
+                <FieldItem label="价格政策" value={detail.policyName} />
+                <FieldItem label="市场类别" value={detail.marketCategory} />
+                <FieldItem label="国籍" value={detail.nationality} />
+                <FieldItem label="销售类型" value={detail.salesType} />
+              </FieldGrid>
+            </DetailSection>
+
+            <DetailSection title="人数信息">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                <MetricItem label="总人数" value={detail.totalPeople} />
+                <MetricItem label="成人" value={detail.adult} />
+                <MetricItem label="儿童" value={detail.child} />
+                <MetricItem label="婴儿" value={detail.infant} />
+                <MetricItem label="陪同" value={detail.companion} />
+                <MetricItem label="16免1数" value={0} />
               </div>
-              <div className="mt-4"><AmountTable order={detail} /></div>
-            </InfoSection>
+            </DetailSection>
 
-            <InfoSection title="联系人信息">
-              <SimpleTable rows={[
-                [{ label: '团队名称', value: detail.groupName }, { label: '陪同数', value: detail.companion }, { label: '陪同款', value: '0元' }, { label: '联系人姓名', value: detail.contactName }, { label: '手机号', value: detail.contactPhone }, { label: '固定电话', value: detail.fixedPhone }],
-                [{ label: '传真', value: detail.fax }, { label: 'Email', value: detail.email }, { label: '是否留言', value: detail.leaveMessage }, { label: '联系人', value: detail.contactName }, { label: '回复方式', value: '-' }, { label: '特殊要求', value: '-' }],
-              ]} />
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[780px] border border-gray-300 text-sm">
-                  <thead><tr className="bg-gray-50">{['陪同', '姓名', '证件类型', '证件号', '手机号', '是否转运'].map((item) => <th key={item} className="border border-gray-300 px-3 py-2 text-center font-medium text-gray-600">{item}</th>)}</tr></thead>
-                  <tbody><tr><td colSpan={6} className="border border-gray-300 px-3 py-6 text-center text-gray-400">暂无数据</td></tr></tbody>
-                </table>
-              </div>
-            </InfoSection>
+            <DetailSection title="凭证与共享状态">
+              <FieldGrid>
+                <FieldItem label="凭证申请" value={detail.voucherApplyStatus} />
+                <FieldItem label="凭证审批" value={detail.voucherApprovalStatus} />
+                <FieldItem label="共享中心" value={detail.shareCenterStatus} />
+                <FieldItem label="推送时间" value={detail.pushTime || '-'} />
+                <FieldItem label="是否开票" value={detail.invoiceRequired} />
+                <FieldItem label="预定账号" value={detail.advanceAccount} />
+              </FieldGrid>
+            </DetailSection>
           </div>
+
+          <DetailSection title="费用信息" className="mt-5">
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <MetricItem label="应收船款" value={formatCurrency(detail.receivableTicket)} highlight />
+              <MetricItem label="小费" value={formatCurrency(detail.smallFee)} />
+              <MetricItem label="地接费" value={formatCurrency(detail.localFee)} />
+              <MetricItem label="组合产品" value={formatCurrency(detail.combinedProduct)} />
+            </div>
+            <RoomPriceTable order={detail} />
+            <div className="mt-4">
+              <AmountTable order={detail} />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="联系人信息" className="mt-5">
+            <FieldGrid columns={3}>
+              <FieldItem label="团队名称" value={detail.groupName} />
+              <FieldItem label="联系人" value={detail.contactName} />
+              <FieldItem label="手机号" value={detail.contactPhone} />
+              <FieldItem label="固定电话" value={detail.fixedPhone || '-'} />
+              <FieldItem label="传真" value={detail.fax || '-'} />
+              <FieldItem label="Email" value={detail.email || '-'} />
+              <FieldItem label="是否留言" value={detail.leaveMessage} />
+              <FieldItem label="特殊要求" value="-" />
+            </FieldGrid>
+            <div className="mt-4 overflow-x-auto rounded-lg bg-white">
+              <table className="w-full min-w-[780px] text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    {['陪同', '姓名', '证件类型', '证件号', '手机号', '是否转运'].map((item) => <th key={item} className="px-4 py-3 text-left text-xs font-medium text-gray-500">{item}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">暂无数据</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </DetailSection>
         </div>
       </div>
     )
@@ -589,65 +786,76 @@ export default function OrderListPage() {
     <div>
       <PageHeader title="订单管理" />
 
-      <div className="mb-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-        <div className="grid grid-cols-1 gap-x-10 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
-          {visibleFilterFields.map((field) => (
-            <label key={field.key} className="grid grid-cols-[108px_1fr] items-center gap-3 text-sm">
-              <span className="text-right text-gray-600">{field.label}：</span>
-              {field.type === 'select' ? (
-                <select value={filters[field.key] || '全部'} onChange={(event) => updateFilter(field.key, event.target.value)} className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus:border-blue-500">
-                  {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              ) : (
-                <input type={field.type === 'date' ? 'text' : 'text'} value={filters[field.key] || ''} onChange={(event) => updateFilter(field.key, event.target.value)} placeholder={field.placeholder} className="h-10 rounded-md border border-gray-300 px-3 text-sm text-gray-700 outline-none focus:border-blue-500" />
-              )}
-            </label>
-          ))}
-        </div>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setPage(1)} className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-medium text-white hover:bg-blue-700">
+      <div className="border-b border-gray-200 bg-white px-9 py-6">
+        <div className="flex items-start gap-6">
+          <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3 2xl:grid-cols-6">
+            {primaryFilterFields.map((field) => (
+              <FilterControl key={field.key} field={field} value={filters[field.key]} onChange={updateFilter} />
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center gap-3 pt-[22px]">
+            <button onClick={() => setPage(1)} className="inline-flex h-11 min-w-[90px] items-center justify-center gap-2 rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">
               <Search className="h-4 w-4" />
-              查询
+              搜索
             </button>
-            <button onClick={resetFilters} className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-sm text-gray-700 hover:bg-gray-50">
+            <button onClick={resetFilters} className="inline-flex h-11 min-w-[90px] items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-6 text-base text-gray-600 transition hover:bg-gray-50">
               <RotateCcw className="h-4 w-4" />
               重置
             </button>
+            <button
+              type="button"
+              onClick={() => setFiltersExpanded((prev) => !prev)}
+              className="inline-flex h-11 min-w-[128px] items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-base text-gray-600 transition hover:bg-gray-50"
+            >
+              {filtersExpanded ? '收起高级' : `高级筛选(${advancedFilterFields.length})`}
+              <ChevronDown className={`h-4 w-4 transition-transform ${filtersExpanded ? 'rotate-180' : ''}`} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setFiltersExpanded((prev) => !prev)}
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-700 hover:bg-blue-100"
-          >
-            {filtersExpanded ? '收起筛选' : `展开筛选（${filterFields.length - visibleFilterFields.length}项）`}
-            <ChevronDown className={`h-4 w-4 transition-transform ${filtersExpanded ? 'rotate-180' : ''}`} />
-          </button>
         </div>
+
+        {filtersExpanded && (
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-800">高级筛选</span>
+              <span className="text-xs text-gray-400">低频条件默认收起，避免影响订单检索效率</span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-4 2xl:grid-cols-6">
+              {advancedFilterFields.map((field) => (
+                <FilterControl key={field.key} field={field} value={filters[field.key]} onChange={updateFilter} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+      <div className="overflow-hidden border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-[4200px] border-collapse text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="w-10 border border-gray-200 px-2 py-3 text-center"><input type="checkbox" /></th>
+                <th className="h-[72px] w-10 border-b border-r border-gray-200 bg-gray-50 px-3 text-center align-middle"><input type="checkbox" /></th>
                 {tableColumns.map((column) => (
-                  <th key={column.key} style={{ width: column.width }} className="border border-gray-200 px-3 py-3 text-left text-xs font-semibold text-gray-700">{column.title}</th>
+                  <th
+                    key={column.key}
+                    style={{ width: column.width }}
+                    className="h-[72px] border-b border-r border-gray-200 bg-gray-50 px-4 text-center align-middle text-[18px] font-semibold leading-[1.15] text-gray-900 last:border-r-0"
+                  >
+                    <span className="inline-block whitespace-normal">{renderHeaderTitle(column.title)}</span>
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {pagedOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-blue-50/40">
-                  <td className="border border-gray-200 px-2 py-3 text-center"><input type="checkbox" /></td>
+                <tr key={order.id} className="transition hover:bg-gray-50">
+                  <td className="border-b border-r border-gray-200 px-4 py-5 text-center"><input type="checkbox" /></td>
                   {tableColumns.map((column) => (
-                    <td key={column.key} className="border border-gray-200 px-3 py-3 text-gray-700">
+                    <td
+                      key={column.key}
+                      className={`whitespace-nowrap border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700 last:border-r-0 ${numericColumnKeys.has(column.key as keyof CruiseOrder) ? 'text-right tabular-nums' : ''}`}
+                    >
                       {column.key === 'actions' ? (
-                        <button onClick={() => setDetail(order)} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
-                          操作
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
+                        <button onClick={() => setDetail(order)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
                       ) : column.key === 'orderNo' ? (
                         <button onClick={() => setDetail(order)} className="font-mono text-blue-700 underline underline-offset-2 hover:text-blue-900">
                           {order.orderNo}
@@ -655,7 +863,7 @@ export default function OrderListPage() {
                       ) : column.render ? (
                         column.render(order)
                       ) : (
-                        String(order[column.key] || '-')
+                        formatOrderCellValue(order, column.key)
                       )}
                     </td>
                   ))}
@@ -664,20 +872,15 @@ export default function OrderListPage() {
             </tbody>
           </table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 text-sm text-gray-500">
-          <span>共 {filteredOrders.length} 条记录 第 {page} / {totalPages} 页</span>
-          <div className="flex items-center gap-2">
-            <button disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))} className="rounded border border-gray-300 px-3 py-1.5 disabled:opacity-40">上一页</button>
-            <button className="rounded bg-blue-600 px-3 py-1.5 text-white">{page}</button>
-            <button disabled={page >= totalPages} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} className="rounded border border-gray-300 px-3 py-1.5 disabled:opacity-40">下一页</button>
-            <span className="rounded border border-gray-300 px-3 py-1.5">10条/页</span>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-9 py-10 text-gray-500">
+          <span className="text-[15px]">共 {filteredOrders.length} 条记录 第 {page} / {totalPages} 页</span>
+          <div className="flex items-center gap-4">
+            <button disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))} className="flex h-12 min-w-[72px] items-center justify-center rounded border border-gray-200 bg-white px-4 text-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40">上一页</button>
+            <button className="flex h-12 w-12 items-center justify-center rounded border border-blue-600 bg-blue-600 text-lg text-white">{page}</button>
+            <button disabled={page >= totalPages} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} className="flex h-12 min-w-[72px] items-center justify-center rounded border border-gray-200 bg-white px-4 text-sm transition hover:border-blue-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40">下一页</button>
+            <button type="button" className="flex h-12 min-w-[110px] items-center justify-center rounded border border-gray-200 bg-white px-4 text-lg text-gray-500">10条/页</button>
           </div>
         </div>
-      </div>
-
-      <div className="mt-3 text-xs text-gray-400">
-        Demo 操作说明：点击任意行右侧“操作”按钮查看订单详情。
-        <Eye className="ml-1 inline h-3.5 w-3.5" />
       </div>
     </div>
   )

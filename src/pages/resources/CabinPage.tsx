@@ -248,7 +248,6 @@ export default function CabinPage() {
           <span className="text-gray-300">|</span>
           <button className="text-base text-red-500 hover:text-red-600">删除</button>
           <button className="ml-3 text-sm text-gray-500 hover:text-gray-700">详情</button>
-          <button onClick={() => openPricingRule(record)} className="text-sm text-blue-600 hover:text-blue-700">定价规则</button>
         </div>
       ),
     },

@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Download, Pencil, Plus, Route, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Download, Package, Plus, Trash2 } from 'lucide-react'
 import { attractionApi, portApi, portDistanceApi } from '@/mock/api'
 import type { Attraction, Port, PortDistance } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
+import SearchPanel from '@/components/common/SearchPanel'
+import DataTable from '@/components/common/DataTable'
+import DetailDrawer from '@/components/common/DetailDrawer'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 import { formatDateTime, generateId } from '@/utils/format'
 
 interface ItinerarySegment {
@@ -123,6 +128,7 @@ const safeText = (value: unknown) => String(value ?? '-')
   .replace(/"/g, '&quot;')
 
 export default function ItineraryManagementPage() {
+  const navigate = useNavigate()
   const [ports, setPorts] = useState<Port[]>([])
   const [distances, setDistances] = useState<PortDistance[]>([])
   const [attractions, setAttractions] = useState<Attraction[]>([])
@@ -131,6 +137,8 @@ export default function ItineraryManagementPage() {
   const [draftName, setDraftName] = useState('')
   const [draftSegments, setDraftSegments] = useState<ItinerarySegment[]>([])
   const [keyword, setKeyword] = useState('')
+  const [appliedKeyword, setAppliedKeyword] = useState('')
+  const [deletePlanId, setDeletePlanId] = useState('')
 
   useEffect(() => {
     portApi.list({ pageSize: 100 }).then((result) => setPorts(result.data))
@@ -196,7 +204,7 @@ export default function ItineraryManagementPage() {
 
   const filteredPlans = plans.filter((plan) => {
     const text = `${plan.name} ${plan.code}`.toLowerCase()
-    return !keyword.trim() || text.includes(keyword.trim().toLowerCase())
+    return !appliedKeyword.trim() || text.includes(appliedKeyword.trim().toLowerCase())
   })
 
   const openCreate = () => {
@@ -236,8 +244,15 @@ export default function ItineraryManagementPage() {
     closeEditor()
   }
 
-  const removePlan = (id: string) => {
-    setPlans((current) => current.filter((plan) => plan.id !== id))
+  const confirmRemovePlan = () => {
+    setPlans((current) => current.filter((plan) => plan.id !== deletePlanId))
+    setDeletePlanId('')
+  }
+
+  const goCreateProduct = (name?: string) => {
+    const params = new URLSearchParams({ create: '1' })
+    if (name?.trim()) params.set('name', name.trim())
+    navigate(`/resources/products?${params.toString()}`)
   }
 
   const updateSegment = (id: string, patch: Partial<ItinerarySegment>) => {
@@ -377,58 +392,107 @@ export default function ItineraryManagementPage() {
     printWindow.document.close()
   }
 
-  if (draftSegments.length > 0) {
-    return (
+  const columns = [
+    { key: 'name', title: '行程名称', render: (plan: ItineraryPlan) => (
       <div>
-        <PageHeader title={editingPlanId ? '编辑行程方案' : '新增行程方案'} description="按航段维护启航时间、航速和到达时间，并结合景点游览时长判断停泊安排是否合理。" />
+        <div className="font-medium text-gray-900">{plan.name}</div>
+        <div className="mt-0.5 font-mono text-xs text-gray-400">{plan.code}</div>
+      </div>
+    ) },
+    { key: 'ports', title: '起止码头', render: (plan: ItineraryPlan) => {
+      const firstSegment = plan.segments[0]
+      const lastSegment = plan.segments[plan.segments.length - 1]
+      return `${portMap.get(firstSegment?.fromPortId || '')?.name || '-'} → ${portMap.get(lastSegment?.toPortId || '')?.name || '-'}`
+    } },
+    { key: 'segmentCount', title: '航段数', width: '90px', render: (plan: ItineraryPlan) => plan.segments.length },
+    { key: 'distance', title: '总距离', width: '110px', render: (plan: ItineraryPlan) => `${buildMetrics(plan.segments).totalDistance} km` },
+    { key: 'sailingTime', title: '总航行时间', width: '140px', render: (plan: ItineraryPlan) => minutesToText(buildMetrics(plan.segments).totalSailingMinutes) },
+    { key: 'judgement', title: '景点判断', width: '120px', render: (plan: ItineraryPlan) => {
+      const metrics = buildMetrics(plan.segments)
+      return (
+        <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
+          metrics.checkedCount === 0
+            ? 'bg-gray-100 text-gray-500'
+            : metrics.passedCount === metrics.checkedCount
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-red-50 text-red-700'
+        }`}>
+          {metrics.passedCount}/{metrics.checkedCount || 0}
+        </span>
+      )
+    } },
+    { key: 'updated', title: '修改信息', width: '170px', render: (plan: ItineraryPlan) => (
+      <div>
+        <div>{plan.updatedBy}</div>
+        <div className="mt-0.5 text-xs text-gray-400">{formatDateTime(plan.updatedAt)}</div>
+      </div>
+    ) },
+    { key: 'actions', title: '操作', width: '250px', render: (plan: ItineraryPlan) => {
+      const metrics = buildMetrics(plan.segments)
+      return (
+        <div className="flex items-center gap-2">
+          <button onClick={() => openEdit(plan)} className="text-sm text-blue-600 hover:text-blue-700">编辑</button>
+          <button onClick={() => exportPdf(plan.name, metrics)} className="text-sm text-gray-600 hover:text-gray-900">PDF</button>
+          <button onClick={() => goCreateProduct(plan.name)} className="text-sm text-gray-600 hover:text-gray-900">生成产品</button>
+          <button onClick={() => setDeletePlanId(plan.id)} className="text-sm text-red-500 hover:text-red-600">删除</button>
+        </div>
+      )
+    } },
+  ]
 
-        <div className="bg-white px-9 py-6">
-          <div className="mb-5 flex items-end justify-between gap-6">
-            <div className="w-96">
-              <label className="mb-1 block text-xs text-gray-500">行程方案名称</label>
+  const editorContent = draftSegments.length > 0 ? (
+      <div className="space-y-6">
+        <div>
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基础信息</h4>
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-5">
+              <label className="mb-1 block text-sm text-gray-700">行程方案名称</label>
               <input value={draftName} onChange={(event) => setDraftName(event.target.value)} className={inputClass} />
             </div>
-            <div className="flex items-center gap-3">
-              <button onClick={closeEditor} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
-                <ArrowLeft className="h-4 w-4" /> 返回列表
+            <div className="col-span-7 flex items-end justify-end gap-3">
+              <button onClick={closeEditor} className="inline-flex h-10 items-center rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
+                取消
               </button>
-              <button onClick={() => exportPdf(draftName || '行程方案', draftMetrics)} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-gray-900 px-5 text-sm font-medium text-white transition hover:bg-gray-800">
+              <button onClick={() => exportPdf(draftName || '行程方案', draftMetrics)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
                 <Download className="h-4 w-4" /> 导出PDF文档
               </button>
-              <button disabled title="原型阶段暂不实现生成航线" className="inline-flex h-10 cursor-not-allowed items-center gap-1.5 rounded-md border border-gray-200 bg-gray-100 px-5 text-sm font-medium text-gray-400">
-                <Route className="h-4 w-4" /> 生成航线
+              <button onClick={() => goCreateProduct(draftName || '新建行程方案')} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
+                <Package className="h-4 w-4" /> 生成产品
               </button>
-              <button onClick={saveDraft} className="inline-flex h-10 items-center rounded-md bg-blue-600 px-5 text-sm font-medium text-white transition hover:bg-blue-700">保存</button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
-              <p className="text-xs text-gray-500">航段数量</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{draftSegments.length}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
-              <p className="text-xs text-gray-500">航行距离合计</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{draftMetrics.totalDistance} km</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
-              <p className="text-xs text-gray-500">航行时间合计</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{minutesToText(draftMetrics.totalSailingMinutes)}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
-              <p className="text-xs text-gray-500">景点停泊判断</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{draftMetrics.passedCount}/{draftMetrics.checkedCount || 0}</p>
+              <button onClick={saveDraft} className="inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800">保存</button>
             </div>
           </div>
         </div>
 
-        <div className="bg-white px-9 pb-8">
+        <div>
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">计算概览</h4>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">航段数量</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{draftSegments.length}</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">航行距离合计</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{draftMetrics.totalDistance} km</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">航行时间合计</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{minutesToText(draftMetrics.totalSailingMinutes)}</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">景点停泊判断</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{draftMetrics.passedCount}/{draftMetrics.checkedCount || 0}</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">航段编排</h3>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">航段编排</h4>
               <p className="mt-1 text-xs text-gray-500">到达时间由距离库距离和本航段航速自动计算；停泊时间取本段到达后到下一段启航前的时间。</p>
             </div>
-            <button onClick={addSegment} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-blue-600 px-5 text-sm font-medium text-white transition hover:bg-blue-700">
+            <button onClick={addSegment} className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-sm text-white hover:bg-blue-700">
               <Plus className="h-4 w-4" /> 添加航段
             </button>
           </div>
@@ -446,42 +510,42 @@ export default function ItineraryManagementPage() {
                         {portMap.get(segment.fromPortId)?.name || '未选起点'} → {portMap.get(segment.toPortId)?.name || '未选终点'}
                       </p>
                     </div>
-                    <button onClick={() => removeSegment(segment.id)} disabled={draftSegments.length <= 1} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40">
+                    <button onClick={() => removeSegment(segment.id)} disabled={draftSegments.length <= 1} className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40">
                       <Trash2 className="h-3.5 w-3.5" /> 删除
                     </button>
                   </div>
 
                   <div className="grid grid-cols-12 gap-4 px-5 py-4">
                     <div className="col-span-3">
-                      <label className="mb-1 block text-xs text-gray-500">起始码头</label>
+                      <label className="mb-1 block text-sm text-gray-700">起始码头</label>
                       <select value={segment.fromPortId} onChange={(event) => updateSegment(segment.id, { fromPortId: event.target.value, attractionIds: [] })} className={inputClass}>
                         <option value="">请选择</option>
                         {ports.map((port) => <option key={port.id} value={port.id}>{port.name}</option>)}
                       </select>
                     </div>
                     <div className="col-span-3">
-                      <label className="mb-1 block text-xs text-gray-500">下个码头</label>
+                      <label className="mb-1 block text-sm text-gray-700">下个码头</label>
                       <select value={segment.toPortId} onChange={(event) => updateSegment(segment.id, { toPortId: event.target.value, attractionIds: [] })} className={inputClass}>
                         <option value="">请选择</option>
                         {ports.map((port) => <option key={port.id} value={port.id}>{port.name}</option>)}
                       </select>
                     </div>
                     <div className="col-span-3">
-                      <label className="mb-1 block text-xs text-gray-500">启航时间</label>
+                      <label className="mb-1 block text-sm text-gray-700">启航时间</label>
                       <input type="time" value={segment.departureTime} onChange={(event) => updateSegment(segment.id, { departureTime: event.target.value })} className={inputClass} />
                     </div>
                     <div className="col-span-3">
-                      <label className="mb-1 block text-xs text-gray-500">航行速度</label>
+                      <label className="mb-1 block text-sm text-gray-700">航行速度</label>
                       <select value={segment.speedKmH} onChange={(event) => updateSegment(segment.id, { speedKmH: Number(event.target.value) })} className={inputClass}>
                         {speedOptions.map((speed) => <option key={speed} value={speed}>{speed} km/h</option>)}
                         {distance?.speedKmH && !speedOptions.includes(distance.speedKmH) && <option value={distance.speedKmH}>{distance.speedKmH} km/h</option>}
                       </select>
                     </div>
 
-                    <div className="col-span-3 rounded-lg bg-blue-50 px-4 py-3">
-                      <p className="text-xs text-blue-500">距离库匹配</p>
-                      <p className="mt-1 text-sm font-semibold text-blue-700">{distance ? `${distance.distanceKm} km` : '未维护距离'}</p>
-                      <p className="mt-1 text-xs text-blue-500">
+                    <div className="col-span-3 rounded-lg bg-gray-50 px-4 py-3">
+                      <p className="text-xs text-gray-500">距离库匹配</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">{distance ? `${distance.distanceKm} km` : '未维护距离'}</p>
+                      <p className="mt-1 text-xs text-gray-500">
                         {distanceSource === 'exact' ? '正向匹配' : distanceSource === 'reverse' ? '反向参考' : '请先维护码头距离库'}
                       </p>
                     </div>
@@ -503,8 +567,8 @@ export default function ItineraryManagementPage() {
 
                     <div className="col-span-4">
                       <div className="mb-1 flex items-center justify-between">
-                        <label className="block text-xs text-gray-500">对应景点</label>
-                        <button type="button" onClick={() => addAttraction(segment.id)} className="rounded px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50">+ 新增景点</button>
+                        <label className="block text-sm text-gray-700">对应景点</label>
+                        <button type="button" onClick={() => addAttraction(segment.id)} className="text-sm text-blue-600 hover:text-blue-700">新增景点</button>
                       </div>
                       <div className="space-y-2">
                         {segment.attractionIds.length === 0 ? (
@@ -515,7 +579,7 @@ export default function ItineraryManagementPage() {
                               <option value="">请选择景点</option>
                               {attractionOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
-                            <button type="button" onClick={() => removeAttraction(segment.id, attractionIndex)} className="shrink-0 rounded px-2 py-2 text-xs text-red-600 hover:bg-red-50">删除</button>
+                            <button type="button" onClick={() => removeAttraction(segment.id, attractionIndex)} className="shrink-0 text-sm text-red-500 hover:text-red-600">删除</button>
                           </div>
                         ))}
                       </div>
@@ -524,13 +588,13 @@ export default function ItineraryManagementPage() {
                       )}
                     </div>
                     <div className="col-span-4">
-                      <label className="mb-1 block text-xs text-gray-500">景点所需时间</label>
+                      <label className="mb-1 block text-sm text-gray-700">景点所需时间</label>
                       <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
                         {selectedAttractions.length > 0 ? `${minutesToText(attractionMinutes)}（共 ${selectedAttractions.length} 个景点）` : '-'}
                       </div>
                     </div>
                     <div className="col-span-4">
-                      <label className="mb-1 block text-xs text-gray-500">合理性判断</label>
+                      <label className="mb-1 block text-sm text-gray-700">合理性判断</label>
                       <div className={`flex h-10 items-center rounded-lg px-3 text-sm font-medium ${
                         enoughForAttraction === undefined
                           ? 'border border-gray-200 bg-gray-50 text-gray-500'
@@ -543,7 +607,7 @@ export default function ItineraryManagementPage() {
                     </div>
 
                     <div className="col-span-12">
-                      <label className="mb-1 block text-xs text-gray-500">备注</label>
+                      <label className="mb-1 block text-sm text-gray-700">备注</label>
                       <input value={segment.remark} onChange={(event) => updateSegment(segment.id, { remark: event.target.value })} className={inputClass} />
                     </div>
                   </div>
@@ -553,100 +617,50 @@ export default function ItineraryManagementPage() {
           </div>
         </div>
       </div>
-    )
-  }
+  ) : null
 
   return (
     <div>
       <PageHeader title="行程管理" description="管理行程方案列表，并在新增/编辑中按航段计算到达时间和景点停泊合理性。" />
 
-      <div className="bg-white px-9 py-6">
-        <div className="mb-5 flex flex-wrap items-end gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-gray-500">关键词</label>
-            <input
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="行程名称/编号"
-              className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
-            />
-          </div>
-          <button onClick={() => setKeyword('')} className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm text-gray-600 transition hover:bg-gray-50">重置</button>
-          <button onClick={openCreate} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-md bg-blue-600 px-6 text-sm font-medium text-white transition hover:bg-blue-700">
-            <Plus className="h-4 w-4" /> 新增行程
-          </button>
+      <SearchPanel onSearch={() => setAppliedKeyword(keyword)} onReset={() => { setKeyword(''); setAppliedKeyword('') }}>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">关键词</label>
+          <input
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') setAppliedKeyword(keyword) }}
+            placeholder="行程名称/编号"
+            className="w-52 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
         </div>
+      </SearchPanel>
 
-        <div className="overflow-hidden border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]">
-              <thead>
-                <tr className="bg-gray-50">
-                  {['行程名称', '起止码头', '航段数', '总距离', '总航行时间', '景点判断', '修改信息', '操作'].map((header) => (
-                    <th key={header} className="border-b border-r border-gray-200 px-4 py-4 text-left text-[15px] font-semibold text-gray-800 last:border-r-0">{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlans.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-16 text-center text-sm text-gray-400">暂无行程方案</td>
-                  </tr>
-                ) : filteredPlans.map((plan) => {
-                  const metrics = buildMetrics(plan.segments)
-                  const firstSegment = plan.segments[0]
-                  const lastSegment = plan.segments[plan.segments.length - 1]
-                  return (
-                    <tr key={plan.id} className="transition hover:bg-gray-50">
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm">
-                        <p className="font-medium text-gray-900">{plan.name}</p>
-                        <p className="mt-1 text-xs text-gray-500">{plan.code}</p>
-                      </td>
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">
-                        {portMap.get(firstSegment?.fromPortId || '')?.name || '-'} → {portMap.get(lastSegment?.toPortId || '')?.name || '-'}
-                      </td>
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">{plan.segments.length}</td>
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">{metrics.totalDistance} km</td>
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">{minutesToText(metrics.totalSailingMinutes)}</td>
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          metrics.checkedCount === 0
-                            ? 'bg-gray-100 text-gray-500'
-                            : metrics.passedCount === metrics.checkedCount
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-red-50 text-red-700'
-                        }`}>
-                          {metrics.passedCount}/{metrics.checkedCount || 0}
-                        </span>
-                      </td>
-                      <td className="border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700">
-                        <p>{plan.updatedBy}</p>
-                        <p className="mt-1 text-xs text-gray-500">{formatDateTime(plan.updatedAt)}</p>
-                      </td>
-                      <td className="border-b border-gray-200 px-4 py-5 text-sm">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => openEdit(plan)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900">
-                            <Pencil className="h-3.5 w-3.5" /> 编辑
-                          </button>
-                          <button onClick={() => exportPdf(plan.name, metrics)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700">
-                            <Download className="h-3.5 w-3.5" /> PDF
-                          </button>
-                          <button disabled title="原型阶段暂不实现生成航线" className="inline-flex cursor-not-allowed items-center gap-1 rounded px-2 py-1 text-xs text-gray-400">
-                            <Route className="h-3.5 w-3.5" /> 生成航线
-                          </button>
-                          <button onClick={() => removePlan(plan.id)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 hover:text-red-700">
-                            <Trash2 className="h-3.5 w-3.5" /> 删除
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div className="bg-white px-9 py-6">
+        <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <Plus className="h-4 w-4" />新增行程
+        </button>
       </div>
+
+      <DataTable columns={columns} dataSource={filteredPlans} rowKey="id" emptyText="暂无行程方案" />
+
+      <DetailDrawer
+        open={draftSegments.length > 0}
+        title={editingPlanId ? '编辑行程方案' : '新增行程方案'}
+        width="w-[1120px]"
+        onClose={closeEditor}
+      >
+        {editorContent}
+      </DetailDrawer>
+
+      <ConfirmDialog
+        open={Boolean(deletePlanId)}
+        title="删除行程方案"
+        message="确定要删除该行程方案吗？删除后不可恢复。"
+        danger
+        onConfirm={confirmRemovePlan}
+        onCancel={() => setDeletePlanId('')}
+      />
     </div>
   )
 }

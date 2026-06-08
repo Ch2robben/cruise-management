@@ -27,6 +27,7 @@ const routeLabels: Record<string, string> = {
   '/rule/dealer-cooperation': '申请合作规则',
   '/rule/tip': '小费标准管理',
   '/rule/order-validity': '订单有效期规则',
+  '/rule/warning': '预警规则',
   '/rule/close': '订单取消规则管理',
   '/system': '系统设置',
   '/system/users': '用户管理',
