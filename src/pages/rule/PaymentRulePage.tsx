@@ -9,7 +9,6 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import ApplicableScopeTransfer, { createDefaultApplicableScope, formatApplicableScope, formatApplicableScopeDetail, type ApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
-import { DEFAULT_MARKET_CATEGORY, MARKET_CATEGORY_GROUPS, MARKET_CATEGORY_OPTIONS, getMarketCategoryLabel } from '@/utils/constants'
 
 type PaymentStatus = 'effective' | 'disabled'
 
@@ -18,7 +17,6 @@ interface PaymentRule {
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
   applyScope: ApplicableScope
-  marketCategory: string
   sailingStart: string
   sailingEnd: string
   deadlineDaysBeforeSail: number
@@ -33,7 +31,6 @@ type PaymentRuleForm = Omit<PaymentRule, 'id' | 'approvalStatus' | 'updatedBy' |
 const emptyForm: PaymentRuleForm = {
   name: '',
   applyScope: createDefaultApplicableScope(),
-  marketCategory: DEFAULT_MARKET_CATEGORY,
   sailingStart: '2025-06-01',
   sailingEnd: '2026-12-31',
   deadlineDaysBeforeSail: 7,
@@ -58,15 +55,14 @@ function createPaymentRule(form: PaymentRuleForm): PaymentRule {
 }
 
 const initialRules: PaymentRule[] = [
-  createPaymentRule({ ...emptyForm, name: '内宾巫山船款', marketCategory: 'domestic_wushan', deadlineDaysBeforeSail: 7 }),
-  createPaymentRule({ ...emptyForm, name: '外宾日本船款', marketCategory: 'foreign_japan', sailingStart: '2025-07-01', deadlineDaysBeforeSail: 15 }),
-  createPaymentRule({ ...emptyForm, name: '外宾美国船款', marketCategory: 'foreign_usa', sailingStart: '2025-06-01', sailingEnd: '2026-12-31', deadlineDaysBeforeSail: 30 }),
+  createPaymentRule({ ...emptyForm, name: '内宾巫山船款', deadlineDaysBeforeSail: 7 }),
+  createPaymentRule({ ...emptyForm, name: '外宾日本船款', sailingStart: '2025-07-01', deadlineDaysBeforeSail: 15 }),
+  createPaymentRule({ ...emptyForm, name: '外宾美国船款', sailingStart: '2025-06-01', sailingEnd: '2026-12-31', deadlineDaysBeforeSail: 30 }),
 ]
 
 export default function PaymentRulePage() {
   const [records, setRecords] = useState<PaymentRule[]>(initialRules)
   const [keyword, setKeyword] = useState('')
-  const [marketFilter, setMarketFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
 
@@ -83,11 +79,10 @@ export default function PaymentRulePage() {
     const kw = keyword.trim().toLowerCase()
     return records.filter((item) => {
       const matchedKeyword = !kw || item.name.toLowerCase().includes(kw)
-      const matchedMarket = marketFilter === 'all' || item.marketCategory === marketFilter
       const matchedStatus = statusFilter === 'all' || item.status === statusFilter
-      return matchedKeyword && matchedMarket && matchedStatus
+      return matchedKeyword && matchedStatus
     })
-  }, [records, keyword, marketFilter, statusFilter])
+  }, [records, keyword, statusFilter])
 
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
@@ -135,7 +130,6 @@ export default function PaymentRulePage() {
   const columns = [
     { key: 'name', title: '船款规则名称', dataIndex: 'name' as keyof PaymentRule },
     { key: 'applyScope', title: '适用范围', render: (r: PaymentRule) => formatApplicableScope(r.applyScope) },
-    { key: 'marketCategory', title: '市场类别', render: (r: PaymentRule) => getMarketCategoryLabel(r.marketCategory) },
     { key: 'sailingPeriod', title: '船期', render: (r: PaymentRule) => `${formatDate(r.sailingStart)} 至 ${formatDate(r.sailingEnd)}` },
     { key: 'deadline', title: '船款期限', render: (r: PaymentRule) => `开船前 ${r.deadlineDaysBeforeSail} 天` },
     { key: 'approvalStatus', title: '审批状态', render: (r: PaymentRule) => <StatusBadge status={r.approvalStatus} /> },
@@ -153,10 +147,9 @@ export default function PaymentRulePage() {
 
   return (
     <div>
-      <PageHeader title="船款规则管理" description="维护船款规则名称、市场类别、船期与开船前付款期限" />
-      <SearchPanel onSearch={() => setPage(1)} onReset={() => { setKeyword(''); setMarketFilter('all'); setStatusFilter('all'); setPage(1) }}>
+      <PageHeader title="船款规则管理" description="维护船款规则名称、船期与开船前付款期限" />
+      <SearchPanel onSearch={() => setPage(1)} onReset={() => { setKeyword(''); setStatusFilter('all'); setPage(1) }}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="船款规则名称" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">市场类别</label><select value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
       </SearchPanel>
 
@@ -174,10 +167,6 @@ export default function PaymentRulePage() {
               <div>
                 <label className="block text-sm text-gray-700 mb-1">船款规则名称 <span className="text-red-500">*</span></label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">市场类别</label>
-                <select value={form.marketCategory} onChange={(e) => setForm({ ...form, marketCategory: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select>
               </div>
             </div>
           </div>
@@ -214,7 +203,7 @@ export default function PaymentRulePage() {
 
       <DetailDrawer open={detailOpen} title="船款规则详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
-          <DetailCard title="基本信息"><DetailRow label="规则名称" value={detail.name} /><DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} /><DetailRow label="市场类别" value={getMarketCategoryLabel(detail.marketCategory)} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
+          <DetailCard title="基本信息"><DetailRow label="规则名称" value={detail.name} /><DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
           <DetailCard title="船款规则"><DetailRow label="船期" value={`${formatDate(detail.sailingStart)} 至 ${formatDate(detail.sailingEnd)}`} /><DetailRow label="船款期限" value={`开船前 ${detail.deadlineDaysBeforeSail} 天`} /></DetailCard>
           <DetailCard title="适用范围"><DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>

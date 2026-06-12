@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2 } from 'lucide-react'
 import { routeApi, portApi } from '@/mock/api'
 import type { Route, RouteStop, PaginatedResult, SearchParams, Port } from '@/types'
@@ -32,6 +33,13 @@ interface RouteFormData {
   remark: string
 }
 
+interface ItineraryGenerationPayload {
+  name: string
+  stops: Omit<StopForm, 'key' | 'embarkDisembark'>[]
+}
+
+const ITINERARY_GENERATION_KEY = 'itinerary-generation-payload'
+
 const emptyStop = (type: 'start' | 'middle' | 'end'): StopForm => ({
   key: generateId(),
   portId: '',
@@ -51,6 +59,9 @@ const emptyForm: RouteFormData = {
 }
 
 export default function RoutePage() {
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const generationHandledRef = useRef(false)
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<PaginatedResult<Route>>({ data: [], total: 0, page: 1, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
@@ -66,6 +77,8 @@ export default function RoutePage() {
   const [form, setForm] = useState<RouteFormData>(emptyForm)
   const [formLoading, setFormLoading] = useState(false)
   const [formWidth, setFormWidth] = useState('max-w-4xl')
+  const [nextGeneration, setNextGeneration] = useState<'product' | null>(null)
+  const [nextProductName, setNextProductName] = useState('')
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<Route | null>(null)
@@ -100,6 +113,46 @@ export default function RoutePage() {
     r.stops.map((s) => ({ key: s.id, portId: s.portId, portName: s.portName, day: s.day, pierName: s.pierName, sailTime: s.sailTime, distance: s.distance, type: s.type, embarkDisembark: s.embarkDisembark ?? (s.type === 'start' || s.type === 'end') }))
 
   const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, stops: [emptyStop('start'), emptyStop('end')] }); setFormOpen(true) }
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1' || generationHandledRef.current) return
+    generationHandledRef.current = true
+
+    const name = searchParams.get('name') || ''
+    const next = searchParams.get('next') === 'product' ? 'product' : null
+    const productName = searchParams.get('productName') || name
+    let payload: ItineraryGenerationPayload | null = null
+
+    try {
+      const storedPayload = sessionStorage.getItem(ITINERARY_GENERATION_KEY)
+      payload = storedPayload ? JSON.parse(storedPayload) as ItineraryGenerationPayload : null
+    } catch {
+      payload = null
+    }
+    sessionStorage.removeItem(ITINERARY_GENERATION_KEY)
+
+    const generatedStops = payload?.stops?.length && payload.stops.length >= 2
+      ? payload.stops.map((stop, index) => ({
+          ...stop,
+          key: generateId(),
+          type: index === 0 ? 'start' as const : index === payload!.stops.length - 1 ? 'end' as const : 'middle' as const,
+          embarkDisembark: index === 0 || index === payload!.stops.length - 1,
+        }))
+      : [emptyStop('start'), emptyStop('end')]
+
+    setEditingId(null)
+    setForm({
+      ...emptyForm,
+      code: `RTE-${Date.now().toString().slice(-8)}`,
+      name: payload?.name || name,
+      stops: generatedStops,
+      remark: payload ? '由行程管理生成。' : '',
+    })
+    setNextGeneration(next)
+    setNextProductName(productName)
+    setFormOpen(true)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const openEdit = (r: Route) => {
     setEditingId(r.id)
@@ -153,6 +206,7 @@ export default function RoutePage() {
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.code.trim()) return
     setFormLoading(true)
+    let createdRoute: Route | null = null
 
     const duration = computeDuration(form.stops)
     const ports = form.stops.map((s) => s.portName || s.portId).join('-')
@@ -173,7 +227,7 @@ export default function RoutePage() {
       await routeApi.update(editingId, { ...form, stops, ports, duration })
     } else {
       const now = new Date().toISOString()
-      await routeApi.create({
+      createdRoute = await routeApi.create({
         ...form, stops, ports, duration,
         days: form.stops[form.stops.length - 1].day - form.stops[0].day,
         nights: form.stops[form.stops.length - 1].day - form.stops[0].day - 1,
@@ -182,6 +236,14 @@ export default function RoutePage() {
     }
     setFormLoading(false)
     setFormOpen(false)
+    if (!editingId && nextGeneration === 'product') {
+      const params = new URLSearchParams({ create: '1' })
+      if (nextProductName.trim()) params.set('name', nextProductName.trim())
+      if (createdRoute?.id) params.set('routeId', createdRoute.id)
+      setNextGeneration(null)
+      navigate(`/resources/products?${params.toString()}`)
+      return
+    }
     fetchData(data.page)
   }
 

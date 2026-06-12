@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Package, Plus, Trash2 } from 'lucide-react'
+import { Download, Package, Plus, Route as RouteIcon, Trash2 } from 'lucide-react'
 import { attractionApi, portApi, portDistanceApi } from '@/mock/api'
 import type { Attraction, Port, PortDistance } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
@@ -8,6 +8,7 @@ import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
 import DetailDrawer from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import FormDialog from '@/components/common/FormDialog'
 import { formatDateTime, generateId } from '@/utils/format'
 
 interface ItinerarySegment {
@@ -51,6 +52,22 @@ interface PlanMetrics {
   passedCount: number
 }
 
+type GenerationTarget = 'product' | 'route'
+
+interface ItineraryGenerationPayload {
+  name: string
+  stops: {
+    portId: string
+    portName: string
+    day: number
+    pierName: string
+    sailTime: string
+    distance: number
+    type: 'start' | 'middle' | 'end'
+  }[]
+}
+
+const ITINERARY_GENERATION_KEY = 'itinerary-generation-payload'
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900'
 const speedOptions = [14, 16, 18, 20, 22]
 
@@ -139,6 +156,9 @@ export default function ItineraryManagementPage() {
   const [keyword, setKeyword] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [deletePlanId, setDeletePlanId] = useState('')
+  const [viewPlan, setViewPlan] = useState<ItineraryPlan | null>(null)
+  const [generationPlan, setGenerationPlan] = useState<ItineraryPlan | null>(null)
+  const [generationTargets, setGenerationTargets] = useState<GenerationTarget[]>(['product'])
 
   useEffect(() => {
     portApi.list({ pageSize: 100 }).then((result) => setPorts(result.data))
@@ -253,6 +273,75 @@ export default function ItineraryManagementPage() {
     const params = new URLSearchParams({ create: '1' })
     if (name?.trim()) params.set('name', name.trim())
     navigate(`/resources/products?${params.toString()}`)
+  }
+
+  const openGeneration = (plan: ItineraryPlan) => {
+    setGenerationPlan(plan)
+    setGenerationTargets(['product'])
+  }
+
+  const toggleGenerationTarget = (target: GenerationTarget) => {
+    setGenerationTargets((current) => current.includes(target)
+      ? current.filter((item) => item !== target)
+      : [...current, target])
+  }
+
+  const createGenerationPayload = (plan: ItineraryPlan): ItineraryGenerationPayload => {
+    const stops: ItineraryGenerationPayload['stops'] = []
+    const firstSegment = plan.segments[0]
+
+    if (firstSegment?.fromPortId) {
+      stops.push({
+        portId: firstSegment.fromPortId,
+        portName: portMap.get(firstSegment.fromPortId)?.name || '',
+        day: 0,
+        pierName: portMap.get(firstSegment.fromPortId)?.name || '',
+        sailTime: firstSegment.departureTime,
+        distance: 0,
+        type: 'start',
+      })
+    }
+
+    plan.segments.forEach((segment, index) => {
+      if (!segment.toPortId) return
+      const distance = getDistance(segment.fromPortId, segment.toPortId).distance
+      const nextSegment = plan.segments[index + 1]
+      const isEnd = index === plan.segments.length - 1
+      stops.push({
+        portId: segment.toPortId,
+        portName: portMap.get(segment.toPortId)?.name || '',
+        day: index + 1,
+        pierName: portMap.get(segment.toPortId)?.name || '',
+        sailTime: nextSegment?.departureTime || '',
+        distance: distance?.distanceKm || 0,
+        type: isEnd ? 'end' : 'middle',
+      })
+    })
+
+    return { name: plan.name, stops }
+  }
+
+  const confirmGeneration = () => {
+    if (!generationPlan || generationTargets.length === 0) return
+
+    const name = generationPlan.name.trim()
+    const createProduct = generationTargets.includes('product')
+    const createRoute = generationTargets.includes('route')
+    setGenerationPlan(null)
+
+    if (createRoute) {
+      sessionStorage.setItem(ITINERARY_GENERATION_KEY, JSON.stringify(createGenerationPayload(generationPlan)))
+      const params = new URLSearchParams({ create: '1' })
+      if (name) params.set('name', name)
+      if (createProduct) {
+        params.set('next', 'product')
+        params.set('productName', name)
+      }
+      navigate(`/resources/routes?${params.toString()}`)
+      return
+    }
+
+    goCreateProduct(name)
   }
 
   const updateSegment = (id: string, patch: Partial<ItinerarySegment>) => {
@@ -427,13 +516,12 @@ export default function ItineraryManagementPage() {
         <div className="mt-0.5 text-xs text-gray-400">{formatDateTime(plan.updatedAt)}</div>
       </div>
     ) },
-    { key: 'actions', title: '操作', width: '250px', render: (plan: ItineraryPlan) => {
-      const metrics = buildMetrics(plan.segments)
+    { key: 'actions', title: '操作', width: '280px', render: (plan: ItineraryPlan) => {
       return (
         <div className="flex items-center gap-2">
+          <button onClick={() => setViewPlan(plan)} className="text-sm text-gray-600 hover:text-gray-900">查看行程</button>
           <button onClick={() => openEdit(plan)} className="text-sm text-blue-600 hover:text-blue-700">编辑</button>
-          <button onClick={() => exportPdf(plan.name, metrics)} className="text-sm text-gray-600 hover:text-gray-900">PDF</button>
-          <button onClick={() => goCreateProduct(plan.name)} className="text-sm text-gray-600 hover:text-gray-900">生成产品</button>
+          <button onClick={() => openGeneration(plan)} className="text-sm text-gray-600 hover:text-gray-900">生成</button>
           <button onClick={() => setDeletePlanId(plan.id)} className="text-sm text-red-500 hover:text-red-600">删除</button>
         </div>
       )
@@ -645,6 +733,134 @@ export default function ItineraryManagementPage() {
       <DataTable columns={columns} dataSource={filteredPlans} rowKey="id" emptyText="暂无行程方案" />
 
       <DetailDrawer
+        open={Boolean(viewPlan)}
+        title="查看行程"
+        width="w-[1120px]"
+        onClose={() => setViewPlan(null)}
+      >
+        {viewPlan && (() => {
+          const metrics = buildMetrics(viewPlan.segments)
+          return (
+            <div className="space-y-6">
+              <div>
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基本信息</h4>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="rounded-lg bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">行程名称</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.name}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">行程编号</p>
+                    <p className="mt-1 font-mono text-sm font-semibold text-gray-900">{viewPlan.code}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">修改人</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.updatedBy}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">修改时间</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">{formatDateTime(viewPlan.updatedAt)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">行程概览</h4>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="rounded-lg border border-gray-200 px-4 py-3">
+                    <p className="text-xs text-gray-500">航段数量</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">{metrics.rows.length}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 px-4 py-3">
+                    <p className="text-xs text-gray-500">航行距离合计</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">{metrics.totalDistance} km</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 px-4 py-3">
+                    <p className="text-xs text-gray-500">航行时间合计</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">{minutesToText(metrics.totalSailingMinutes)}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 px-4 py-3">
+                    <p className="text-xs text-gray-500">景点停泊判断</p>
+                    <p className={`mt-1 text-lg font-semibold ${
+                      metrics.checkedCount > 0 && metrics.passedCount === metrics.checkedCount ? 'text-emerald-700' : 'text-gray-900'
+                    }`}>
+                      {metrics.passedCount}/{metrics.checkedCount || 0}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">航段明细</h4>
+                  <button
+                    onClick={() => exportPdf(viewPlan.name, metrics)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Download className="h-4 w-4" />导出PDF
+                  </button>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full min-w-[980px] text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="w-16 px-4 py-3 text-left text-xs font-medium text-gray-500">航段</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">起止码头</th>
+                        <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">启航</th>
+                        <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">到达</th>
+                        <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">距离</th>
+                        <th className="w-28 px-4 py-3 text-left text-xs font-medium text-gray-500">航行时间</th>
+                        <th className="w-28 px-4 py-3 text-left text-xs font-medium text-gray-500">停泊时间</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">景点安排</th>
+                        <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">判断</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {metrics.rows.map((row) => {
+                        const fromPortName = portMap.get(row.segment.fromPortId)?.name || '未选起点'
+                        const toPortName = portMap.get(row.segment.toPortId)?.name || '未选终点'
+                        return (
+                          <tr key={row.segment.id} className="align-top hover:bg-gray-50">
+                            <td className="px-4 py-4 font-medium text-gray-900">{row.index + 1}</td>
+                            <td className="px-4 py-4">
+                              <p className="font-medium text-gray-900">{fromPortName} → {toPortName}</p>
+                              {row.segment.remark && <p className="mt-1 text-xs leading-5 text-gray-500">{row.segment.remark}</p>}
+                            </td>
+                            <td className="px-4 py-4 text-gray-700">{row.segment.departureTime || '-'}</td>
+                            <td className="px-4 py-4 text-gray-700">{row.arrivalTime}</td>
+                            <td className="px-4 py-4 text-gray-700">{row.distance ? `${row.distance.distanceKm} km` : '未维护'}</td>
+                            <td className="px-4 py-4 text-gray-700">{minutesToText(row.sailingMinutes)}</td>
+                            <td className="px-4 py-4 text-gray-700">{minutesToText(row.stopoverMinutes)}</td>
+                            <td className="px-4 py-4">
+                              <p className="text-gray-900">{row.attractions.map((item) => item.name).join('、') || '-'}</p>
+                              {row.attractions.length > 0 && (
+                                <p className="mt-1 text-xs text-gray-500">预计需要 {minutesToText(row.attractionMinutes)}</p>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
+                                row.enoughForAttraction === undefined
+                                  ? 'bg-gray-100 text-gray-500'
+                                  : row.enoughForAttraction
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-red-50 text-red-700'
+                              }`}>
+                                {row.enoughForAttraction === undefined ? '未判断' : row.enoughForAttraction ? '合理' : '不合理'}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+      </DetailDrawer>
+
+      <DetailDrawer
         open={draftSegments.length > 0}
         title={editingPlanId ? '编辑行程方案' : '新增行程方案'}
         width="w-[1120px]"
@@ -661,6 +877,62 @@ export default function ItineraryManagementPage() {
         onConfirm={confirmRemovePlan}
         onCancel={() => setDeletePlanId('')}
       />
+
+      <FormDialog
+        open={Boolean(generationPlan)}
+        title="生成"
+        width="max-w-xl"
+        submitText="确认生成"
+        onCancel={() => setGenerationPlan(null)}
+        onSubmit={confirmGeneration}
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm font-medium text-gray-900">{generationPlan?.name}</p>
+            <p className="mt-1 text-xs text-gray-500">请选择需要基于该行程生成的业务对象，可同时选择。</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
+              generationTargets.includes('product') ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            }`}>
+              <input
+                type="checkbox"
+                checked={generationTargets.includes('product')}
+                onChange={() => toggleGenerationTarget('product')}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600"
+              />
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                  <Package className="h-4 w-4" />产品
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-gray-500">进入产品新增，带入行程名称。</span>
+              </span>
+            </label>
+            <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
+              generationTargets.includes('route') ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            }`}>
+              <input
+                type="checkbox"
+                checked={generationTargets.includes('route')}
+                onChange={() => toggleGenerationTarget('route')}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600"
+              />
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                  <RouteIcon className="h-4 w-4" />航线
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-gray-500">进入航线新增，带入行程码头节点。</span>
+              </span>
+            </label>
+          </div>
+          {generationTargets.length === 0 && <p className="text-xs text-red-500">请至少选择一个生成对象。</p>}
+          {generationTargets.length === 2 && (
+            <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
+              将先生成航线，保存航线后继续进入产品新增。
+            </div>
+          )}
+        </div>
+      </FormDialog>
     </div>
   )
 }

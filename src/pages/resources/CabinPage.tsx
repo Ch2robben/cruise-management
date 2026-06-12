@@ -14,6 +14,10 @@ type CabinRecord = {
   sortNo: number
   updatedBy: string
   updatedAt: string
+  alertEnabled?: boolean
+  alertType?: 'percentage' | 'quantity'
+  alertValue?: number
+  countDimension?: 'room' | 'bed'
 }
 
 type CabinPricingRule = {
@@ -53,10 +57,10 @@ type FormulaPricingRule = {
   enabled: boolean
 }
 
-const cabinData: CabinRecord[] = [
-  { id: '1', shipName: '长江叁号', cabinName: '长江叁号豪华阳台标准间', cabinCount: 500, guestCapacity: 3, bedCount: 2, sortNo: 1, updatedBy: '彭琳', updatedAt: '2024-11-07 14:35:11' },
-  { id: '2', shipName: '长江叁号', cabinName: '标准间', cabinCount: 500, guestCapacity: 3, bedCount: 2, sortNo: 1, updatedBy: '赵昕玥', updatedAt: '2024-11-07 15:24:53' },
-  { id: '3', shipName: '长江壹号', cabinName: '长江壹号豪华套房', cabinCount: 6, guestCapacity: 3, bedCount: 2, sortNo: 2, updatedBy: '彭琳', updatedAt: '2022-09-01 14:25:19' },
+const initialCabinData: CabinRecord[] = [
+  { id: '1', shipName: '长江叁号', cabinName: '长江叁号豪华阳台标准间', cabinCount: 500, guestCapacity: 3, bedCount: 2, sortNo: 1, updatedBy: '彭琳', updatedAt: '2024-11-07 14:35:11', alertEnabled: true, alertType: 'percentage', alertValue: 10, countDimension: 'room' },
+  { id: '2', shipName: '长江叁号', cabinName: '标准间', cabinCount: 500, guestCapacity: 3, bedCount: 2, sortNo: 1, updatedBy: '赵昕玥', updatedAt: '2024-11-07 15:24:53', countDimension: 'room' },
+  { id: '3', shipName: '长江壹号', cabinName: '长江壹号豪华套房', cabinCount: 6, guestCapacity: 3, bedCount: 2, sortNo: 2, updatedBy: '彭琳', updatedAt: '2022-09-01 14:25:19', countDimension: 'room' },
   { id: '4', shipName: '长江壹号', cabinName: '长江壹号观景房', cabinCount: 2, guestCapacity: 3, bedCount: 2, sortNo: 2, updatedBy: '彭琳', updatedAt: '2023-02-02 09:15:19' },
   { id: '5', shipName: '长江壹号', cabinName: '长江壹号行政房', cabinCount: 4, guestCapacity: 3, bedCount: 2, sortNo: 2, updatedBy: '彭琳', updatedAt: '2023-02-02 09:15:34' },
   { id: '6', shipName: '长江壹号', cabinName: '长江壹号总统套房', cabinCount: 2, guestCapacity: 3, bedCount: 2, sortNo: 3, updatedBy: '彭琳', updatedAt: '2022-09-01 14:25:25' },
@@ -122,6 +126,7 @@ function createDefaultPricingRule(record: CabinRecord): CabinPricingRule {
 }
 
 export default function CabinPage() {
+  const [records, setRecords] = useState<CabinRecord[]>(initialCabinData)
   const [shipFilter, setShipFilter] = useState('all')
   const [appliedShipFilter, setAppliedShipFilter] = useState('all')
   const [page, setPage] = useState(1)
@@ -130,12 +135,16 @@ export default function CabinPage() {
   const [pricingCabin, setPricingCabin] = useState<CabinRecord | null>(null)
   const [pricingRule, setPricingRule] = useState<CabinPricingRule | null>(null)
   const [pricingRulesByCabin, setPricingRulesByCabin] = useState<Record<string, CabinPricingRule>>({})
+  
+  const [editCabinOpen, setEditCabinOpen] = useState(false)
+  const [editCabin, setEditCabin] = useState<CabinRecord | null>(null)
+  
   const pageSize = 10
 
   const filteredData = useMemo(() => {
-    if (appliedShipFilter === 'all') return cabinData
-    return cabinData.filter((item) => item.shipName === appliedShipFilter)
-  }, [appliedShipFilter])
+    if (appliedShipFilter === 'all') return records
+    return records.filter((item) => item.shipName === appliedShipFilter)
+  }, [appliedShipFilter, records])
 
   const dataSource = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -244,10 +253,11 @@ export default function CabinPage() {
       width: '260px',
       render: (record: CabinRecord) => (
         <div className="flex items-center gap-2">
-          <button className="text-base text-blue-600 hover:text-blue-700">编辑</button>
+          <button onClick={() => { setEditCabin({ ...record }); setEditCabinOpen(true); }} className="text-base text-blue-600 hover:text-blue-700">编辑</button>
           <span className="text-gray-300">|</span>
           <button className="text-base text-red-500 hover:text-red-600">删除</button>
           <button className="ml-3 text-sm text-gray-500 hover:text-gray-700">详情</button>
+          {/* <button onClick={() => openPricingRule(record)} className="text-sm text-blue-600 hover:text-blue-700">定价规则</button> */}
         </div>
       ),
     },
@@ -295,6 +305,108 @@ export default function CabinPage() {
           onChange: setPage,
         }}
       />
+
+      <FormDialog
+        open={editCabinOpen}
+        title="编辑船舱"
+        width="max-w-2xl"
+        onCancel={() => setEditCabinOpen(false)}
+        onSubmit={() => {
+          if (editCabin) {
+            setRecords(prev => prev.map(r => r.id === editCabin.id ? editCabin : r))
+          }
+          setEditCabinOpen(false)
+        }}
+      >
+        {editCabin && (
+          <div className="space-y-6">
+            <div>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基本信息</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-sm text-gray-700">船舶</label>
+                  <input value={editCabin.shipName} disabled className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-gray-700">船舱名称</label>
+                  <input value={editCabin.cabinName} onChange={(e) => setEditCabin({ ...editCabin, cabinName: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-gray-700">船舱数量</label>
+                  <input type="number" value={editCabin.cabinCount} onChange={(e) => setEditCabin({ ...editCabin, cabinCount: Number(e.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-gray-700">客容量</label>
+                  <input type="number" value={editCabin.guestCapacity} onChange={(e) => setEditCabin({ ...editCabin, guestCapacity: Number(e.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-gray-700">床位数</label>
+                  <input type="number" value={editCabin.bedCount} onChange={(e) => setEditCabin({ ...editCabin, bedCount: Number(e.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-gray-700">计数维度</label>
+                  <select 
+                    value={editCabin.countDimension || 'room'} 
+                    onChange={(e) => setEditCabin({ ...editCabin, countDimension: e.target.value as 'room' | 'bed' })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  >
+                    <option value="room">按间计数</option>
+                    <option value="bed">按床计数</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">预警设置</h4>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="block text-sm font-medium text-gray-900">库存预警</span>
+                    <span className="mt-1 block text-xs text-gray-500">开启后，当该船舱的剩余库存低于设定阈值时会触发预警</span>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" className="peer sr-only" checked={editCabin.alertEnabled || false} onChange={(e) => setEditCabin({ ...editCabin, alertEnabled: e.target.checked })} />
+                    <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></div>
+                  </label>
+                </div>
+
+                {editCabin.alertEnabled && (
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="flex items-end gap-4">
+                      <div className="w-48">
+                        <label className="mb-1 block text-sm text-gray-700">预警规则</label>
+                        <select 
+                          value={editCabin.alertType || 'percentage'} 
+                          onChange={(e) => setEditCabin({ ...editCabin, alertType: e.target.value as 'percentage' | 'quantity' })}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        >
+                          <option value="percentage">按剩余库存百分比</option>
+                          <option value="quantity">按剩余库存数量</option>
+                        </select>
+                      </div>
+                      <div className="w-40">
+                        <label className="mb-1 block text-sm text-gray-700">阈值</label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            value={editCabin.alertValue || 0} 
+                            onChange={(e) => setEditCabin({ ...editCabin, alertValue: Number(e.target.value) })}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900 pr-8" 
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                            {(editCabin.alertType || 'percentage') === 'percentage' ? '%' : '间'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </FormDialog>
 
       <FormDialog
         open={pricingOpen && !!pricingCabin && !!pricingRule}
@@ -447,7 +559,12 @@ export default function CabinPage() {
 
             {/* 下：入住组合公式单独一层 */}
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
+              <div className="mb-3 flex items-center gap-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
+                <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600">
+                  提示：此处只维护价格系数与入住组合的关系，价格只做展示，具体价格在航次模板中维护
+                </span>
+              </div>
               <div className="max-h-[360px] overflow-auto rounded-lg border border-gray-200">
                   <table className="w-full min-w-[560px] text-sm">
                     <thead className="sticky top-0 z-10">

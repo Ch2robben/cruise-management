@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, X } from 'lucide-react'
 import { voyageApi, priceApi, templateApi } from '@/mock/api'
 import { dealers, products, voyageTemplates, voyages, routes, ships } from '@/mock/data'
-import type { DealerChannelType, Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, VoyageTemplate, TemplateItinerary } from '@/types'
+import type { Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, VoyageTemplate, TemplateItinerary } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -16,28 +16,6 @@ const statusLabels: Record<string, string> = { ticketing: '售票', suspended: '
 const statusColors: Record<string, string> = { ticketing: 'bg-green-100 text-green-700', suspended: 'bg-red-100 text-red-600', chartered: 'bg-purple-100 text-purple-700', deadhead: 'bg-gray-100 text-gray-500', pending: 'bg-yellow-100 text-yellow-700', transfer: 'bg-blue-100 text-blue-700' }
 const approvalColors: Record<string, string> = { '已审批': 'text-green-600', '审批中': 'text-yellow-600', '已驳回': 'text-red-600' }
 const statusOptions = ['all', 'ticketing', 'suspended', 'chartered', 'deadhead', 'pending', 'transfer']
-
-type SupplierChannelFilter = 'all' | DealerChannelType
-
-interface SupplierSegmentRow {
-  key: string
-  label: string
-}
-
-interface SupplierCell {
-  sold: number
-  available: number
-}
-
-type SupplierMatrix = Record<string, Record<string, SupplierCell>>
-
-const supplierChannelLabels: Record<SupplierChannelFilter, string> = {
-  all: '全部分类',
-  ota: 'OTA',
-  distribution: '分销商',
-  group: '组团社',
-}
-
 export default function VoyagePage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
@@ -83,76 +61,6 @@ export default function VoyagePage() {
   const [priceVoyage, setPriceVoyage] = useState<Voyage | null>(null)
   const [priceData, setPriceData] = useState<VoyagePrice[]>([])
   const [priceView, setPriceView] = useState<'base' | 'adult' | 'child' | 'baby'>('adult')
-
-  // 分销商价库
-  const [supplierOpen, setSupplierOpen] = useState(false)
-  const [supplierVoyage, setSupplierVoyage] = useState<Voyage | null>(null)
-  const [supplierChannelFilter, setSupplierChannelFilter] = useState<SupplierChannelFilter>('all')
-  const [supplierDealerId, setSupplierDealerId] = useState('all')
-  const [supplierSegments, setSupplierSegments] = useState<SupplierSegmentRow[]>([])
-  const [supplierCabins, setSupplierCabins] = useState<string[]>([])
-  const [supplierMatrix, setSupplierMatrix] = useState<SupplierMatrix>({})
-
-  const openSupplierBook = (voyage: Voyage) => {
-    const product = products.find(item => item.id === voyage.productId)
-    const segments = createSupplierSegments(product, voyage)
-    const cabins = createSupplierCabins(product)
-    setSupplierVoyage(voyage)
-    setSupplierChannelFilter('all')
-    setSupplierDealerId('all')
-    setSupplierSegments(segments)
-    setSupplierCabins(cabins)
-    setSupplierMatrix(createSupplierMatrix(voyage, product, segments, cabins, 'all', 'all'))
-    setSupplierOpen(true)
-  }
-
-  const refreshSupplierMatrix = (
-    voyage: Voyage | null,
-    channelFilter: SupplierChannelFilter,
-    dealerId: string,
-    segments = supplierSegments,
-    cabins = supplierCabins,
-  ) => {
-    if (!voyage) return
-    const product = products.find(item => item.id === voyage.productId)
-    setSupplierMatrix(createSupplierMatrix(voyage, product, segments, cabins, channelFilter, dealerId))
-  }
-
-  const changeSupplierChannel = (value: SupplierChannelFilter) => {
-    const nextDealerId = 'all'
-    setSupplierChannelFilter(value)
-    setSupplierDealerId(nextDealerId)
-    refreshSupplierMatrix(supplierVoyage, value, nextDealerId)
-  }
-
-  const changeSupplierDealer = (value: string) => {
-    setSupplierDealerId(value)
-    refreshSupplierMatrix(supplierVoyage, supplierChannelFilter, value)
-  }
-
-  const updateSupplierCell = (segmentKey: string, cabin: string, value: number) => {
-    setSupplierMatrix(prev => ({
-      ...prev,
-      [segmentKey]: {
-        ...prev[segmentKey],
-        [cabin]: {
-          ...prev[segmentKey]?.[cabin],
-          available: Math.max(0, value || 0),
-        },
-      },
-    }))
-  }
-
-  const closeSupplierBook = () => {
-    setSupplierOpen(false)
-    setSupplierVoyage(null)
-  }
-
-  const saveSupplierBook = () => {
-    setSupplierOpen(false)
-    setSupplierVoyage(null)
-  }
-
   const openPrice = async (r: Voyage) => {
     const result = await priceApi.list({ voyageId: r.id, pageSize: 100 })
     setPriceData(result.data)
@@ -331,14 +239,12 @@ export default function VoyagePage() {
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openItinerary(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">行程</button>
         <button onClick={() => navigate(`/voyage/pricing?id=${r.id}`)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">定价</button>
-        <button onClick={() => openSupplierBook(r)} className="px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 rounded">分销商价库</button>
         <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
       </div>
     )},
   ]
 
   const timelineStepColors: Record<string, string> = { approved: 'bg-green-500', pending: 'bg-yellow-400', rejected: 'bg-red-500' }
-  const supplierDealerOptions = supplierVoyage ? getSupplierDealerOptions(supplierVoyage, supplierChannelFilter) : []
 
   return (
     <div>
@@ -408,104 +314,6 @@ export default function VoyagePage() {
         </div>
       )}
 
-      {supplierOpen && supplierVoyage && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[6vh]">
-          <div className="absolute inset-0 bg-black/40" onClick={closeSupplierBook} />
-          <div className="relative mx-4 flex max-h-[88vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b px-6 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">分销商价库 · {supplierVoyage.voyageNo}</h3>
-                <p className="mt-1 text-xs text-gray-500">{supplierVoyage.productName} · {supplierVoyage.routeName}</p>
-              </div>
-              <button onClick={closeSupplierBook} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
-            </div>
-
-            <div className="border-b px-6 pt-4">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900">分销商库存</h4>
-                  <p className="mt-1 text-xs text-gray-500">按分销商、航段和房型调整可售库存；已售数仅展示不可编辑。</p>
-                </div>
-                <div className="flex items-end gap-3">
-                  <div>
-                    <label className="mb-1 block text-xs text-gray-500">组团分类</label>
-                    <select
-                      value={supplierChannelFilter}
-                      onChange={(event) => changeSupplierChannel(event.target.value as SupplierChannelFilter)}
-                      className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    >
-                      {(Object.keys(supplierChannelLabels) as SupplierChannelFilter[]).map(value => (
-                        <option key={value} value={value}>{supplierChannelLabels[value]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-gray-500">分销商</label>
-                    <select
-                      value={supplierDealerId}
-                      onChange={(event) => changeSupplierDealer(event.target.value)}
-                      className="w-56 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    >
-                      <option value="all">全部分销商</option>
-                      {supplierDealerOptions.map(dealer => (
-                        <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-auto px-6 py-4">
-              <table className="w-full min-w-[760px] border border-gray-200 text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="sticky left-0 z-10 w-52 border-r bg-gray-50 px-3 py-3 text-left text-xs font-medium text-gray-500">航段</th>
-                    {supplierCabins.map(cabin => (
-                      <th key={cabin} className="min-w-40 border-r px-3 py-3 text-center text-xs font-medium text-gray-500">{cabin}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {supplierSegments.map(segment => (
-                    <tr key={segment.key}>
-                      <td className="sticky left-0 z-10 border-r bg-white px-3 py-3 font-medium text-gray-900">{segment.label}</td>
-                      {supplierCabins.map(cabin => {
-                        const cell = supplierMatrix[segment.key]?.[cabin] || { sold: 0, available: 0 }
-                        return (
-                          <td key={`${segment.key}-${cabin}`} className="border-r px-3 py-2">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between text-xs text-gray-500">
-                                <span>已售</span>
-                                <span className="font-semibold text-gray-900">{cell.sold}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="shrink-0 text-xs text-gray-500">可售</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={cell.available}
-                                  onChange={(event) => updateSupplierCell(segment.key, cabin, Number(event.target.value))}
-                                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
-                                />
-                              </div>
-                            </div>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end gap-3 border-t px-6 py-4">
-              <button onClick={closeSupplierBook} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-              <button onClick={saveSupplierBook} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">保存</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 生成航次 */}
       {genOpen && (
@@ -612,60 +420,4 @@ export default function VoyagePage() {
       <ConfirmDialog open={confirmOpen} title="删除航次" message="确定要删除该航次吗？" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />
     </div>
   )
-}
-
-function createSupplierSegments(product: (typeof products)[number] | undefined, voyage: Voyage): SupplierSegmentRow[] {
-  if (!product || product.segments.length === 0) {
-    return [{ key: 'whole', label: voyage.routeName || '全航段' }]
-  }
-
-  return [
-    { key: 'whole', label: `${product.startPort}-${product.endPort} 全程` },
-    ...product.segments.map(segment => ({
-      key: `${segment.startPort}-${segment.endPort}`,
-      label: `${segment.startPort}-${segment.endPort}`,
-    })),
-  ]
-}
-
-function createSupplierCabins(product: (typeof products)[number] | undefined) {
-  const cabins = product?.pricing.map(item => item.cabinType).filter(Boolean) || []
-  return [...new Set(cabins)].slice(0, 5)
-}
-
-function createSupplierMatrix(
-  voyage: Voyage,
-  product: (typeof products)[number] | undefined,
-  segments: SupplierSegmentRow[],
-  cabins: string[],
-  channelFilter: SupplierChannelFilter,
-  dealerId: string,
-): SupplierMatrix {
-  const matrix: SupplierMatrix = {}
-  const cabinCount = Math.max(cabins.length, 1)
-  const dealer = dealerId === 'all' ? undefined : dealers.find(item => item.id === dealerId)
-  const channelSeed = channelFilter === 'all' ? 0 : channelFilter === 'group' ? 4 : channelFilter === 'distribution' ? 2 : 1
-  const dealerSeed = dealer ? dealers.findIndex(item => item.id === dealer.id) + 1 : 0
-
-  for (const [segmentIndex, segment] of segments.entries()) {
-    matrix[segment.key] = {}
-    for (const [cabinIndex, cabin] of cabins.entries()) {
-      const soldBase = Math.max(0, Math.round(voyage.soldCabins / cabinCount))
-      const availableBase = Math.max(0, Math.round(voyage.availableCabins / cabinCount))
-      matrix[segment.key][cabin] = {
-        sold: Math.max(0, soldBase - segmentIndex * 2 + cabinIndex + channelSeed + dealerSeed),
-        available: Math.max(0, availableBase - segmentIndex * 3 + cabinIndex * 2 + channelSeed * 2 + dealerSeed),
-      }
-    }
-  }
-
-  return matrix
-}
-
-function getSupplierDealerOptions(voyage: Voyage, channelFilter: SupplierChannelFilter) {
-  return dealers.filter(dealer => {
-    const productMatched = dealer.authorizedProductIds.includes(voyage.productId)
-    const channelMatched = channelFilter === 'all' || dealer.channelTypes.includes(channelFilter)
-    return productMatched && channelMatched
-  })
 }

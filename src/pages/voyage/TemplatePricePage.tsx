@@ -42,7 +42,7 @@ type FormulaPricingRule = {
   enabled: boolean
 }
 
-const variableLabels: Record<PricingVariableKey, string> = { P: '公式基数', Q: '变量Q', K: '变量K', T: '变量T', S: '楼层费' }
+const variableLabels: Record<PricingVariableKey, string> = { P: '公式基数(口岸)', Q: '公式基数(区域)', K: '公式基数(标准)', T: '变量T', S: '楼层费' }
 const deckOptions = ['全部', '1F', '2F', '3F']
 
 const defaultFormulaRules: FormulaPricingRule[] = [
@@ -353,18 +353,34 @@ export default function TemplatePricePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50/80">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 w-28 sticky left-0 bg-gray-50/80 z-10">变量</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 w-16 sticky left-0 bg-gray-50/80 z-20 shadow-[1px_0_0_0_#f3f4f6]">大类</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 w-28 sticky left-16 bg-gray-50/80 z-20 shadow-[1px_0_0_0_#f3f4f6]">变量</th>
                     {Array.from({ length: segmentsCount }).map((_, i) => (
                       <th key={i} className="px-4 py-3 text-right text-xs font-medium text-gray-500 whitespace-nowrap min-w-[70px]">航段{i}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {(Object.keys(priceRule.variables) as PricingVariableKey[]).map(key => (
+                  {(Object.keys(priceRule.variables) as PricingVariableKey[]).map((key, idx) => (
                     <tr key={key} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-3 bg-white sticky left-0 whitespace-nowrap border-r border-gray-50">
+                      {idx === 0 && (
+                        <td rowSpan={3} className="px-4 py-3 bg-white sticky left-0 border-r border-gray-100 text-center align-middle shadow-[1px_0_0_0_#f3f4f6] z-10">
+                          <span className="text-2xl font-bold text-gray-900">P</span>
+                        </td>
+                      )}
+                      {idx > 2 && (
+                        <td className="px-4 py-3 bg-white sticky left-0 border-r border-gray-100 text-center align-middle shadow-[1px_0_0_0_#f3f4f6] z-10">
+                          <span className="text-lg font-bold text-gray-900">{key}</span>
+                        </td>
+                      )}
+                      <td className="px-4 py-3 bg-white sticky left-16 whitespace-nowrap border-r border-gray-100 shadow-[1px_0_0_0_#f3f4f6] z-10">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-gray-900 text-sm">{key}</span>
+                          <span className="font-mono text-gray-900">
+                            {key === 'P' && <><span className="text-lg font-bold">P</span><span className="text-xs ml-0.5 font-sans">口岸</span></>}
+                            {key === 'Q' && <><span className="text-lg font-bold">P</span><span className="text-xs ml-0.5 font-sans">区域</span></>}
+                            {key === 'K' && <><span className="text-lg font-bold">P</span><span className="text-xs ml-0.5 font-sans">标准</span></>}
+                            {key !== 'P' && key !== 'Q' && key !== 'K' && <span className="text-lg font-bold">{key}</span>}
+                          </span>
                           <span className="text-xs text-gray-400 font-sans mt-0.5">{variableLabels[key]}</span>
                         </div>
                       </td>

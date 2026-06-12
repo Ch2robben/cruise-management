@@ -229,13 +229,26 @@ export default function ProductPage() {
   const openCreate = (defaults?: Partial<ProductForm>) => {
     setEditingId(null)
     setForm({ ...emptyForm, ...defaults })
-    setSegments([])
+    if (defaults?.routeId) {
+      const route = routes.find((item) => item.id === defaults.routeId)
+      const stops: StopInfo[] = route?.stops.map((stop) => ({
+        name: stop.portName,
+        day: stop.day,
+        dist: stop.distance,
+      })) || []
+      setSegments(generateSegments(stops))
+    } else {
+      setSegments([])
+    }
     setFormOpen(true)
   }
 
   useEffect(() => {
     if (searchParams.get('create') !== '1') return
-    openCreate({ name: searchParams.get('name') || '' })
+    openCreate({
+      name: searchParams.get('name') || '',
+      routeId: searchParams.get('routeId') || '',
+    })
     setSearchParams({}, { replace: true })
   }, [searchParams, setSearchParams])
 
