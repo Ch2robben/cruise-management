@@ -80,12 +80,21 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
+    key: 'basic', label: '基础设置', icon: 'Settings',
+    children: [
+      { key: 'holiday', label: '节假日设置', path: '/basic/holidays' },
+      { key: 'id_type', label: '证件类型管理', path: '/basic/id-types' },
+      { key: 'age_group', label: '年龄段管理', path: '/basic/age-groups' },
+    ],
+  },
+  {
     key: 'system', label: '系统设置', icon: 'Settings',
     children: [
       { key: 'user', label: '用户管理', path: '/system/users' },
       { key: 'role', label: '角色管理', path: '/system/roles' },
       { key: 'menu', label: '菜单管理', path: '/system/menus' },
       { key: 'dictionary', label: '数据字典', path: '/system/dictionaries' },
+      { key: 'approval_flow', label: '审批流配置', path: '/system/approval-flows' },
     ],
   },
   {
@@ -134,6 +143,7 @@ export default function Sidebar() {
     customer: true,
     finance: true,
     report: true,
+    basic: true,
     system: true,
     rule: true,
   })

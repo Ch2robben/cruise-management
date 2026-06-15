@@ -9,6 +9,27 @@ export interface BaseEntity {
   updatedBy: string
 }
 
+// ========== 基础设置 ==========
+export interface Holiday extends BaseEntity {
+  name: string
+  date: string
+  type: '法定假日' | '周末' | '调休'
+  remark: string
+}
+
+export interface IdType extends BaseEntity {
+  code: string
+  name: string
+  remark: string
+}
+
+export interface AgeGroup extends BaseEntity {
+  name: string
+  minAge: number
+  maxAge: number
+  remark: string
+}
+
 // ========== 用户相关 ==========
 export interface User {
   id: string
@@ -554,6 +575,7 @@ export type AdjustDirection = 'increase' | 'decrease'
 
 export interface Ticket {
   id: string
+  ticketId: string
   name: string
   guestType: GuestType
   occupancyType: TicketOccupancyType
@@ -574,6 +596,7 @@ export interface Ticket {
 }
 
 export interface TicketForm {
+  ticketId: string
   name: string
   guestType: GuestType
   occupancyType: TicketOccupancyType
@@ -1194,4 +1217,29 @@ export interface DataReportEntry {
   updatedBy: string
   updatedAt: string
   createdAt: string
+}
+
+// ========== 审批流配置 ==========
+export type ApprovalType = '产品与价格发布' | '退票审批' | '分销商授信审批' | '分销商退款审批' | '分销商合作审批' | '分销商价格政策' | '分销商退改政策' | 'OTA价格调整' | string
+
+export interface ApprovalLevel {
+  levelNo: number
+  nodeName: string
+  approvers: string[]
+}
+
+export interface ApprovalFlow {
+  id: string
+  businessType: ApprovalType
+  status: 'enabled' | 'disabled'
+  levels: ApprovalLevel[]
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface ApprovalFlowForm {
+  businessType: ApprovalType | ''
+  status: 'enabled' | 'disabled'
+  levels: ApprovalLevel[]
 }

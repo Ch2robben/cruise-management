@@ -36,6 +36,10 @@ import CustomerProfilePage from '@/pages/customer/CustomerProfilePage'
 import ReconciliationPage from '@/pages/finance/ReconciliationPage'
 import DataReportPage from '@/pages/report/DataReportPage'
 import OrderListPage from '@/pages/order/OrderListPage'
+import HolidayPage from '@/pages/basic/HolidayPage'
+import IdTypePage from '@/pages/basic/IdTypePage'
+import AgeGroupPage from '@/pages/basic/AgeGroupPage'
+import ApprovalFlowPage from '@/pages/system/ApprovalFlowPage'
 
 import DepositRulePage from '@/pages/rule/DepositRulePage'
 import PaymentRulePage from '@/pages/rule/PaymentRulePage'
@@ -101,10 +105,14 @@ export const router = createBrowserRouter([
       { path: '/resources/facilities', element: <FacilityPage /> },
       { path: '/resources/rooms', element: <RoomPage /> },
       { path: '/resources/cabins', element: <CabinPage /> },
+      { path: '/basic/holidays', element: <HolidayPage /> },
+      { path: '/basic/id-types', element: <IdTypePage /> },
+      { path: '/basic/age-groups', element: <AgeGroupPage /> },
       { path: '/system/users', element: <UserPage /> },
       { path: '/system/roles', element: <RolePage /> },
       { path: '/system/menus', element: <MenuPage /> },
       { path: '/system/dictionaries', element: <DictionaryPage /> },
+      { path: '/system/approval-flows', element: <ApprovalFlowPage /> },
       { path: '/rule/deposit', element: <DepositRulePage /> },
       { path: '/rule/payment', element: <PaymentRulePage /> },
       { path: '/rule/penalty', element: <PenaltyRulePage /> },

@@ -15,7 +15,7 @@ const guestTypeLabels: Record<string, string> = { adult: '成人', baby: '婴儿
 const occupancyTypeOptions: TicketForm['occupancyType'][] = ['不拼房', '拼房', '加床', '不占座']
 
 const emptyForm: TicketForm = {
-  name: '', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.0,
+  ticketId: '', name: '', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.0,
   shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0,
   extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0,
   tipType: '不收取', tipValue: 0,
@@ -62,7 +62,7 @@ export default function TicketPage() {
     setEditingId(r.id)
     setBaseName(r.name)
     setMultiForms([{
-      _key: 'edit', name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', personCount: r.personCount || 1,
+      _key: 'edit', ticketId: r.ticketId, name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', personCount: r.personCount || 1,
       priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase',
       shareRoomValue: r.shareRoomValue, extraBedType: r.extraBedType, extraBedDirection: r.extraBedDirection || 'increase',
       extraBedValue: r.extraBedValue, tipType: r.tipType, tipValue: r.tipValue
@@ -93,6 +93,7 @@ export default function TicketPage() {
   const confirmDelete = async () => { await ticketApi.remove(confirmId); setConfirmOpen(false); fetchData(data.page) }
 
   const columns = [
+    { key: 'ticketId', title: '票ID', dataIndex: 'ticketId' as keyof Ticket },
     { key: 'name', title: '票名称', dataIndex: 'name' as keyof Ticket },
     { key: 'guestType', title: '游客类型', render: (r: Ticket) => <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{guestTypeLabels[r.guestType]}</span> },
     { key: 'occupancyType', title: '入住类型', render: (r: Ticket) => r.occupancyType || '-' },
@@ -163,7 +164,22 @@ export default function TicketPage() {
                       ×
                     </button>
                   )}
-                  <div className="grid grid-cols-3 gap-6">
+                  <div className="grid grid-cols-4 gap-6">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1.5">票ID</label>
+                      <input 
+                        type="text"
+                        value={mf.ticketId || ''} 
+                        onChange={(e) => { 
+                          const val = e.target.value
+                          const newForms = [...multiForms]
+                          newForms[index].ticketId = val
+                          setMultiForms(newForms) 
+                        }} 
+                        placeholder="票ID"
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none transition-shadow"
+                      />
+                    </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1.5">游客类型</label>
                       <select 
@@ -223,7 +239,7 @@ export default function TicketPage() {
 
       <DetailDrawer open={detailOpen} title="票类详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
-          <DetailCard title="基本信息"><DetailRow label="票名称" value={detail.name} /><DetailRow label="游客类型" value={guestTypeLabels[detail.guestType]} /><DetailRow label="入住类型" value={detail.occupancyType || '-'} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
+          <DetailCard title="基本信息"><DetailRow label="票ID" value={detail.ticketId} /><DetailRow label="票名称" value={detail.name} /><DetailRow label="游客类型" value={guestTypeLabels[detail.guestType]} /><DetailRow label="入住类型" value={detail.occupancyType || '-'} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
         </>)}
       </DetailDrawer>

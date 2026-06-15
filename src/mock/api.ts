@@ -1,5 +1,5 @@
 import { delay, generateId } from '@/utils/format'
-import type { SearchParams, PaginatedResult, PricingRow } from '@/types'
+import type { SearchParams, PaginatedResult, PricingRow, Product, Holiday, IdType, AgeGroup } from '@/types'
 
 const getProductCategory = (product: Product) => {
   if (product.category) return product.category
@@ -179,6 +179,10 @@ import {
   marketingCampaigns,
   reconciliationBatches,
   dataReports,
+  holidays,
+  idTypes,
+  ageGroups,
+  approvalFlows,
 } from './data'
 import type {
   Port,
@@ -189,7 +193,6 @@ import type {
   Role,
   Menu,
   Dictionary,
-  Product,
   Ship,
   ShipForm,
   Voyage,
@@ -210,6 +213,7 @@ import type {
   MarketingCampaign,
   ReconciliationBatch,
   DataReportEntry,
+  ApprovalFlow,
 } from '@/types'
 
 export const shipApi = createCrudApi<Ship>(ships, {
@@ -243,6 +247,14 @@ export const menuApi = createCrudApi<Menu>(menus, {
 export const dictionaryApi = createCrudApi<Dictionary>(dictionaries, {
   searchFields: ['dictCode', 'dictName', 'itemName'],
 })
+
+export const approvalFlowApi = createCrudApi<ApprovalFlow>(approvalFlows, {
+  searchFields: ['businessType'],
+})
+
+export const holidayApi = createCrudApi<Holiday>(holidays, { searchFields: ['name', 'type'] })
+export const idTypeApi = createCrudApi<IdType>(idTypes, { searchFields: ['name', 'code'] })
+export const ageGroupApi = createCrudApi<AgeGroup>(ageGroups, { searchFields: ['name'] })
 
 // ========== 航线专用 API ==========
 export const routeApi = {

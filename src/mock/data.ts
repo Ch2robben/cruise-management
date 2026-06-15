@@ -1,4 +1,4 @@
-import type { Port, PortDistance, Attraction, Route, RouteStop, User, Role, Menu, Dictionary, DashboardData, Ship, Product, ProductSegment, PricingRow } from '@/types'
+import type { Port, PortDistance, Attraction, Route, RouteStop, User, Role, Menu, Dictionary, DashboardData, Ship, Product, ProductSegment, PricingRow, Holiday, IdType, AgeGroup, ApprovalFlow } from '@/types'
 import type {
   Dealer,
   DealerChannelType,
@@ -411,6 +411,32 @@ export const dictionaries: Dictionary[] = [
   { id: 'd15', dictCode: 'RIVER', dictName: '水域', itemCode: 'yellow', itemName: '黄河', sort: 2, status: 'enabled', remark: '黄河流域' },
   { id: 'd16', dictCode: 'RIVER', dictName: '水域', itemCode: 'pearl', itemName: '珠江', sort: 3, status: 'enabled', remark: '珠江流域' },
   { id: 'd17', dictCode: 'RIVER', dictName: '水域', itemCode: 'coastal', itemName: '沿海', sort: 4, status: 'enabled', remark: '沿海航线' },
+]
+
+// ===================== 基础设置数据 =====================
+const baseEntityDefaults = {
+  status: 'enabled' as const,
+  createdAt: '2026-01-01 10:00:00',
+  updatedAt: '2026-01-01 10:00:00',
+  updatedBy: 'admin',
+}
+
+export const holidays: Holiday[] = [
+  { id: 'HOL1', name: '元旦', date: '2026-01-01', type: '法定假日', ...baseEntityDefaults, remark: '放假1天' },
+  { id: 'HOL2', name: '春节', date: '2026-02-17', type: '法定假日', ...baseEntityDefaults, remark: '放假7天' },
+  { id: 'HOL3', name: '劳动节', date: '2026-05-01', type: '法定假日', ...baseEntityDefaults, remark: '放假5天' },
+]
+
+export const idTypes: IdType[] = [
+  { id: 'ID1', code: 'ID_CARD', name: '身份证', remark: '中国大陆居民身份证', ...baseEntityDefaults },
+  { id: 'ID2', code: 'PASSPORT', name: '护照', remark: '中国护照及外国护照', ...baseEntityDefaults },
+  { id: 'ID3', code: 'MTP', name: '台胞证', remark: '台湾居民来往大陆通行证', ...baseEntityDefaults },
+]
+
+export const ageGroups: AgeGroup[] = [
+  { id: 'AGE1', name: '成人', minAge: 12, maxAge: 120, remark: '12周岁以上', ...baseEntityDefaults },
+  { id: 'AGE2', name: '儿童', minAge: 2, maxAge: 11, remark: '2-11周岁', ...baseEntityDefaults },
+  { id: 'AGE3', name: '婴儿', minAge: 0, maxAge: 1, remark: '2周岁以下', ...baseEntityDefaults },
 ]
 
 // ===================== 船舶数据 =====================
@@ -948,22 +974,22 @@ export const voyageTemplates: import('@/types').VoyageTemplate[] = [
 
 // ===================== 票类数据 =====================
 export const tickets: import('@/types').Ticket[] = [
-  { id: 'tk01', name: '成人+不拼房', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.0, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 200, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 300, tipType: '按天收取', tipValue: 50, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-10 09:00:00',  createdAt: '2026-01-10 08:00:00' },
-  { id: 'tk02', name: '成人+不拼房+豪华', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.2, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 15, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 20, tipType: '按天收取', tipValue: 80, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-09 10:00:00',  createdAt: '2026-01-10 08:00:00' },
-  { id: 'tk03', name: '成人+不拼房+商务', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.5, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 500, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 600, tipType: '按人收取', tipValue: 100, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-08 11:00:00',  createdAt: '2026-01-12 09:00:00' },
-  { id: 'tk04', name: '儿童+不拼房', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.3, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 100, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 150, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-07 14:00:00',  createdAt: '2026-01-15 10:00:00' },
-  { id: 'tk05', name: '儿童+不拼房+半价', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.5, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 10, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 10, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-06 08:30:00',  createdAt: '2026-01-15 10:00:00' },
-  { id: 'tk06', name: '婴儿+不占座', guestType: 'baby', occupancyType: '不占座', personCount: 1, priceCoefficient: 0.1, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-05 15:00:00',  createdAt: '2026-01-18 08:30:00' },
-  { id: 'tk07', name: '成人+拼房', guestType: 'adult', occupancyType: '拼房', personCount: 1, priceCoefficient: 0.85, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 20, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 250, tipType: '按天收取', tipValue: 30, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-04 09:15:00',  createdAt: '2026-01-20 09:00:00' },
-  { id: 'tk08', name: '成人+不拼房+优待', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.7, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 150, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 200, tipType: '按天收取', tipValue: 20, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-03 11:30:00',  createdAt: '2026-01-22 08:00:00' },
-  { id: 'tk09', name: '成人+不拼房+学生', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.6, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 12, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 15, tipType: '不收取', tipValue: 0, status: 'disabled', updatedBy: '系统管理员', updatedAt: '2026-04-02 14:45:00',  createdAt: '2026-01-25 09:00:00' },
-  { id: 'tk10', name: '成人+不拼房+早鸟', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.8, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 200, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 300, tipType: '按天收取', tipValue: 40, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-01 10:00:00',  createdAt: '2026-02-01 08:00:00' },
-  { id: 'tk11', name: '儿童+不拼房+优惠', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.2, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 80, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 120, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-30 08:30:00',  createdAt: '2026-02-05 09:00:00' },
-  { id: 'tk12', name: '成人+不拼房+VIP', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 2.0, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 1000, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 1200, tipType: '按房收取', tipValue: 200, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-29 13:00:00',  createdAt: '2026-02-08 08:00:00' },
-  { id: 'tk13', name: '儿童+不拼房+VIP', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.6, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 300, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 400, tipType: '按房收取', tipValue: 100, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-28 09:00:00',  createdAt: '2026-02-10 08:00:00' },
-  { id: 'tk14', name: '成人+拼房+候补', guestType: 'adult', occupancyType: '拼房', personCount: 1, priceCoefficient: 1.1, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 25, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 25, tipType: '按人收取', tipValue: 60, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-27 15:30:00',  createdAt: '2026-02-12 09:00:00' },
-  { id: 'tk15', name: '成人+加床', guestType: 'adult', occupancyType: '加床', personCount: 1, priceCoefficient: 0.5, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 500, tipType: '按天收取', tipValue: 30, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-26 10:45:00',  createdAt: '2026-02-15 08:00:00' },
-  { id: 'tk16', name: '婴儿+不占座+免费', guestType: 'baby', occupancyType: '不占座', personCount: 1, priceCoefficient: 0.0, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0, tipType: '不收取', tipValue: 0, status: 'disabled', updatedBy: '系统管理员', updatedAt: '2026-03-25 08:00:00',  createdAt: '2026-02-18 09:00:00' },
+  { id: 'tk01', ticketId: 'T001', name: '成人+不拼房', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.0, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 200, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 300, tipType: '按天收取', tipValue: 50, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-10 09:00:00',  createdAt: '2026-01-10 08:00:00' },
+  { id: 'tk02', ticketId: 'T002', name: '成人+不拼房+豪华', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.2, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 15, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 20, tipType: '按天收取', tipValue: 80, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-09 10:00:00',  createdAt: '2026-01-10 08:00:00' },
+  { id: 'tk03', ticketId: 'T003', name: '成人+不拼房+商务', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.5, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 500, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 600, tipType: '按人收取', tipValue: 100, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-08 11:00:00',  createdAt: '2026-01-12 09:00:00' },
+  { id: 'tk04', ticketId: 'T004', name: '儿童+不拼房', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.3, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 100, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 150, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-07 14:00:00',  createdAt: '2026-01-15 10:00:00' },
+  { id: 'tk05', ticketId: 'T005', name: '儿童+不拼房+半价', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.5, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 10, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 10, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-06 08:30:00',  createdAt: '2026-01-15 10:00:00' },
+  { id: 'tk06', ticketId: 'T006', name: '婴儿+不占座', guestType: 'baby', occupancyType: '不占座', personCount: 1, priceCoefficient: 0.1, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-05 15:00:00',  createdAt: '2026-01-18 08:30:00' },
+  { id: 'tk07', ticketId: 'T007', name: '成人+拼房', guestType: 'adult', occupancyType: '拼房', personCount: 1, priceCoefficient: 0.85, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 20, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 250, tipType: '按天收取', tipValue: 30, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-04 09:15:00',  createdAt: '2026-01-20 09:00:00' },
+  { id: 'tk08', ticketId: 'T008', name: '成人+不拼房+优待', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.7, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 150, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 200, tipType: '按天收取', tipValue: 20, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-03 11:30:00',  createdAt: '2026-01-22 08:00:00' },
+  { id: 'tk09', ticketId: 'T009', name: '成人+不拼房+学生', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.6, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 12, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 15, tipType: '不收取', tipValue: 0, status: 'disabled', updatedBy: '系统管理员', updatedAt: '2026-04-02 14:45:00',  createdAt: '2026-01-25 09:00:00' },
+  { id: 'tk10', ticketId: 'T010', name: '成人+不拼房+早鸟', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.8, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 200, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 300, tipType: '按天收取', tipValue: 40, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-01 10:00:00',  createdAt: '2026-02-01 08:00:00' },
+  { id: 'tk11', ticketId: 'T011', name: '儿童+不拼房+优惠', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.2, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 80, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 120, tipType: '不收取', tipValue: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-30 08:30:00',  createdAt: '2026-02-05 09:00:00' },
+  { id: 'tk12', ticketId: 'T012', name: '成人+不拼房+VIP', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 2.0, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 1000, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 1200, tipType: '按房收取', tipValue: 200, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-29 13:00:00',  createdAt: '2026-02-08 08:00:00' },
+  { id: 'tk13', ticketId: 'T013', name: '儿童+不拼房+VIP', guestType: 'child', occupancyType: '不拼房', personCount: 1, priceCoefficient: 0.6, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 300, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 400, tipType: '按房收取', tipValue: 100, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-28 09:00:00',  createdAt: '2026-02-10 08:00:00' },
+  { id: 'tk14', ticketId: 'T014', name: '成人+拼房+候补', guestType: 'adult', occupancyType: '拼房', personCount: 1, priceCoefficient: 1.1, shareRoomType: 'percent', shareRoomDirection: 'increase', shareRoomValue: 25, extraBedType: 'percent', extraBedDirection: 'increase', extraBedValue: 25, tipType: '按人收取', tipValue: 60, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-27 15:30:00',  createdAt: '2026-02-12 09:00:00' },
+  { id: 'tk15', ticketId: 'T015', name: '成人+加床', guestType: 'adult', occupancyType: '加床', personCount: 1, priceCoefficient: 0.5, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 500, tipType: '按天收取', tipValue: 30, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-26 10:45:00',  createdAt: '2026-02-15 08:00:00' },
+  { id: 'tk16', ticketId: 'T016', name: '婴儿+不占座+免费', guestType: 'baby', occupancyType: '不占座', personCount: 1, priceCoefficient: 0.0, shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0, extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0, tipType: '不收取', tipValue: 0, status: 'disabled', updatedBy: '系统管理员', updatedAt: '2026-03-25 08:00:00',  createdAt: '2026-02-18 09:00:00' },
 ]
 
 // ===================== 设施数据 =====================
@@ -1750,3 +1776,103 @@ export const dataReports: DataReportEntry[] = Array.from({ length: 20 }, (_, ind
     createdAt: `2026-04-${String((index % 18) + 1).padStart(2, '0')} 08:30:00`,
   }
 })
+
+// ===================== 审批流配置数据 =====================
+export const approvalFlows: ApprovalFlow[] = [
+  {
+    id: 'af01',
+    businessType: '产品与价格发布',
+    status: 'enabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af02',
+    businessType: '退票审批',
+    status: 'enabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af03',
+    businessType: '分销商授信审批',
+    status: 'enabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af04',
+    businessType: '分销商退款审批',
+    status: 'enabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af05',
+    businessType: '分销商合作审批',
+    status: 'enabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af06',
+    businessType: '分销商价格政策',
+    status: 'disabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af07',
+    businessType: '分销商退改政策',
+    status: 'disabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+  {
+    id: 'af08',
+    businessType: 'OTA价格调整',
+    status: 'disabled',
+    levels: [
+      { levelNo: 1, nodeName: '一级审批', approvers: ['李某某'] },
+      { levelNo: 2, nodeName: '二级审批', approvers: ['王某某'] },
+    ],
+    updatedBy: '李某某',
+    updatedAt: '2023-03-08 09:32:19',
+    createdAt: '2023-03-08 09:32:19',
+  },
+]
