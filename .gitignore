@@ -20,3 +20,5 @@ docs/
 *.pptx
 *.xls
 *.xlsx
+.vercel
+.env*
