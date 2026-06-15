@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Plus } from 'lucide-react'
 import DataTable from '@/components/common/DataTable'
 import FormDialog from '@/components/common/FormDialog'
 import PageHeader from '@/components/common/PageHeader'
@@ -16,18 +17,17 @@ type PricingRuleRecord = {
   updatedAt: string
 }
 
+type FactorRule = {
+  id: string
+  name: string
+  floor?: string
+  factor: number
+  floorFee: number
+}
+
 type CabinPricingRule = {
-  effectiveStart: string
-  effectiveEnd: string
-  ruleMode: 'standard' | 'seasonal'
-  singleSharedFactor: number
-  standardTwoAdultFactor: number
-  singleRoomFactor: number
-  oneAdultOneChildBedFactor: number
-  twoAdultOneBabyFactor: number
-  thirdChildNoBedFactor: number
-  thirdChildExtraBedFactor: number
-  threeAdultExtraBedFactor: number
+  enabled: boolean
+  factorRules: FactorRule[]
 }
 
 const pricingRuleData: PricingRuleRecord[] = [
@@ -39,39 +39,36 @@ const pricingRuleData: PricingRuleRecord[] = [
   { id: '6', shipName: '长江壹号', cabinName: '长江壹号总统套房', cabinCount: 2, guestCapacity: 3, bedCount: 2, sortNo: 3, updatedBy: '彭琳', updatedAt: '2022-09-01 14:25:25' },
 ]
 
+const FACTOR_RULE_NAMES = [
+  '单人（拼房）',
+  '标准（2成人）',
+  '单间',
+  '一大一小（儿童/婴儿占床）',
+  '两大一婴儿',
+  '第三人-儿童不占床',
+  '第三人-儿童加床',
+  '三大一成人加床',
+]
+
 const shipOptions = ['all', '长江壹号', '长江叁号']
 
-function formatDateInput(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
+const defaultFactorRules: FactorRule[] = [
+  { id: '1', name: '单人（拼房）', floor: '1F', factor: 0.5, floorFee: 0 },
+  { id: '2', name: '标准（2成人）', floor: '1F', factor: 1, floorFee: 0 },
+  { id: '3', name: '单间', floor: '1F', factor: 1.8, floorFee: 0 },
+  { id: '4', name: '一大一小（儿童/婴儿占床）', floor: '1F', factor: 1, floorFee: 0 },
+  { id: '5', name: '两大一婴儿', floor: '1F', factor: 1, floorFee: 0 },
+  { id: '6', name: '第三人-儿童不占床', floor: '1F', factor: 0.3, floorFee: 0 },
+  { id: '7', name: '第三人-儿童加床', floor: '1F', factor: 0.5, floorFee: 0 },
+  { id: '8', name: '三大一成人加床', floor: '1F', factor: 1.5, floorFee: 0 },
+]
 
 function createDefaultPricingRule(): CabinPricingRule {
-  const now = new Date()
   return {
-    effectiveStart: formatDateInput(now),
-    effectiveEnd: formatDateInput(new Date(now.getFullYear(), 11, 31)),
-    ruleMode: 'standard',
-    singleSharedFactor: 0.5,
-    standardTwoAdultFactor: 1,
-    singleRoomFactor: 1.8,
-    oneAdultOneChildBedFactor: 1,
-    twoAdultOneBabyFactor: 1,
-    thirdChildNoBedFactor: 0.3,
-    thirdChildExtraBedFactor: 0.5,
-    threeAdultExtraBedFactor: 1.5,
+    enabled: true,
+    factorRules: [...defaultFactorRules],
   }
 }
-
-const factorRuleFields: Array<{ key: keyof CabinPricingRule; label: string }> = [
-  { key: 'singleSharedFactor', label: '单人（拼房）' },
-  { key: 'standardTwoAdultFactor', label: '标准（2成人）' },
-  { key: 'singleRoomFactor', label: '单间' },
-  { key: 'oneAdultOneChildBedFactor', label: '一大一小（儿童/婴儿占床）' },
-  { key: 'twoAdultOneBabyFactor', label: '两大一婴儿' },
-  { key: 'thirdChildNoBedFactor', label: '第三人-儿童不占床' },
-  { key: 'thirdChildExtraBedFactor', label: '第三人-儿童加床' },
-  { key: 'threeAdultExtraBedFactor', label: '三大一成人加床' },
-]
 
 export default function PricingRulePage() {
   const [shipFilter, setShipFilter] = useState('all')
@@ -99,7 +96,7 @@ export default function PricingRulePage() {
     setPricingOpen(true)
   }
 
-  const updatePricingRule = (field: keyof CabinPricingRule, value: string | number) => {
+  const updatePricingRule = (field: keyof CabinPricingRule, value: any) => {
     setPricingRule((prev) => (prev ? { ...prev, [field]: value } : prev))
   }
 
@@ -130,7 +127,7 @@ export default function PricingRulePage() {
       width: '120px',
       render: (record: PricingRuleRecord) => (
         <button onClick={() => openPricingRule(record)} className="text-sm text-blue-600 hover:text-blue-700">
-          定价规则
+          船舱房型定价规则
         </button>
       ),
     },
@@ -138,7 +135,7 @@ export default function PricingRulePage() {
 
   return (
     <div>
-      <PageHeader title="定价规则" />
+      <PageHeader title="船舱房型定价规则" />
 
       <SearchPanel
         onSearch={() => {
@@ -181,7 +178,7 @@ export default function PricingRulePage() {
 
       <FormDialog
         open={pricingOpen && !!pricingRecord && !!pricingRule}
-        title={`定价规则 - ${pricingRecord?.cabinName || ''}`}
+        title={`船舱房型定价规则 - ${pricingRecord?.cabinName || ''}`}
         width="max-w-3xl"
         onCancel={() => setPricingOpen(false)}
         onSubmit={savePricingRule}
@@ -209,49 +206,115 @@ export default function PricingRulePage() {
             </div>
 
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">生效范围</h4>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">生效开始日期</label>
-                  <input type="date" value={pricingRule.effectiveStart} onChange={(e) => updatePricingRule('effectiveStart', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">生效结束日期</label>
-                  <input type="date" value={pricingRule.effectiveEnd} onChange={(e) => updatePricingRule('effectiveEnd', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">规则模式</label>
-                  <select value={pricingRule.ruleMode} onChange={(e) => updatePricingRule('ruleMode', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                    <option value="standard">标准价</option>
-                    <option value="seasonal">季节价</option>
-                  </select>
-                </div>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基本设置</h4>
+              <div className="mb-4">
+                <label className="mb-1 block text-sm text-gray-700">状态</label>
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={pricingRule.enabled} 
+                    onChange={(e) => updatePricingRule('enabled', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">启用该定价规则</span>
+                </label>
               </div>
             </div>
 
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">系数规则</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">系数规则</h4>
+                <button
+                  type="button"
+                  onClick={() => updatePricingRule('factorRules', [...pricingRule.factorRules, { id: Date.now().toString(), name: '', floor: '1F', factor: 1, floorFee: 0 }])}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> 添加规则
+                </button>
+              </div>
               <div className="overflow-hidden rounded-lg border border-gray-200">
-                {factorRuleFields.map((field, index) => (
+                {pricingRule.factorRules.map((rule, index) => (
                   <div
-                    key={field.key}
+                    key={rule.id}
                     className={`flex items-center justify-between gap-4 bg-white px-4 py-3 ${
-                      index === factorRuleFields.length - 1 ? '' : 'border-b border-gray-200'
+                      index === pricingRule.factorRules.length - 1 ? '' : 'border-b border-gray-200'
                     }`}
                   >
-                    <label className="text-sm font-medium text-gray-700">{field.label}</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={pricingRule[field.key] as number}
-                        onChange={(e) => updatePricingRule(field.key, Number(e.target.value))}
-                        className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-right text-sm"
-                      />
-                      <span className="text-xs text-gray-400">系数</span>
+                    <div className="flex-1 flex items-center gap-2">
+                      <select 
+                        value={rule.name} 
+                        onChange={(e) => {
+                          const newRules = [...pricingRule.factorRules]
+                          newRules[index].name = e.target.value
+                          updatePricingRule('factorRules', newRules)
+                        }}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      >
+                        <option value="" disabled>请选择系数规则</option>
+                        {FACTOR_RULE_NAMES.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={rule.floor || ''}
+                        onChange={(e) => {
+                          const newRules = [...pricingRule.factorRules]
+                          newRules[index].floor = e.target.value
+                          updatePricingRule('factorRules', newRules)
+                        }}
+                        className="w-24 shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      >
+                        <option value="" disabled>选择楼层</option>
+                        <option value="1F">1F</option>
+                        <option value="2F">2F</option>
+                        <option value="3F">3F</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={rule.factor}
+                          onChange={(e) => {
+                            const newRules = [...pricingRule.factorRules]
+                            newRules[index].factor = Number(e.target.value)
+                            updatePricingRule('factorRules', newRules)
+                          }}
+                          className="w-20 rounded-lg border border-gray-300 px-3 py-2 text-right text-sm focus:border-blue-500 outline-none"
+                        />
+                        <span className="text-xs text-gray-500 w-8">系数</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="1"
+                          value={rule.floorFee}
+                          onChange={(e) => {
+                            const newRules = [...pricingRule.factorRules]
+                            newRules[index].floorFee = Number(e.target.value)
+                            updatePricingRule('factorRules', newRules)
+                          }}
+                          className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-right text-sm focus:border-blue-500 outline-none"
+                        />
+                        <span className="text-xs text-gray-500 w-12">楼层费</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newRules = pricingRule.factorRules.filter(r => r.id !== rule.id)
+                          updatePricingRule('factorRules', newRules)
+                        }}
+                        className="text-gray-400 hover:text-red-500 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-50"
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
                 ))}
+                {pricingRule.factorRules.length === 0 && (
+                  <div className="px-4 py-8 text-center text-sm text-gray-500">暂无规则，请点击上方添加</div>
+                )}
               </div>
             </div>
 

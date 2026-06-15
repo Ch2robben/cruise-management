@@ -509,6 +509,12 @@ export interface TemplateDeposit {
   deposit: number
 }
 
+export interface TemplateTip {
+  id: string
+  marketCategory: string
+  tip: number
+}
+
 export interface VoyageTemplate {
   id: string
   code: string
@@ -525,6 +531,7 @@ export interface VoyageTemplate {
   inventory: TemplateInventory[]
   itinerary: TemplateItinerary[]
   deposits: TemplateDeposit[]
+  tips: TemplateTip[]
   basePriceRef: number
   surchargeStrategy: string[]
   settlementRule: string
@@ -550,6 +557,7 @@ export interface Ticket {
   name: string
   guestType: GuestType
   occupancyType: TicketOccupancyType
+  personCount: number
   priceCoefficient: number
   shareRoomType: PriceAdjustType
   shareRoomDirection: AdjustDirection
@@ -569,6 +577,7 @@ export interface TicketForm {
   name: string
   guestType: GuestType
   occupancyType: TicketOccupancyType
+  personCount: number
   priceCoefficient: number
   shareRoomType: PriceAdjustType
   shareRoomDirection: AdjustDirection

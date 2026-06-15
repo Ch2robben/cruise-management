@@ -6,15 +6,12 @@ import { products, ships, dictionaries } from '@/mock/data'
 import type { VoyageTemplate } from '@/types'
 
 type CabinPricingRule = {
-  effectiveStart: string
-  effectiveEnd: string
-  excludeDates: string[]
   variables: Record<PricingVariableKey, number[]>
   floorRules: FloorPricingRule[]
   formulaRules: FormulaPricingRule[]
 }
 
-type PricingVariableKey = 'P' | 'Q' | 'K' | 'T' | 'S'
+type PricingVariableKey = 'P' | 'Q' | 'K' | 'S'
 
 type FloorPricingRule = {
   floor: number
@@ -42,7 +39,7 @@ type FormulaPricingRule = {
   enabled: boolean
 }
 
-const variableLabels: Record<PricingVariableKey, string> = { P: '公式基数(口岸)', Q: '公式基数(区域)', K: '公式基数(标准)', T: '变量T', S: '楼层费' }
+const variableLabels: Record<PricingVariableKey, string> = { P: '公式基数(口岸)', Q: '公式基数(区域)', K: '公式基数(标准)', S: '楼层费' }
 const deckOptions = ['全部', '1F', '2F', '3F']
 
 const defaultFormulaRules: FormulaPricingRule[] = [
@@ -59,9 +56,7 @@ const defaultFormulaRules: FormulaPricingRule[] = [
   { id: 'f-third-adult',  floor: '全部', scenario: 'thirdAdultExtraBed', scenarioName: '三大成人加床',       formula: '2P',              enabled: true },
 ]
 
-function formatDateInput(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
+
 
 function evaluateFormula(formula: string, p: number, s: number): number {
   if (!formula) return 0
@@ -75,16 +70,11 @@ function evaluateFormula(formula: string, p: number, s: number): number {
 }
 
 function createDefaultPricingRule(segmentsCount: number = 1): CabinPricingRule {
-  const now = new Date()
   return {
-    effectiveStart: formatDateInput(now),
-    effectiveEnd: formatDateInput(new Date(now.getFullYear(), 11, 31)),
-    excludeDates: [],
     variables: { 
       P: Array(segmentsCount).fill(1200),
       Q: Array(segmentsCount).fill(1.0),
       K: Array(segmentsCount).fill(1.0),
-      T: Array(segmentsCount).fill(1.0),
       S: Array(segmentsCount).fill(180),
     },
     floorRules: [
@@ -159,21 +149,7 @@ export default function TemplatePricePage() {
   const segmentsList = productObj?.segments || []
   const segmentsCount = Math.max(1, priceRule.variables.P?.length || 1)
 
-  const updatePriceRuleDate = (field: 'effectiveStart' | 'effectiveEnd', value: string) => {
-    setPriceRules(prev => {
-      const current = prev[activeCabin]
-      if (!current) return prev
-      return { ...prev, [activeCabin]: { ...current, [field]: value } }
-    })
-  }
-  const toggleExcludeDate = (date: string) => {
-    setPriceRules(prev => {
-      const current = prev[activeCabin]
-      if (!current) return prev
-      const dates = current.excludeDates || []
-      return { ...prev, [activeCabin]: { ...current, excludeDates: dates.includes(date) ? dates.filter(d => d !== date) : [...dates, date].sort() } }
-    })
-  }
+
   const updatePriceVariableArray = (key: PricingVariableKey, index: number, value: number) => {
     setPriceRules(prev => {
       const current = prev[activeCabin]
@@ -286,68 +262,25 @@ export default function TemplatePricePage() {
       {/* 页面主要内容区 */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
         
-        {/* 顶部：航段清单 & 生效范围 (左右分栏) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* 航段清单 */}
-          <div className="lg:col-span-4 xl:col-span-3 rounded-xl border border-gray-200 bg-white px-5 py-5 shadow-sm flex flex-col">
-            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">航段清单</h4>
-            <div className="flex-1 flex flex-wrap content-start gap-2">
-              {Array.from({ length: segmentsCount }).map((_, i) => {
-                const seg = segmentsList[i]
-                const segName = seg ? `${seg.startPort}-${seg.endPort}` : (i === 0 ? '全程' : '')
-                return (
-                  <span key={i} className="text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-md shadow-sm">
-                    航段{i} <span className="text-gray-500 font-normal">{segName ? `(${segName})` : ''}</span>
-                  </span>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 生效范围 */}
-          <div className="lg:col-span-8 xl:col-span-9 rounded-xl border border-gray-200 bg-white px-5 py-5 shadow-sm flex flex-col">
-            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">生效范围</h4>
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="mb-2 block text-xs font-medium text-gray-400">生效开始日期</label>
-                {editMode
-                  ? <input type="date" value={priceRule.effectiveStart} onChange={e => updatePriceRuleDate('effectiveStart', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                  : <p className="text-base font-medium text-gray-900 bg-gray-50/50 px-3 py-2.5 rounded-lg border border-transparent">{priceRule.effectiveStart}</p>}
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-medium text-gray-400">生效结束日期</label>
-                {editMode
-                  ? <input type="date" value={priceRule.effectiveEnd} onChange={e => updatePriceRuleDate('effectiveEnd', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                  : <p className="text-base font-medium text-gray-900 bg-gray-50/50 px-3 py-2.5 rounded-lg border border-transparent">{priceRule.effectiveEnd}</p>}
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-medium text-gray-400">排除日期</label>
-                {editMode ? (
-                  <div className="flex flex-col gap-2">
-                    <input type="date" onChange={e => { if (e.target.value) { toggleExcludeDate(e.target.value); e.target.value = '' } }} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {priceRule.excludeDates?.map(d => (
-                        <span key={d} className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-                          {d}<button onClick={() => toggleExcludeDate(d)} className="text-gray-400 hover:text-red-500 transition-colors">&times;</button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {priceRule.excludeDates?.length ? priceRule.excludeDates.map(d => (
-                      <span key={d} className="rounded-md bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-gray-700">{d}</span>
-                    )) : <span className="text-sm text-gray-400">无</span>}
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* 顶部：航段清单 */}
+        <div className="rounded-xl border border-gray-200 bg-white px-5 py-5 shadow-sm flex flex-col">
+          <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">航段清单</h4>
+          <div className="flex flex-wrap items-center gap-2">
+            {Array.from({ length: segmentsCount }).map((_, i) => {
+              const seg = segmentsList[i]
+              const segName = seg ? `${seg.startPort}-${seg.endPort}` : (i === 0 ? '全程' : '')
+              return (
+                <span key={i} className="text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-md shadow-sm">
+                  航段{i} <span className="text-gray-500 font-normal">{segName ? `(${segName})` : ''}</span>
+                </span>
+              )
+            })}
           </div>
         </div>
 
-        {/* 基础变量 + 楼层费规则 (左右分栏，各占一半) */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="flex flex-col">
+        {/* 基础变量 + 楼层费规则 (左右分栏，调整比例) */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <div className="flex flex-col xl:col-span-7">
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基础变量</h4>
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm flex-1">
               <table className="w-full text-sm">
@@ -398,7 +331,7 @@ export default function TemplatePricePage() {
             </div>
           </div>
           
-          <div className="flex flex-col">
+          <div className="flex flex-col xl:col-span-5">
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">楼层费规则</h4>
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm flex-1">
               <table className="w-full text-sm">
@@ -415,17 +348,13 @@ export default function TemplatePricePage() {
                     <tr key={row.floor} className="hover:bg-gray-50/50">
                       <td className="px-4 py-4 text-sm font-medium text-gray-900">{row.label}</td>
                       <td className="px-4 py-4">
-                        {editMode
-                          ? <input value={row.formulaPrefix} onChange={e => updateFloorRule(index, 'formulaPrefix', e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                          : <span className="font-mono text-sm text-gray-700 bg-gray-50 px-2.5 py-1.5 rounded">{row.formulaPrefix}</span>}
+                        <span className="font-mono text-sm text-gray-700 bg-gray-50 px-2.5 py-1.5 rounded">{row.formulaPrefix}</span>
                       </td>
                       <td className="px-4 py-4 text-right font-semibold text-blue-600 text-base">
                         ¥{evaluateFormula(row.formulaPrefix, priceRule.variables.P[0] ?? 0, priceRule.variables.S[0] ?? 0).toLocaleString()}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        {editMode
-                          ? <input type="number" value={row.floorLevel} onChange={e => updateFloorRule(index, 'floorLevel', Number(e.target.value))} className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                          : <span className="text-sm font-medium text-gray-700 bg-gray-100 px-2.5 py-1.5 rounded">{row.floorLevel}</span>}
+                        <span className="text-sm font-medium text-gray-700 bg-gray-100 px-2.5 py-1.5 rounded">{row.floorLevel}</span>
                       </td>
                     </tr>
                   ))}
@@ -439,11 +368,6 @@ export default function TemplatePricePage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
-            {editMode && (
-              <button onClick={addFormulaRule} className="text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none">
-                + 新增组合规则
-              </button>
-            )}
           </div>
           <div className="overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
             <table className="w-full min-w-[600px] text-sm">
@@ -454,43 +378,26 @@ export default function TemplatePricePage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">公式</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 whitespace-nowrap">计算结果(全程)</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">状态</th>
-                  {editMode && <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">操作</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {priceRule.formulaRules.map((row, index) => (
                   <tr key={row.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {editMode
-                        ? <select value={row.floor} onChange={e => updateFormulaRule(index, 'floor', e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900">{deckOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
-                        : <span className="text-sm font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded">{row.floor}</span>}
+                      <span className="text-sm font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded">{row.floor}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium">
-                      {editMode
-                        ? <input value={row.scenarioName} onChange={e => updateFormulaRule(index, 'scenarioName', e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                        : row.scenarioName}
+                      {row.scenarioName}
                     </td>
                     <td className="px-4 py-3">
-                      {editMode
-                        ? <input value={row.formula} onChange={e => updateFormulaRule(index, 'formula', e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" />
-                        : <span className="font-mono text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{row.formula}</span>}
+                      <span className="font-mono text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{row.formula}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-blue-600">
                       ¥{evaluateFormula(row.formula, priceRule.variables.P[0] ?? 0, priceRule.variables.S[0] ?? 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {editMode
-                        ? <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" checked={row.enabled} onChange={e => updateFormulaRule(index, 'enabled', e.target.checked)} className="sr-only peer" />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gray-900"></div>
-                          </label>
-                        : <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${row.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{row.enabled ? '已启用' : '已停用'}</span>}
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${row.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{row.enabled ? '已启用' : '已停用'}</span>
                     </td>
-                    {editMode && (
-                      <td className="px-4 py-3 text-center">
-                        <button onClick={() => removeFormulaRule(row.id)} className="text-sm text-red-500 hover:text-red-700 font-medium">删除</button>
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>

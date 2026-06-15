@@ -122,5 +122,5 @@ export const router = createBrowserRouter([
     ],
   },
 ], {
-  basename: '/cruise-management',
+  basename: '/',
 })

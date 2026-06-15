@@ -15,7 +15,7 @@ const guestTypeLabels: Record<string, string> = { adult: '成人', baby: '婴儿
 const occupancyTypeOptions: TicketForm['occupancyType'][] = ['不拼房', '拼房', '加床', '不占座']
 
 const emptyForm: TicketForm = {
-  name: '', guestType: 'adult', occupancyType: '不拼房', priceCoefficient: 1.0,
+  name: '', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.0,
   shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0,
   extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0,
   tipType: '不收取', tipValue: 0,
@@ -29,7 +29,8 @@ export default function TicketPage() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<TicketForm>(emptyForm)
+  const [baseName, setBaseName] = useState('')
+  const [multiForms, setMultiForms] = useState<(TicketForm & { _key: string })[]>([])
   const [formLoading, setFormLoading] = useState(false)
 
   const [detailOpen, setDetailOpen] = useState(false)
@@ -51,20 +52,39 @@ export default function TicketPage() {
   const handleSearch = () => fetchData(1)
   const handleReset = () => { setKeyword(''); setStatusFilter('all') }
 
-  const openCreate = () => { setEditingId(null); setForm(emptyForm); setFormOpen(true) }
+  const openCreate = () => { 
+    setEditingId(null)
+    setBaseName('')
+    setMultiForms([{ ...emptyForm, _key: Date.now().toString() }])
+    setFormOpen(true) 
+  }
   const openEdit = (r: Ticket) => {
     setEditingId(r.id)
-    setForm({ name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase', shareRoomValue: r.shareRoomValue, extraBedType: r.extraBedType, extraBedDirection: r.extraBedDirection || 'increase', extraBedValue: r.extraBedValue, tipType: r.tipType, tipValue: r.tipValue })
+    setBaseName(r.name)
+    setMultiForms([{
+      _key: 'edit', name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', personCount: r.personCount || 1,
+      priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase',
+      shareRoomValue: r.shareRoomValue, extraBedType: r.extraBedType, extraBedDirection: r.extraBedDirection || 'increase',
+      extraBedValue: r.extraBedValue, tipType: r.tipType, tipValue: r.tipValue
+    }])
     setFormOpen(true)
   }
   const openDetail = async (r: Ticket) => { const t = await ticketApi.getById(r.id); setDetail(t || null); setDetailOpen(true) }
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) return
+    if (!baseName.trim() || multiForms.length === 0) return
     setFormLoading(true)
     const now = new Date().toISOString()
-    if (editingId) await ticketApi.update(editingId, { ...form, updatedBy: '当前用户', updatedAt: now })
-    else await ticketApi.create({ ...form, status: 'enabled' as const, updatedBy: '当前用户', updatedAt: now, createdAt: now } as Ticket)
+    
+    if (editingId) {
+      const { _key, ...rest } = multiForms[0]
+      await ticketApi.update(editingId, { ...rest, name: baseName.trim(), updatedBy: '当前用户', updatedAt: now })
+    } else {
+      for (const form of multiForms) {
+        const { _key, ...rest } = form
+        await ticketApi.create({ ...rest, name: baseName.trim(), status: 'enabled' as const, updatedBy: '当前用户', updatedAt: now, createdAt: now } as Ticket)
+      }
+    }
     setFormLoading(false); setFormOpen(false); fetchData(data.page)
   }
 
@@ -76,6 +96,7 @@ export default function TicketPage() {
     { key: 'name', title: '票名称', dataIndex: 'name' as keyof Ticket },
     { key: 'guestType', title: '游客类型', render: (r: Ticket) => <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{guestTypeLabels[r.guestType]}</span> },
     { key: 'occupancyType', title: '入住类型', render: (r: Ticket) => r.occupancyType || '-' },
+    { key: 'personCount', title: '计数人数', render: (r: Ticket) => r.personCount ?? 1 },
     { key: 'status', title: '状态', render: (r: Ticket) => <StatusBadge status={r.status} /> },
     { key: 'updatedBy', title: '修改人', dataIndex: 'updatedBy' as keyof Ticket },
     { key: 'updatedAt', title: '修改时间', render: (r: Ticket) => formatDateTime(r.updatedAt) },
@@ -101,13 +122,100 @@ export default function TicketPage() {
       </div>
       <DataTable columns={columns} dataSource={data.data} loading={loading} rowKey="id" pagination={{ current: data.page, pageSize: data.pageSize, total: data.total, onChange: (page) => fetchData(page) }} />
 
-      <FormDialog open={formOpen} title={editingId ? '编辑票类' : '新增票类'} loading={formLoading} onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
-        <div className="space-y-5">
-          <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div><label className="block text-sm text-gray-700 mb-1">票名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">游客类型</label><select value={form.guestType} onChange={(e) => { const gt = e.target.value as TicketForm['guestType']; const defaults: Record<string, number> = { adult: 1.0, baby: 0.1, child: 0.3 }; setForm({ ...form, guestType: gt, priceCoefficient: defaults[gt] }) }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="adult">成人</option><option value="baby">婴儿</option><option value="child">儿童</option></select></div>
-              <div><label className="block text-sm text-gray-700 mb-1">入住类型</label><select value={form.occupancyType} onChange={(e) => setForm({ ...form, occupancyType: e.target.value as TicketForm['occupancyType'] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{occupancyTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+      <FormDialog open={formOpen} title={editingId ? '编辑票类' : '新增票类'} width="max-w-2xl" loading={formLoading} onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
+        <div className="space-y-6">
+          <div>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
+            <div className="w-1/2 pr-4">
+              <label className="block text-xs text-gray-500 mb-1.5">票名称 <span className="text-red-500">*</span></label>
+              <input 
+                value={baseName} 
+                onChange={(e) => setBaseName(e.target.value)} 
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow" 
+                placeholder="请输入公用票名称，如: 成人特惠票"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">游客及入住类型</h4>
+              {!editingId && (
+                <button
+                  type="button"
+                  onClick={() => setMultiForms([...multiForms, { ...emptyForm, _key: Date.now().toString() + Math.random() }])}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 px-3 py-1.5 rounded-md transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> 添加类型
+                </button>
+              )}
+            </div>
+            
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 pb-2">
+              {multiForms.map((mf, index) => (
+                <div key={mf._key} className="p-4 border border-gray-200 rounded-xl bg-gray-50/50 relative group transition-colors hover:border-blue-200 hover:bg-blue-50/30">
+                  {!editingId && multiForms.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setMultiForms(multiForms.filter(f => f._key !== mf._key))}
+                      className="absolute -top-2.5 -right-2.5 w-6 h-6 bg-white border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                    >
+                      ×
+                    </button>
+                  )}
+                  <div className="grid grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1.5">游客类型</label>
+                      <select 
+                        value={mf.guestType} 
+                        onChange={(e) => { 
+                          const gt = e.target.value as TicketForm['guestType']; 
+                          const defaults: Record<string, number> = { adult: 1.0, baby: 0.1, child: 0.3 }; 
+                          const newForms = [...multiForms]
+                          newForms[index].guestType = gt
+                          newForms[index].priceCoefficient = defaults[gt]
+                          setMultiForms(newForms) 
+                        }} 
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none transition-shadow"
+                      >
+                        <option value="adult">成人</option>
+                        <option value="baby">婴儿</option>
+                        <option value="child">儿童</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1.5">入住类型</label>
+                      <select 
+                        value={mf.occupancyType} 
+                        onChange={(e) => { 
+                          const ot = e.target.value as TicketForm['occupancyType']
+                          const newForms = [...multiForms]
+                          newForms[index].occupancyType = ot
+                          setMultiForms(newForms) 
+                        }} 
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none transition-shadow"
+                      >
+                        {occupancyTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1.5">计数人数</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        value={mf.personCount} 
+                        onChange={(e) => { 
+                          const pc = parseInt(e.target.value) || 1
+                          const newForms = [...multiForms]
+                          newForms[index].personCount = pc
+                          setMultiForms(newForms) 
+                        }} 
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none transition-shadow"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

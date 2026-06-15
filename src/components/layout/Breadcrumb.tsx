@@ -18,7 +18,7 @@ const routeLabels: Record<string, string> = {
   '/distribution/cabin-holds': '锁舱记录',
   '/orders': '订单管理',
   '/orders/list': '订单列表',
-  '/voyage/pricing-rules': '定价规则',
+  '/voyage/pricing-rules': '船舱房型定价规则',
   '/rule': '规则中心',
   '/rule/deposit': '定金规则管理',
   '/rule/payment': '船款规则管理',

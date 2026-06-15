@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, X, ChevronLeft, Warehouse } from 'lucide-react'
 import { productApi, templateApi } from '@/mock/api'
 import { products, ships, routes, dealers } from '@/mock/data'
-import type { VoyageTemplate, TemplateInventory, TemplateItinerary, TemplateDeposit, PaginatedResult, PricingRow, Product, SearchParams, DealerChannelType } from '@/types'
+import type { VoyageTemplate, TemplateInventory, TemplateItinerary, TemplateDeposit, TemplateTip, PaginatedResult, PricingRow, Product, SearchParams, DealerChannelType } from '@/types'
 import { formatDateTime, generateId } from '@/utils/format'
 import { MARKET_CATEGORY_GROUPS, MARKET_CATEGORY_OPTIONS, getMarketCategoryLabel } from '@/utils/constants'
 import PageHeader from '@/components/common/PageHeader'
@@ -39,7 +39,7 @@ const supplierChannelLabels: Record<SupplierChannelFilter, string> = {
   group: '组团社',
 }
 
-const TABS = ['航次库存', '航次行程', '航次定金', '计价配置', '销售规则']
+const TABS = ['航次行程', '航次定金', '计价配置', '销售规则', '小费配置']
 const settlementRules = ['月结30天', '预付款50%', '全额预付']
 const refundPolicies = ['标准退改', '严格退改', '灵活退改']
 const materialOptions = ['宣传册', '行程单', '保险单', '签证指南']
@@ -48,11 +48,12 @@ type TemplateForm = Omit<VoyageTemplate, 'id' | 'updatedBy' | 'updatedAt' | 'cre
 
 const emptyInv = (): TemplateInventory => ({ id: generateId(), cabinName: '', totalBeds: 0, released: 0, status: 'closed' })
 const emptyDep = (): TemplateDeposit => ({ id: generateId(), marketCategory: '', deposit: 0 })
+const emptyTip = (): TemplateTip => ({ id: generateId(), marketCategory: '', tip: 0 })
 
 const emptyForm: TemplateForm = {
   code: '', name: '', productId: '', productName: '', shipName: '',
   voyageEndTime: '', voyageStartTime: '', sailType: '周内固定', sailDay: '', sailTime: '', totalDays: 0,
-  inventory: [], itinerary: [], deposits: [],
+  inventory: [], itinerary: [], deposits: [], tips: [],
   basePriceRef: 0, surchargeStrategy: [], settlementRule: '', earlyBirdDiscount: 0,
   presaleDays: 0, cutoffDays: 0, refundPolicy: '', materialReq: [],
   status: 'draft',
@@ -170,7 +171,7 @@ export default function TemplatePage() {
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setTab(0); setFormOpen(true) }
   const openEdit = (r: VoyageTemplate) => {
     setEditingId(r.id)
-    setForm({ code: r.code, name: r.name, productId: r.productId, productName: r.productName, shipName: r.shipName, voyageEndTime: r.voyageEndTime, voyageStartTime: r.voyageStartTime, sailType: r.sailType, sailDay: r.sailDay, sailTime: r.sailTime, totalDays: r.totalDays, inventory: r.inventory.map((i) => ({ ...i })), itinerary: r.itinerary.map((i) => ({ ...i })), deposits: r.deposits.map((d) => ({ ...d })), basePriceRef: r.basePriceRef, surchargeStrategy: [...r.surchargeStrategy], settlementRule: r.settlementRule, earlyBirdDiscount: r.earlyBirdDiscount, presaleDays: r.presaleDays, cutoffDays: r.cutoffDays, refundPolicy: r.refundPolicy, materialReq: [...r.materialReq], status: r.status })
+    setForm({ code: r.code, name: r.name, productId: r.productId, productName: r.productName, shipName: r.shipName, voyageEndTime: r.voyageEndTime, voyageStartTime: r.voyageStartTime, sailType: r.sailType, sailDay: r.sailDay, sailTime: r.sailTime, totalDays: r.totalDays, inventory: r.inventory.map((i) => ({ ...i })), itinerary: r.itinerary.map((i) => ({ ...i })), deposits: r.deposits.map((d) => ({ ...d })), tips: (r.tips || []).map((t) => ({ ...t })), basePriceRef: r.basePriceRef, surchargeStrategy: [...r.surchargeStrategy], settlementRule: r.settlementRule, earlyBirdDiscount: r.earlyBirdDiscount, presaleDays: r.presaleDays, cutoffDays: r.cutoffDays, refundPolicy: r.refundPolicy, materialReq: [...r.materialReq], status: r.status })
     setTab(0); setFormOpen(true)
   }
   const openDetail = async (r: VoyageTemplate) => { const t = await templateApi.getById(r.id); setDetail(t || null); setDetailOpen(true) }
@@ -248,7 +249,7 @@ export default function TemplatePage() {
     const now = new Date().toISOString()
     const item: Omit<VoyageTemplate, 'id'> = {
       ...form,
-      inventory: form.inventory, itinerary: form.itinerary, deposits: form.deposits,
+      inventory: form.inventory, itinerary: form.itinerary, deposits: form.deposits, tips: form.tips,
       updatedBy: '当前用户', updatedAt: now, createdAt: editingId ? undefined! : now,
     }
     if (editingId) await templateApi.update(editingId, item as Partial<VoyageTemplate>)
@@ -269,6 +270,13 @@ export default function TemplatePage() {
   }
   const addDep = () => setForm((f) => ({ ...f, deposits: [...f.deposits, emptyDep()] }))
   const removeDep = (idx: number) => setForm((f) => ({ ...f, deposits: f.deposits.filter((_, i) => i !== idx) }))
+
+  // Tip helpers
+  const updateTip = (idx: number, f: keyof TemplateTip, v: string | number) => {
+    setForm((prev) => { const tips = [...prev.tips]; tips[idx] = { ...tips[idx], [f]: v }; return { ...prev, tips } })
+  }
+  const addTip = () => setForm((f) => ({ ...f, tips: [...f.tips, emptyTip()] }))
+  const removeTip = (idx: number) => setForm((f) => ({ ...f, tips: f.tips.filter((_, i) => i !== idx) }))
 
 
 
@@ -321,31 +329,12 @@ export default function TemplatePage() {
   const renderTab = () => {
     switch (tab) {
       case 0: return (
-        <div>
-          <div className="flex justify-between items-center mb-3"><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">航次库存</h4>
-            <button type="button" onClick={addInv} className="px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50 rounded">+ 添加舱房</button></div>
-          <table className="w-full text-sm"><thead><tr className="bg-gray-50 border-b border-gray-200">
-            <th className="px-3 py-2 text-left text-xs text-gray-500">船舱名称</th><th className="px-3 py-2 text-left text-xs text-gray-500">床位数</th><th className="px-3 py-2 text-left text-xs text-gray-500">投放</th><th className="px-3 py-2 text-left text-xs text-gray-500">状态</th><th className="px-3 py-2 text-xs text-gray-500 w-16">操作</th>
-          </tr></thead><tbody className="divide-y divide-gray-100">
-            {form.inventory.map((inv, idx) => (
-              <tr key={idx}>
-                <td className="px-3 py-2"><input value={inv.cabinName} onChange={(e) => updateInv(idx, 'cabinName', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
-                <td className="px-3 py-2"><input type="number" value={inv.totalBeds || ''} onChange={(e) => updateInv(idx, 'totalBeds', Number(e.target.value))} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-center" /></td>
-                <td className="px-3 py-2"><input type="number" value={inv.released || ''} onChange={(e) => updateInv(idx, 'released', Number(e.target.value))} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-center" /></td>
-                <td className="px-3 py-2"><select value={inv.status} onChange={(e) => updateInv(idx, 'status', e.target.value)} className="px-2 py-1 border border-gray-300 rounded text-sm"><option value="open">开启</option><option value="closed">关闭</option></select></td>
-                <td className="px-3 py-2"><button onClick={() => removeInv(idx)} className="text-xs text-red-500 hover:bg-red-50 rounded px-2 py-0.5">删除</button></td>
-              </tr>
-            ))}
-          </tbody></table>
-        </div>
-      )
-      case 1: return (
         <ItineraryEditor
           value={form.itinerary}
           onChange={(itinerary) => setForm((prev) => ({ ...prev, itinerary }))}
         />
       )
-      case 2: return (
+      case 1: return (
         <div>
           <div className="flex justify-between items-center mb-3"><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">航次定金</h4>
             <button type="button" onClick={addDep} className="px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50 rounded">+ 添加规则</button></div>
@@ -362,7 +351,7 @@ export default function TemplatePage() {
           </tbody></table>
         </div>
       )
-      case 3: return (
+      case 2: return (
         <div>
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">计价配置</h4>
           <div className="grid grid-cols-2 gap-4">
@@ -375,7 +364,7 @@ export default function TemplatePage() {
           </div>
         </div>
       )
-      case 4: return (
+      case 3: return (
         <div>
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">销售规则</h4>
           <div className="grid grid-cols-2 gap-4">
@@ -386,6 +375,23 @@ export default function TemplatePage() {
               <label key={m} className={`px-2 py-1 border rounded text-xs cursor-pointer ${form.materialReq.includes(m) ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-300 text-gray-600'}`}><input type="checkbox" checked={form.materialReq.includes(m)} onChange={() => setForm({ ...form, materialReq: toggleArray(form.materialReq, m) })} className="sr-only" />{m}</label>
             ))}</div></div>
           </div>
+        </div>
+      )
+      case 4: return (
+        <div>
+          <div className="flex justify-between items-center mb-3"><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">小费配置</h4>
+            <button type="button" onClick={addTip} className="px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50 rounded">+ 添加规则</button></div>
+          <table className="w-full text-sm"><thead><tr className="bg-gray-50 border-b border-gray-200">
+            <th className="px-3 py-2 text-left text-xs text-gray-500">市场类别</th><th className="px-3 py-2 text-left text-xs text-gray-500">小费(元/人)</th><th className="px-3 py-2 text-xs text-gray-500 w-16">操作</th>
+          </tr></thead><tbody className="divide-y divide-gray-100">
+            {form.tips.map((t, idx) => (
+              <tr key={idx}>
+                <td className="px-3 py-2"><select value={t.marketCategory} onChange={(e) => updateTip(idx, 'marketCategory', e.target.value)} className="px-2 py-1 border border-gray-300 rounded text-sm"><option value="">选择</option>{MARKET_CATEGORY_GROUPS.map((group) => <optgroup key={group} label={group}>{MARKET_CATEGORY_OPTIONS.filter((item) => item.parent === group).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</optgroup>)}</select></td>
+                <td className="px-3 py-2"><input type="number" value={t.tip || ''} onChange={(e) => updateTip(idx, 'tip', Number(e.target.value))} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-center" /></td>
+                <td className="px-3 py-2"><button onClick={() => removeTip(idx)} className="text-xs text-red-500 hover:bg-red-50 rounded px-2 py-0.5">删除</button></td>
+              </tr>
+            ))}
+          </tbody></table>
         </div>
       )
       default: return null
@@ -465,6 +471,7 @@ export default function TemplatePage() {
           <DetailCard title={`库存（${detail.inventory.length}项）`}>{detail.inventory.map((inv) => <div key={inv.id} className="flex gap-3 text-sm py-0.5"><span className="text-gray-700 font-medium">{inv.cabinName}</span><span className="text-gray-500">床位{inv.totalBeds} 投放{inv.released}</span><span className={inv.status === 'open' ? 'text-green-600' : 'text-gray-400'}>{inv.status === 'open' ? '开启' : '关闭'}</span></div>)}</DetailCard>
           <DetailCard title={`行程（${detail.itinerary.length}项）`}>{detail.itinerary.map((itin) => <div key={itin.id} className="flex gap-2 text-sm py-0.5"><span className="text-gray-700">{itin.portName} 第{itin.day}天</span><span className="text-gray-500">{itin.theme && `${itin.theme} ${itin.description}`}</span></div>)}</DetailCard>
           <DetailCard title={`定金（${detail.deposits.length}项）`}>{detail.deposits.map((d) => <div key={d.id} className="flex gap-3 text-sm py-0.5"><span className="text-gray-700">{getMarketCategoryLabel(d.marketCategory)}</span><span className="text-gray-500">¥{d.deposit}/人</span></div>)}</DetailCard>
+          <DetailCard title={`小费（${detail.tips?.length || 0}项）`}>{(detail.tips || []).map((t) => <div key={t.id} className="flex gap-3 text-sm py-0.5"><span className="text-gray-700">{getMarketCategoryLabel(t.marketCategory)}</span><span className="text-gray-500">¥{t.tip}/人</span></div>)}</DetailCard>
           <DetailCard title="计价配置"><DetailRow label="基准价参考" value={`¥${detail.basePriceRef}`} /><DetailRow label="结算规则" value={detail.settlementRule} /><DetailRow label="提前购优惠" value={`¥${detail.earlyBirdDiscount}`} /><DetailRow label="附加费策略" value={detail.surchargeStrategy.join('、') || '-'} /></DetailCard>
           <DetailCard title="销售规则"><DetailRow label="预售期" value={`${detail.presaleDays}天`} /><DetailRow label="截止售卖" value={`${detail.cutoffDays}天前`} /><DetailRow label="退改策略" value={detail.refundPolicy} /><DetailRow label="物料需求" value={detail.materialReq.join('、') || '-'} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>

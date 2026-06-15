@@ -33,7 +33,7 @@ const menuItems: MenuItem[] = [
       { key: 'voyage_list', label: '航次列表', path: '/voyage/list' },
       { key: 'voyage_template', label: '航次模板', path: '/voyage/templates' },
       { key: 'voyage_inv', label: '航次库存看板', path: '/voyage/inventory' },
-      { key: 'pricing_rule', label: '定价规则', path: '/voyage/pricing-rules' },
+      { key: 'pricing_rule', label: '船舱房型定价规则', path: '/voyage/pricing-rules' },
       // { key: 'sales_control', label: '销售控制', path: '/voyage/sales-control' },
       { key: 'voyage_price', label: '价格日历', path: '/voyage/pricing' },
       { key: 'price_management', label: '价格管理', path: '/voyage/price-management' },

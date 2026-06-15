@@ -24,6 +24,7 @@ export default function PricingPage() {
   const [priceData, setPriceData] = useState<VoyagePrice[]>([])
   const [selDate, setSelDate] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [activeSegmentTab, setActiveSegmentTab] = useState(0)
 
   // 月历
   const [calYear, setCalYear] = useState(new Date().getFullYear())
@@ -309,49 +310,68 @@ export default function PricingPage() {
             </div>
 
             {/* 右：价格表格 */}
-            <div className="flex-1 bg-white border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto"><table className="w-full min-w-[1600px] text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th rowSpan={2} className="w-36 px-3 py-2 text-left text-xs text-gray-500">舱房</th>
-                    {segments.map((segmentName) => (
-                      <th key={segmentName} colSpan={priceTypes.length} className="border-l border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-600">{segmentName}</th>
-                    ))}
-                  </tr>
-                  <tr className="bg-gray-50 border-b">
-                    {segments.flatMap((segmentName) => priceTypes.map((priceType) => (
-                      <th key={`${segmentName}-${priceType.field}`} className="border-l border-gray-200 px-3 py-2 text-right text-xs font-medium text-gray-500">{priceType.label}</th>
-                    )))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {cabins.map((c) => (
-                    <tr key={c}>
-                      <td className="px-3 py-2 font-medium text-gray-700 text-xs">{c}</td>
-                      {segments.flatMap((segmentName) => priceTypes.map((priceType) => {
-                        const price = gp(segmentName, c, visibleTicketField, priceType.field)
-                        return (
-                          <td key={`${segmentName}-${priceType.field}`} className="border-l border-gray-100 px-3 py-2">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                value={price}
-                                onChange={(e) => setPrice(segmentName, c, visibleTicketField, priceType.field, Number(e.target.value))}
-                                disabled={!selDate}
-                                className="w-full min-w-[96px] px-2 py-1.5 border rounded text-sm text-right tabular-nums text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-                              />
-                            ) : (
-                              <div className="min-w-[96px] text-right text-sm font-semibold text-gray-900 tabular-nums">
-                                {formatPrice(price)}
-                              </div>
-                            )}
-                          </td>
-                        )
-                      }))}
-                    </tr>
+            <div className="flex-1 flex flex-col min-w-0 bg-white border rounded-lg overflow-hidden">
+              {!isEditing && segments.length > 1 && (
+                <div className="flex overflow-x-auto border-b bg-gray-50/50 scrollbar-hide">
+                  {segments.map((seg, idx) => (
+                    <button
+                      key={seg}
+                      onClick={() => setActiveSegmentTab(idx)}
+                      className={`whitespace-nowrap px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                        activeSegmentTab === idx
+                          ? 'border-blue-600 text-blue-600 bg-white'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {seg}
+                    </button>
                   ))}
-                </tbody>
-              </table></div>
+                </div>
+              )}
+              <div className="overflow-x-auto flex-1">
+                <table className={`w-full text-sm ${isEditing ? 'min-w-[1600px]' : 'min-w-max'}`}>
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th rowSpan={2} className="w-36 px-3 py-2 text-left text-xs text-gray-500">舱房</th>
+                      {(isEditing ? segments : [segments[activeSegmentTab] || segments[0]]).map((segmentName) => (
+                        <th key={segmentName} colSpan={priceTypes.length} className="border-l border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-600">{segmentName}</th>
+                      ))}
+                    </tr>
+                    <tr className="bg-gray-50 border-b">
+                      {(isEditing ? segments : [segments[activeSegmentTab] || segments[0]]).flatMap((segmentName) => priceTypes.map((priceType) => (
+                        <th key={`${segmentName}-${priceType.field}`} className="border-l border-gray-200 px-3 py-2 text-right text-xs font-medium text-gray-500">{priceType.label}</th>
+                      )))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {cabins.map((c) => (
+                      <tr key={c}>
+                        <td className="px-3 py-2 font-medium text-gray-700 text-xs">{c}</td>
+                        {(isEditing ? segments : [segments[activeSegmentTab] || segments[0]]).flatMap((segmentName) => priceTypes.map((priceType) => {
+                          const price = gp(segmentName, c, visibleTicketField, priceType.field)
+                          return (
+                            <td key={`${segmentName}-${priceType.field}`} className="border-l border-gray-100 px-3 py-2">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={price}
+                                  onChange={(e) => setPrice(segmentName, c, visibleTicketField, priceType.field, Number(e.target.value))}
+                                  disabled={!selDate}
+                                  className="w-full min-w-[96px] px-2 py-1.5 border rounded text-sm text-right tabular-nums text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
+                                />
+                              ) : (
+                                <div className="min-w-[96px] text-right text-sm font-semibold text-gray-900 tabular-nums">
+                                  {formatPrice(price)}
+                                </div>
+                              )}
+                            </td>
+                          )
+                        }))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
