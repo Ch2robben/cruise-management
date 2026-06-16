@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import MainLayout from '@/layouts/MainLayout'
+import DealerLayout from '@/layouts/DealerLayout'
 import ProtectedRoute from './ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
@@ -41,6 +42,13 @@ import IdTypePage from '@/pages/basic/IdTypePage'
 import AgeGroupPage from '@/pages/basic/AgeGroupPage'
 import ApprovalFlowPage from '@/pages/system/ApprovalFlowPage'
 
+import DealerHomePage from '@/pages/dealer/DealerHomePage'
+import CruiseBookingPage from '@/pages/dealer/booking/CruiseBookingPage'
+import BoatBookingPage from '@/pages/dealer/booking/BoatBookingPage'
+import FlightQueryPage from '@/pages/dealer/booking/FlightQueryPage'
+import ComboSalesPage from '@/pages/dealer/booking/ComboSalesPage'
+import DealerCruiseOrderPage from '@/pages/dealer/order/DealerCruiseOrderPage'
+
 import DepositRulePage from '@/pages/rule/DepositRulePage'
 import PaymentRulePage from '@/pages/rule/PaymentRulePage'
 import PenaltyRulePage from '@/pages/rule/PenaltyRulePage'
@@ -54,6 +62,7 @@ import RefundRulePage from '@/pages/rule/RefundRulePage'
 import ShipAuthPage from '@/pages/rule/ShipAuthPage'
 import CloseRulePage from '@/pages/rule/CloseRulePage'
 import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
+import RebateRulePage from '@/pages/rule/RebateRulePage'
 
 export const router = createBrowserRouter([
   {
@@ -127,6 +136,22 @@ export const router = createBrowserRouter([
       { path: '/rule/ship-auth', element: <ShipAuthPage /> },
       { path: '/rule/close', element: <CloseRulePage /> },
       { path: '/rule/performance', element: <PerformanceRulePage /> },
+      { path: '/rule/rebate', element: <RebateRulePage /> },
+    ],
+  },
+  {
+    element: (
+      <ProtectedRoute>
+        <DealerLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/dealer/home', element: <DealerHomePage /> },
+      { path: '/dealer/booking/cruise', element: <CruiseBookingPage /> },
+      { path: '/dealer/booking/boat', element: <BoatBookingPage /> },
+      { path: '/dealer/booking/flight', element: <FlightQueryPage /> },
+      { path: '/dealer/booking/combo-sales', element: <ComboSalesPage /> },
+      { path: '/dealer/orders/cruise', element: <DealerCruiseOrderPage /> },
     ],
   },
 ], {

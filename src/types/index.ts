@@ -773,6 +773,49 @@ export type DealerPriceSystem = 'retail' | 'online' | 'contract' | 'regional'
 export type DealerRefundPermission = 'none' | 'self' | 'with_subordinate'
 export type DealerRebateDimension = 'sales' | 'orders' | 'product'
 export type DealerRebateCycle = 'monthly' | 'quarterly' | 'yearly'
+
+// ========== 返利政策 ==========
+export type RebatePolicyType = 'rebate_point' | 'sales_rebate' | 'penalty_refund'
+export type RebateSettlementCycle = 'voyage' | 'monthly' | 'yearly'
+export type RebateSalesBase = 'settlement_price' | 'order_amount'
+export type RebatePolicyStatus = 'draft' | 'enabled' | 'disabled'
+
+export interface RebateTier {
+  id: string
+  minValue: number
+  maxValue: number | null
+  rebateValue: number
+}
+
+export interface RebatePolicy {
+  id: string
+  code: string
+  name: string
+  policyType: RebatePolicyType
+  settlementCycle: RebateSettlementCycle
+  applyScope: { productIds: string[]; voyageIds: string[] }
+  effectiveStart: string
+  effectiveEnd: string
+  priority: number
+  baseRebatePoint: number
+  bonusRebatePoint: number
+  salesBase: RebateSalesBase
+  tiers: RebateTier[]
+  confirmationRateThreshold: number
+  makeupDaysBeforeSail: number
+  remindLowConfirmRate: boolean
+  remindBeforeMakeupDeadline: boolean
+  remindGuaranteeOnSettlement: boolean
+  allowFallback: boolean
+  quotaLimit: number | null
+  remark: string
+  status: RebatePolicyStatus
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export type RebatePolicyForm = Omit<RebatePolicy, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>
 export type DealerStatus = 'cooperating' | 'terminated'
 export type DealerSubjectType = 'travel_agency' | 'hotel' | 'homestay' | 'other'
 export type DealerPurchasePermission = 'enabled' | 'disabled'

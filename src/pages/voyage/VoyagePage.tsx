@@ -27,11 +27,13 @@ export default function VoyagePage() {
   const [shipFilter, setShipFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [directionFilter, setDirectionFilter] = useState('all')
+  const [templateFilter, setTemplateFilter] = useState('all')
   const [approvalFilter, setApprovalFilter] = useState('all')
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchStatus, setBatchStatus] = useState('ticketing')
+  const [listBatchPriceOpen, setListBatchPriceOpen] = useState(false)
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<Voyage | null>(null)
@@ -136,13 +138,14 @@ export default function VoyagePage() {
     if (shipFilter !== 'all') params.shipId = shipFilter
     if (statusFilter !== 'all') params.status = statusFilter
     if (directionFilter !== 'all') params.direction = directionFilter
+    if (templateFilter !== 'all') params.templateId = templateFilter
     const result = await voyageApi.list(params)
     setData(result); setLoading(false); setSelected(new Set())
-  }, [keyword, dateFrom, dateTo, routeFilter, shipFilter, statusFilter, directionFilter])
+  }, [keyword, dateFrom, dateTo, routeFilter, shipFilter, statusFilter, directionFilter, templateFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
   const handleSearch = () => fetchData(1)
-  const handleReset = () => { setKeyword(''); setDateFrom(''); setDateTo(''); setRouteFilter('all'); setShipFilter('all'); setStatusFilter('all'); setDirectionFilter('all'); setApprovalFilter('all') }
+  const handleReset = () => { setKeyword(''); setDateFrom(''); setDateTo(''); setRouteFilter('all'); setShipFilter('all'); setStatusFilter('all'); setDirectionFilter('all'); setTemplateFilter('all'); setApprovalFilter('all') }
 
   const toggleSelect = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const toggleSelectAll = () => { if (selected.size === data.data.length && data.data.length > 0) setSelected(new Set()); else setSelected(new Set(data.data.map((v) => v.id))) }
@@ -256,10 +259,16 @@ export default function VoyagePage() {
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">游轮</label><select value={shipFilter} onChange={(e) => setShipFilter(e.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{ships.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm">{statusOptions.map((s) => <option key={s} value={s}>{s === 'all' ? '全部' : statusLabels[s]}</option>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">上下水</label><select value={directionFilter} onChange={(e) => setDirectionFilter(e.target.value)} className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option><option value="upstream">上水</option><option value="downstream">下水</option></select></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">模版</label><select value={templateFilter} onChange={(e) => setTemplateFilter(e.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{voyageTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
       </SearchPanel>
       <div className="bg-white px-9 py-6">
         <div className="flex items-center gap-3">
-          {selected.size > 0 && <button onClick={() => setBatchOpen(true)} className="inline-flex h-11 items-center rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">设置状态（{selected.size}）</button>}
+          {selected.size > 0 && (
+            <>
+              <button onClick={() => setBatchOpen(true)} className="inline-flex h-11 items-center rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">设置状态（{selected.size}）</button>
+              <button onClick={() => setListBatchPriceOpen(true)} className="inline-flex h-11 items-center rounded-md border border-blue-600 bg-white px-6 text-base font-medium text-blue-600 transition hover:bg-blue-50">批量定价（{selected.size}）</button>
+            </>
+          )}
           <button onClick={() => { setGenProductId(''); setGenTemplateId(''); setGenStartDate(''); setGenEndDate(''); setGenConflict([]); setGenOpen(true) }} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"><Plus className="w-4 h-4" />添加</button>
         </div>
       </div>
@@ -384,12 +393,37 @@ export default function VoyagePage() {
         </div>
       )}
 
-      {/* Batch */}
+      {/* Batch Status */}
       {batchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"><div className="absolute inset-0 bg-black/40" onClick={() => setBatchOpen(false)} />
           <div className="relative bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6"><h3 className="text-base font-semibold text-gray-900 mb-1">设置航次状态</h3><p className="text-sm text-gray-500 mb-4">已选择 {selected.size} 个</p>
             <select value={batchStatus} onChange={(e) => setBatchStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4">{statusOptions.filter((s) => s !== 'all').map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select>
             <div className="flex justify-end gap-3"><button onClick={() => setBatchOpen(false)} className="px-4 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50">取消</button><button onClick={handleBatchStatus} className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">确认</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* 列表批量定价弹窗 */}
+      {listBatchPriceOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setListBatchPriceOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-4">批量定价</h3>
+            <p className="text-sm text-gray-500 mb-4">已选择 {selected.size} 个航次，此操作将统一调整这些航次的所有舱房价格。</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm text-gray-700 mb-1">成人价</label><input type="number" placeholder="请输入" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-sm text-gray-700 mb-1">儿童价</label><input type="number" placeholder="请输入" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setListBatchPriceOpen(false)} className="px-4 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={() => {
+                setListBatchPriceOpen(false);
+                setSelected(new Set());
+                fetchData(data.page);
+              }} className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">确认调价</button>
+            </div>
           </div>
         </div>
       )}

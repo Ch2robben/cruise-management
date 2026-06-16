@@ -106,6 +106,7 @@ const menuItems: MenuItem[] = [
       { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
       { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
       { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
+      { key: 'rebate_rule', label: '返利政策管理', path: '/rule/rebate' },
       { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
       { key: 'order_validity_rule', label: '订单有效期规则', path: '/rule/order-validity' },
       { key: 'warning_rule', label: '预警规则', path: '/rule/warning' },

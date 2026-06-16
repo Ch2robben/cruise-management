@@ -1876,3 +1876,26 @@ export const approvalFlows: ApprovalFlow[] = [
     createdAt: '2023-03-08 09:32:19',
   },
 ]
+
+export const defaultRoomReserveData = {
+  '标准间': { count: 0, maxRooms: 50, deposit: 500, price: 2980, badge: '热销', bedType: '双床1.2m', canAddBed: true },
+  '豪华套房': { count: 0, maxRooms: 20, deposit: 1500, price: 8800, badge: '推荐', bedType: '大床2.0m', canAddBed: true },
+  '总统套房': { count: 0, maxRooms: 5, deposit: 5000, price: 25800, badge: '', bedType: '大床2.2m', canAddBed: false }
+}
+
+export const voyageList = [
+  { ship: '长江叁号', route: '重庆→宜昌', days: '上水4天3晚', date: '2026-06-15', deck: '7层甲板', price: '2980', stock: { std: 8, suite: 2 }, cabin: ['标准间','豪华套房','总统套房'], hot: true,
+    cabins: [
+      { type: '标准间', price: 2980, bedType: '2张0.9米×2米', extraBed: 1, remainBeds: 16, maxGuests: 3, totalRooms: 50, roomArea: '25㎡', balconyArea: '5㎡', discount: '无', status: '开放' },
+      { type: '豪华套房', price: 5680, bedType: '1张大床2米', extraBed: 1, remainBeds: 4, maxGuests: 3, totalRooms: 20, roomArea: '38㎡', balconyArea: '8㎡', discount: '无', status: '开放' },
+      { type: '总统套房', price: 9880, bedType: '1张特大床2.2米', extraBed: 0, remainBeds: 2, maxGuests: 2, totalRooms: 5, roomArea: '60㎡', balconyArea: '15㎡', discount: '无', status: '开放' }
+    ]
+  },
+  { ship: '长江贰号', route: '重庆→宜昌', days: '下水4天3晚', date: '2026-06-22', deck: '8层甲板', price: '3680', stock: { std: 14, suite: 3 }, cabin: ['标准间','豪华套房','总统套房'], hot: true,
+    cabins: [
+      { type: '标准间', price: 3680, bedType: '2张1米×2米', extraBed: 1, remainBeds: 28, maxGuests: 3, totalRooms: 45, roomArea: '28㎡', balconyArea: '6㎡', discount: '无', status: '开放' },
+      { type: '豪华套房', price: 6280, bedType: '1张大床2米', extraBed: 1, remainBeds: 6, maxGuests: 3, totalRooms: 18, roomArea: '42㎡', balconyArea: '10㎡', discount: '无', status: '开放' },
+      { type: '总统套房', price: 11800, bedType: '1张特大床2.2米', extraBed: 0, remainBeds: 1, maxGuests: 2, totalRooms: 3, roomArea: '68㎡', balconyArea: '18㎡', discount: '无', status: '开放' }
+    ]
+  }
+]

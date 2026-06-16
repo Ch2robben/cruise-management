@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/stores/authStore'
-import { LogOut, User } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { LogOut, User, Repeat } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 export default function Header() {
   const { user, logout } = useAuthStore()
@@ -9,6 +9,17 @@ export default function Header() {
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const location = useLocation()
+  const isDealerPortal = location.pathname.startsWith('/dealer')
+
+  const handleSwitchPortal = () => {
+    if (isDealerPortal) {
+      navigate('/voyage/list')
+    } else {
+      navigate('/dealer/home')
+    }
   }
 
   return (
@@ -21,6 +32,13 @@ export default function Header() {
           <User className="w-4 h-4" />
           <span>{user?.roleName}</span>
         </div>
+        <button
+          onClick={handleSwitchPortal}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+        >
+          <Repeat className="w-4 h-4" />
+          {isDealerPortal ? '切换到后台管理' : '切换到分销台'}
+        </button>
         <button
           onClick={handleLogout}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
