@@ -1,114 +1,633 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Info, Plus, Upload, Camera, Trash2, ChevronDown } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Info, Plus, Upload, Camera, Trash2, ChevronDown, X, BedDouble, Users } from 'lucide-react'
+import { defaultRoomReserveData } from '@/mock/data'
 
 const comboOptions = ['VIP餐厅', '岸上观光', '酒水套餐', 'WiFi套餐', 'SPA套餐', '摄影套餐']
-const provinceList = ['北京', '上海', '天津', '重庆', '河北', '山西', '辽宁', '吉林', '黑龙江', '江苏', '浙江', '安徽', '福建', '江西', '山东', '河南', '湖北', '湖南', '广东', '广西', '海南', '四川', '贵州', '云南', '西藏', '陕西', '甘肃', '青海', '宁夏', '新疆', '内蒙古', '香港', '澳门', '台湾', '其他']
+const defaultRoomTypes = ['标准间', '豪华套房', '总统套房']
+const idTypeOptions = ['身份证', '护照', '台胞证', '港澳通行证', '回乡证', '其他']
+
+interface GuestNameOption {
+  name: string
+  idType: string
+  idNum: string
+  phone: string
+}
+
+const guestNameOptions: GuestNameOption[] = [
+  { name: '张明', idType: '身份证', idNum: '420106198801011234', phone: '13812345678' },
+  { name: '李红', idType: '身份证', idNum: '420106199002021235', phone: '13912345679' },
+  { name: '王强', idType: '护照', idNum: 'P12345678', phone: '13712345670' },
+  { name: '赵丽', idType: '身份证', idNum: '420106199204041237', phone: '13612345671' },
+  { name: '陈浩', idType: '身份证', idNum: '420106201006051238', phone: '13512345672' },
+  { name: '陈果', idType: '身份证', idNum: '420106202308081240', phone: '' },
+  { name: '刘洋', idType: '身份证', idNum: '420106199507071239', phone: '13412345673' },
+  { name: '周敏', idType: '护照', idNum: 'E87654321', phone: '13312345674' },
+  { name: '吴磊', idType: '身份证', idNum: '420106198503031241', phone: '13212345675' },
+  { name: '郑婷', idType: '台胞证', idNum: 'T123456789', phone: '13112345676' },
+]
+
+function NameCombobox({
+  value,
+  onChange,
+  onSelectGuest,
+}: {
+  value: string
+  onChange: (name: string) => void
+  onSelectGuest: (guest: GuestNameOption) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const filtered = useMemo(() => {
+    const keyword = value.trim()
+    if (!keyword) return guestNameOptions.slice(0, 8)
+    return guestNameOptions.filter((option) => option.name.includes(keyword)).slice(0, 8)
+  }, [value])
+
+  return (
+    <div className="relative">
+      <input
+        className="h-8 w-full rounded border border-gray-300 px-2 text-xs outline-none focus:border-blue-500"
+        placeholder="姓名"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute left-0 right-0 top-9 z-20 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          {filtered.map((option) => (
+            <li key={`${option.name}-${option.idNum}`}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-blue-50"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onSelectGuest(option)
+                  setOpen(false)
+                }}
+              >
+                <span className="font-medium text-gray-900">{option.name}</span>
+                <span className="ml-2 truncate text-gray-400">{option.idNum}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+interface TouristGuest {
+  id: number
+  ageGroup: string
+  stayType: string
+  name: string
+  gender: string
+  age: string
+  nationality: string
+  province: string
+  idType: string
+  idNum: string
+  phone: string
+  transfer: boolean
+  saleType: string
+  comboProducts: string[]
+  guestType: string
+  paymentSource: string
+}
+
+interface TourTeam {
+  id: string
+  name: string
+}
+
+interface RoomGroup {
+  id: string
+  roomSeq: string
+  roomType: string
+  teamId: string
+  remark: string
+  guests: TouristGuest[]
+}
+
+function createTeam(name: string): TourTeam {
+  return { id: `team-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name }
+}
+
+function defaultGuestCount(roomType: string) {
+  return roomType === '标准间' ? 2 : 1
+}
+
+function defaultStayType(roomType: string) {
+  return roomType === '标准间' ? '标准' : '单间'
+}
+
+function createGuest(id: number, stayType = '标准'): TouristGuest {
+  return {
+    id,
+    ageGroup: '成人',
+    stayType,
+    name: '',
+    gender: '男',
+    age: '',
+    nationality: '中国',
+    province: '',
+    idType: '身份证',
+    idNum: '',
+    phone: '',
+    transfer: false,
+    saleType: '正价',
+    comboProducts: [],
+    guestType: '内宾',
+    paymentSource: '自付',
+  }
+}
+
+function createRoomGroup(
+  roomSeq: string,
+  roomType: string,
+  guestCount?: number,
+  teamId = '',
+  remark = '',
+): RoomGroup {
+  const count = guestCount ?? defaultGuestCount(roomType)
+  const stayType = defaultStayType(roomType)
+  const baseId = Date.now()
+  return {
+    id: `room-${roomSeq}-${baseId}`,
+    roomSeq,
+    roomType,
+    teamId,
+    remark,
+    guests: Array.from({ length: count }, (_, index) => createGuest(baseId + index, stayType)),
+  }
+}
+
+function buildInitialRoomGroups(roomData: Record<string, { count?: number }>): RoomGroup[] {
+  const groups: RoomGroup[] = []
+  let roomSeqCounter = 1
+
+  const stdCount = roomData['标准间']?.count || 0
+  for (let i = 0; i < stdCount; i++) {
+    groups.push(createRoomGroup(String(roomSeqCounter++), '标准间'))
+  }
+
+  const suiteCount = roomData['豪华套房']?.count || 0
+  for (let i = 0; i < suiteCount; i++) {
+    groups.push(createRoomGroup(String(roomSeqCounter++), '豪华套房', 1))
+  }
+
+  const presidentCount = roomData['总统套房']?.count || 0
+  for (let i = 0; i < presidentCount; i++) {
+    groups.push(createRoomGroup(String(roomSeqCounter++), '总统套房', 1))
+  }
+
+  return groups
+}
+
+function flattenRoomGroups(roomGroups: RoomGroup[], teams: TourTeam[]) {
+  const teamMap = new Map(teams.map((team) => [team.id, team.name]))
+  return roomGroups.flatMap((room) =>
+    room.guests.map((guest) => ({
+      ...guest,
+      roomType: room.roomType,
+      roomSeq: room.roomSeq,
+      teamName: teamMap.get(room.teamId) || '',
+      roomRemark: room.remark,
+    })),
+  )
+}
+
+function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): RoomGroup[] {
+  const baseId = Date.now()
+  const guest = (
+    id: number,
+    name: string,
+    idNum: string,
+    phone: string,
+    gender: string,
+    stayType: string,
+    ageGroup = '成人',
+    guestType = '内宾',
+    idType = '身份证',
+  ): TouristGuest => ({
+    ...createGuest(id, stayType),
+    name,
+    idNum,
+    phone,
+    gender,
+    ageGroup,
+    guestType,
+    idType,
+    nationality: guestType === '外宾' ? '美国' : '中国',
+  })
+
+  return [
+    {
+      id: `room-1-${baseId}`,
+      roomSeq: '1',
+      roomType: '标准间',
+      teamId: teamIds.team1,
+      remark: '靠窗优先',
+      guests: [
+        guest(baseId, '张明', '420106198801011234', '13812345678', '男', '标准'),
+        guest(baseId + 1, '李红', '420106199002021235', '13912345679', '女', '标准'),
+      ],
+    },
+    {
+      id: `room-2-${baseId}`,
+      roomSeq: '2',
+      roomType: '豪华套房',
+      teamId: teamIds.team1,
+      remark: '',
+      guests: [
+        guest(baseId + 2, '王强', 'P12345678', '13712345670', '男', '单间', '成人', '外宾', '护照'),
+      ],
+    },
+    {
+      id: `room-3-${baseId}`,
+      roomSeq: '3',
+      roomType: '标准间',
+      teamId: teamIds.team2,
+      remark: '含儿童，需安排婴儿床',
+      guests: [
+        guest(baseId + 3, '赵丽', '420106199204041237', '13612345671', '女', '标准'),
+        guest(baseId + 4, '陈浩', '420106201006051238', '13512345672', '男', '儿童不占床', '儿童'),
+        guest(baseId + 5, '陈果', '420106202308081240', '', '女', '不占床', '婴儿'),
+      ],
+    },
+  ]
+}
+
+function buildMockOcrRoomGroups(existing: RoomGroup[]): RoomGroup[] {
+  const baseId = Date.now()
+  const nextSeq = String(
+    (existing.map((r) => Number.parseInt(r.roomSeq, 10)).filter((n) => !Number.isNaN(n)).pop() ?? 0) + 1,
+  )
+  const ocrRoom = createRoomGroup(nextSeq, '标准间', 1)
+  ocrRoom.guests[0] = {
+    ...ocrRoom.guests[0],
+    name: '刘洋',
+    idNum: '420106199507071239',
+    phone: '13412345673',
+    gender: '男',
+  }
+  return [...existing, ocrRoom]
+}
+
+interface ImportPreviewGuest {
+  id: number
+  name: string
+  idNum: string
+  phone: string
+  guestType: string
+  ageGroup: string
+  gender: string
+  source: 'import' | 'ocr'
+}
+
+function flattenPreviewGuests(roomGroups: RoomGroup[], source: 'import' | 'ocr'): ImportPreviewGuest[] {
+  return roomGroups.flatMap((room) =>
+    room.guests
+      .filter((guest) => guest.name)
+      .map((guest) => ({
+        id: guest.id,
+        name: guest.name,
+        idNum: guest.idNum,
+        phone: guest.phone,
+        guestType: guest.guestType,
+        ageGroup: guest.ageGroup,
+        gender: guest.gender,
+        source,
+      })),
+  )
+}
+
+interface RoomPriceLine {
+  desc: string
+  price: number
+}
+
+interface RoomPriceResult {
+  total: number
+  lines: RoomPriceLine[]
+}
+
+function getRoomBasePrice(roomType: string, roomData: Record<string, { price?: number }>) {
+  return roomData?.[roomType]?.price ?? defaultRoomReserveData[roomType as keyof typeof defaultRoomReserveData]?.price ?? 2980
+}
+
+function calculateGuestPrice(
+  roomType: string,
+  guestIndex: number,
+  stayType: string,
+  guestCount: number,
+  baseP: number,
+): { price: number; desc: string } {
+  const position = guestIndex + 1
+
+  if (roomType !== '标准间' && stayType === '单间' && guestCount === 1) {
+    return { price: baseP, desc: `${roomType}·单间` }
+  }
+
+  if (stayType === '单间') {
+    return { price: Math.round(baseP * 1.75), desc: `第${position}人·单间` }
+  }
+  if (stayType === '儿童不占床') {
+    return { price: Math.round(baseP * 0.5), desc: `第${position}人·儿童不占床` }
+  }
+  if (stayType === '不占床') {
+    return { price: Math.round(baseP * 0.1), desc: `第${position}人·婴儿不占床` }
+  }
+  if (stayType === '加床') {
+    const factor = position >= 3 ? 0.5 : 1.5
+    return { price: Math.round(baseP * factor), desc: `第${position}人·加床` }
+  }
+
+  return { price: baseP, desc: `第${position}人·标准` }
+}
+
+function calculateRoomPrice(room: RoomGroup, roomData: Record<string, { price?: number }>): RoomPriceResult {
+  const baseP = getRoomBasePrice(room.roomType, roomData)
+  const lines = room.guests.map((guest, index) => {
+    const { price, desc } = calculateGuestPrice(room.roomType, index, guest.stayType, room.guests.length, baseP)
+    return { desc, price }
+  })
+  const total = lines.reduce((sum, line) => sum + line.price, 0)
+  return { total, lines }
+}
 
 export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomData: any, onNext: (data: any) => void, onPrev: () => void }) {
-  const [touristList, setTouristList] = useState<any[]>([])
-  const [comboOpenIndex, setComboOpenIndex] = useState<number | null>(null)
-  
+  const [teams, setTeams] = useState<TourTeam[]>([])
+  const [roomGroups, setRoomGroups] = useState<RoomGroup[]>([])
+  const [comboOpenKey, setComboOpenKey] = useState<string | null>(null)
+  const [addRoomOpen, setAddRoomOpen] = useState(false)
+  const [addTeamOpen, setAddTeamOpen] = useState(false)
+  const [newRoomType, setNewRoomType] = useState('标准间')
+  const [newRoomTeamId, setNewRoomTeamId] = useState('')
+  const [newTeamName, setNewTeamName] = useState('')
+  const [importPreview, setImportPreview] = useState<ImportPreviewGuest[]>([])
+  const [importTip, setImportTip] = useState('')
+
+  const roomTypeOptions = useMemo(() => {
+    const types = Object.keys(roomData || {}).filter((key) => roomData[key])
+    return types.length > 0 ? types : defaultRoomTypes
+  }, [roomData])
+
   const totalPaxFromRooms = useMemo(() => {
     let total = 0
     Object.entries(roomData || {}).forEach(([roomType, room]: [string, any]) => {
       if (!room || room.count <= 0) return
-      if (roomType === '标准间') {
-        total += room.count * 2
-      } else {
-        total += room.count * 1
-      }
+      total += room.count * (roomType === '标准间' ? 2 : 1)
     })
     return total
   }, [roomData])
 
+  const nextRoomSeq = useMemo(() => {
+    const seqs = roomGroups.map((room) => Number.parseInt(room.roomSeq, 10)).filter((n) => !Number.isNaN(n))
+    return String((seqs.length ? Math.max(...seqs) : 0) + 1)
+  }, [roomGroups])
+
+  const touristList = useMemo(() => flattenRoomGroups(roomGroups, teams), [roomGroups, teams])
+
+  const roomsByTeam = useMemo(() => {
+    return teams.map((team) => ({
+      team,
+      rooms: roomGroups.filter((room) => room.teamId === team.id),
+    }))
+  }, [teams, roomGroups])
+
+  const displayRoomOrder = useMemo(
+    () => roomsByTeam.flatMap(({ rooms }) => rooms),
+    [roomsByTeam],
+  )
+
+  const roomPriceMap = useMemo(() => {
+    const map = new Map<string, RoomPriceResult>()
+    roomGroups.forEach((room) => {
+      map.set(room.id, calculateRoomPrice(room, roomData || {}))
+    })
+    return map
+  }, [roomGroups, roomData])
+
+  const orderTotal = useMemo(
+    () => roomGroups.reduce((sum, room) => sum + (roomPriceMap.get(room.id)?.total ?? 0), 0),
+    [roomGroups, roomPriceMap],
+  )
+
   useEffect(() => {
-    if (totalPaxFromRooms > 0 && touristList.length === 0) {
-      const list: any[] = []
-      let idCounter = 1
-      let roomSeqCounter = 1
-
-      const stdCount = roomData['标准间']?.count || 0
-      for (let i = 0; i < stdCount; i++) {
-        const seq = String(roomSeqCounter++)
-        for (let j = 0; j < 2; j++) {
-          list.push(createTourist(idCounter++, '标准间', seq, j === 0 ? '男' : '女'))
-        }
+    if (roomGroups.length === 0 && teams.length === 0) {
+      const initial = buildInitialRoomGroups(roomData || {})
+      if (initial.length > 0) {
+        const defaultTeam = createTeam('默认团')
+        setTeams([defaultTeam])
+        setRoomGroups(initial.map((room) => ({ ...room, teamId: defaultTeam.id, remark: '' })))
       }
-
-      const suiteCount = roomData['豪华套房']?.count || 0
-      for (let i = 0; i < suiteCount; i++) {
-        list.push(createTourist(idCounter++, '豪华套房', String(roomSeqCounter++), '男', '单间'))
-      }
-
-      const presidentCount = roomData['总统套房']?.count || 0
-      for (let i = 0; i < presidentCount; i++) {
-        list.push(createTourist(idCounter++, '总统套房', String(roomSeqCounter++), '男', '单间'))
-      }
-
-      setTouristList(list)
     }
-  }, [totalPaxFromRooms, roomData])
+  }, [roomData, roomGroups.length, teams.length])
 
-  function createTourist(id: number, roomType: string, roomSeq: string = '', gender: string = '男', stayType: string = '标准') {
-    return {
-      id, roomType, ageGroup: '成人', stayType, name: '', gender, age: '', nationality: '中国',
-      province: '', idType: '身份证', idNum: '', phone: '', roomSeq, transfer: false, saleType: '正价',
-      comboProducts: [], guestType: '内宾', paymentSource: '自付'
-    }
-  }
+  const rowOffsets = useMemo(() => {
+    let offset = 0
+    return displayRoomOrder.map((room) => {
+      const start = offset
+      offset += room.guests.length
+      return { roomId: room.id, start }
+    })
+  }, [displayRoomOrder])
 
-  const assignedRooms = useMemo(() => {
-    const rooms = new Set(touristList.map(t => t.roomSeq).filter(Boolean))
-    return rooms.size
-  }, [touristList])
+  const getRowOffset = (roomId: string) => rowOffsets.find((item) => item.roomId === roomId)?.start ?? 0
 
   const incompleteTip = useMemo(() => {
-    if (touristList.length === 0) return '请先添加游客信息'
+    if (touristList.length === 0) return '请先添加房型与游客信息'
     const incomplete: number[] = []
-    touristList.forEach((t, idx) => {
-      if (!t.name || !t.name.trim()) incomplete.push(idx + 1)
-      else if (!t.idNum || !t.idNum.trim()) incomplete.push(idx + 1)
+    let rowNo = 0
+    roomGroups.forEach((room) => {
+      room.guests.forEach((guest) => {
+        rowNo += 1
+        if (!guest.name?.trim() || !guest.idNum?.trim()) incomplete.push(rowNo)
+      })
     })
     if (incomplete.length > 0) return `第 ${incomplete.join('、')} 行信息未补全（姓名/证件号码必填）`
     return ''
-  }, [touristList])
+  }, [roomGroups, touristList.length])
 
   const canProceed = touristList.length > 0 && incompleteTip === ''
 
-  const addTouristRow = () => {
-    setTouristList(prev => [...prev, createTourist(Date.now(), '标准间')])
+  const updateRoomType = (roomId: string, roomType: string) => {
+    setRoomGroups((prev) =>
+      prev.map((room) =>
+        room.id === roomId
+          ? {
+              ...room,
+              roomType,
+              guests: room.guests.map((guest) => ({
+                ...guest,
+                stayType: defaultStayType(roomType),
+              })),
+            }
+          : room,
+      ),
+    )
   }
 
-  const deleteTouristRow = (index: number) => {
-    setTouristList(prev => prev.filter((_, i) => i !== index))
+  const addGuestToRoom = (roomId: string) => {
+    setRoomGroups((prev) =>
+      prev.map((room) =>
+        room.id === roomId
+          ? { ...room, guests: [...room.guests, createGuest(Date.now(), defaultStayType(room.roomType))] }
+          : room,
+      ),
+    )
   }
 
-  const updateField = (index: number, field: string, value: any) => {
-    setTouristList(prev => {
-      const newList = [...prev]
-      const t = { ...newList[index], [field]: value }
-      if (field === 'ageGroup') {
-        t.stayType = value === '成人' ? '标准' : value === '儿童' ? '儿童不占床' : '婴儿'
-      }
-      if (field === 'nationality') {
-        t.guestType = (value === '中国' || !value) ? '内宾' : '外宾'
-      }
-      newList[index] = t
-      return newList
-    })
+  const removeGuestFromRoom = (roomId: string, guestId: number) => {
+    setRoomGroups((prev) =>
+      prev
+        .map((room) =>
+          room.id === roomId
+            ? { ...room, guests: room.guests.filter((guest) => guest.id !== guestId) }
+            : room,
+        )
+        .filter((room) => room.guests.length > 0),
+    )
   }
 
-  const toggleComboProduct = (index: number, product: string) => {
-    setTouristList(prev => {
-      const newList = [...prev]
-      const t = { ...newList[index] }
-      if (t.comboProducts.includes(product)) {
-        t.comboProducts = t.comboProducts.filter((p: string) => p !== product)
-      } else {
-        t.comboProducts = [...t.comboProducts, product]
+  const addRoomGroup = () => {
+    const teamId = newRoomTeamId || teams[0]?.id
+    if (!teamId) {
+      alert('请先新增团名')
+      return
+    }
+    setRoomGroups((prev) => [...prev, createRoomGroup(nextRoomSeq, newRoomType, undefined, teamId)])
+    setAddRoomOpen(false)
+  }
+
+  const addTeam = () => {
+    const name = newTeamName.trim()
+    if (!name) return
+    const team = createTeam(name)
+    setTeams((prev) => [...prev, team])
+    setNewTeamName('')
+    setAddTeamOpen(false)
+  }
+
+  const updateTeamName = (teamId: string, name: string) => {
+    setTeams((prev) => prev.map((team) => (team.id === teamId ? { ...team, name } : team)))
+  }
+
+  const removeTeam = (teamId: string) => {
+    const roomCount = roomGroups.filter((room) => room.teamId === teamId).length
+    if (roomCount > 0) {
+      alert('该团下仍有房间，请先移出或删除房间后再删除团')
+      return
+    }
+    if (!window.confirm('确定删除该团吗？')) return
+    setTeams((prev) => prev.filter((team) => team.id !== teamId))
+  }
+
+  const updateRoomRemark = (roomId: string, remark: string) => {
+    setRoomGroups((prev) => prev.map((room) => (room.id === roomId ? { ...room, remark } : room)))
+  }
+
+  const updateRoomTeam = (roomId: string, teamId: string) => {
+    setRoomGroups((prev) => prev.map((room) => (room.id === roomId ? { ...room, teamId } : room)))
+  }
+
+  const openAddRoom = (teamId?: string) => {
+    setNewRoomType(roomTypeOptions[0] || '标准间')
+    setNewRoomTeamId(teamId || teams[0]?.id || '')
+    setAddRoomOpen(true)
+  }
+
+  const removeRoomGroup = (roomId: string) => {
+    if (!window.confirm('确定删除该房型及全部入住人吗？')) return
+    setRoomGroups((prev) => prev.filter((room) => room.id !== roomId))
+  }
+
+  const updateGuestField = (roomId: string, guestId: number, field: string, value: unknown) => {
+    setRoomGroups((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room
+        return {
+          ...room,
+          guests: room.guests.map((guest) => {
+            if (guest.id !== guestId) return guest
+            const nextGuest = { ...guest, [field]: value } as TouristGuest
+            if (field === 'nationality') {
+              nextGuest.guestType = value === '中国' || !value ? '内宾' : '外宾'
+            }
+            return nextGuest
+          }),
+        }
+      }),
+    )
+  }
+
+  const applyGuestSuggestion = (roomId: string, guestId: number, option: GuestNameOption) => {
+    setRoomGroups((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room
+        return {
+          ...room,
+          guests: room.guests.map((guest) =>
+            guest.id === guestId
+              ? {
+                  ...guest,
+                  name: option.name,
+                  idType: option.idType,
+                  idNum: option.idNum,
+                  phone: option.phone,
+                }
+              : guest,
+          ),
+        }
+      }),
+    )
+  }
+
+  const toggleComboProduct = (roomId: string, guestId: number, product: string) => {
+    setRoomGroups((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room
+        return {
+          ...room,
+          guests: room.guests.map((guest) => {
+            if (guest.id !== guestId) return guest
+            const comboProducts = guest.comboProducts.includes(product)
+              ? guest.comboProducts.filter((item) => item !== product)
+              : [...guest.comboProducts, product]
+            return { ...guest, comboProducts }
+          }),
+        }
+      }),
+    )
+  }
+
+  const handleImportList = () => {
+    const team1 = createTeam('华东旅行社一团')
+    const team2 = createTeam('散客自组')
+    const mock = buildMockImportRoomGroups({ team1: team1.id, team2: team2.id })
+    setTeams([team1, team2])
+    setRoomGroups(mock)
+    setImportPreview(flattenPreviewGuests(mock, 'import'))
+    setImportTip(`已导入 ${mock.reduce((sum, room) => sum + room.guests.length, 0)} 位游客，${mock.length} 间房，${2} 个团`)
+  }
+
+  const handleOcrRecognize = () => {
+    setRoomGroups((prev) => {
+      const fallbackTeam = teams[0] ?? createTeam('默认团')
+      if (teams.length === 0) setTeams([fallbackTeam])
+      const next = buildMockOcrRoomGroups(prev.length > 0 ? prev : buildMockImportRoomGroups({ team1: fallbackTeam.id, team2: fallbackTeam.id }).slice(0, 1))
+      const ocrRoom = next[next.length - 1]
+      if (ocrRoom && !ocrRoom.teamId) {
+        ocrRoom.teamId = fallbackTeam.id
       }
-      newList[index] = t
-      return newList
+      const newGuests = flattenPreviewGuests(next, 'ocr').slice(-1)
+      setImportPreview((old) => [...old.filter((g) => g.source !== 'ocr' || !newGuests.some((n) => n.id === g.id)), ...newGuests])
+      setImportTip('OCR 识别成功，新增 1 位游客')
+      return next
     })
   }
 
@@ -121,136 +640,435 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
 
       <div className="bg-blue-50 border border-blue-100 text-blue-600 px-4 py-3 rounded-lg text-sm mb-4 flex items-start gap-2">
         <Info className="w-5 h-5 shrink-0" />
-        <span>录入所有游客信息，系统将自动分配同房序号。支持手动调整同房序号。姓名和证件号码为必填项。</span>
+        <span>可按团名分组录入，同一团下可包含多种房型；每个房间可单独填写备注。姓名和证件号码为必填项。</span>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
-          <button className="h-9 px-4 bg-blue-600 text-white rounded-md text-sm flex items-center gap-1 hover:bg-blue-700 transition" onClick={addTouristRow}>
-            <Plus className="w-4 h-4" /> 新增游客
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="flex h-9 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-4 text-sm text-blue-700 transition hover:bg-blue-100"
+            onClick={() => {
+              setNewTeamName('')
+              setAddTeamOpen(true)
+            }}
+          >
+            <Users className="h-4 w-4" /> 新增团名
           </button>
-          <button className="h-9 px-4 bg-white border border-gray-300 text-gray-600 rounded-md text-sm flex items-center gap-1 hover:bg-gray-50 transition" onClick={() => alert('开发中')}>
-            <Upload className="w-4 h-4" /> 批量导入
-          </button>
-          <button className="h-9 px-4 bg-white border border-gray-300 text-gray-600 rounded-md text-sm flex items-center gap-1 hover:bg-gray-50 transition" onClick={() => alert('开发中')}>
-            <Camera className="w-4 h-4" /> OCR 识别
+          <button
+            className="flex h-9 items-center gap-1 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-600 transition hover:bg-gray-50"
+            onClick={() => openAddRoom()}
+            disabled={teams.length === 0}
+          >
+            <BedDouble className="h-4 w-4" /> 新增房型
           </button>
         </div>
         <div className="text-sm text-gray-600">
-          按占舱应录入 <strong className="text-blue-600 mx-1">{totalPaxFromRooms}</strong> 人 <span className="mx-2 text-gray-300">|</span>
-          已填 <strong className="text-blue-600 mx-1">{touristList.length}</strong> 人 <span className="mx-2 text-gray-300">|</span>
-          已分配房间 <strong className="text-blue-600 mx-1">{assignedRooms}</strong> 间
+          按占舱应录入 <strong className="mx-1 text-blue-600">{totalPaxFromRooms}</strong> 人 <span className="mx-2 text-gray-300">|</span>
+          已填 <strong className="mx-1 text-blue-600">{touristList.length}</strong> 人 <span className="mx-2 text-gray-300">|</span>
+          已分配房间 <strong className="mx-1 text-blue-600">{roomGroups.length}</strong> 间
+          {teams.length > 0 && (
+            <>
+              <span className="mx-2 text-gray-300">|</span>
+              团 <strong className="mx-1 text-blue-600">{teams.length}</strong> 个
+            </>
+          )}
+          {roomGroups.length > 0 && (
+            <>
+              <span className="mx-2 text-gray-300">|</span>
+              订单合计 <strong className="mx-1 text-red-500">¥{orderTotal.toLocaleString()}</strong>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <table className="w-full text-left text-sm whitespace-nowrap min-w-[1200px]">
-          <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
-            <tr>
-              <th className="px-3 py-3 w-10 text-center">序</th>
-              <th className="px-3 py-3 w-28">房型 <span className="text-red-500">*</span></th>
-              <th className="px-3 py-3 w-20">年龄段</th>
-              <th className="px-3 py-3 w-24">入住类型</th>
-              <th className="px-3 py-3 w-24">姓名 <span className="text-red-500">*</span></th>
-              <th className="px-3 py-3 w-16">性别</th>
-              <th className="px-3 py-3 w-16">年龄</th>
-              <th className="px-3 py-3 w-32">证件号码 <span className="text-red-500">*</span></th>
-              <th className="px-3 py-3 w-28">手机号</th>
-              <th className="px-3 py-3 w-16 text-center">同房</th>
-              <th className="px-3 py-3 w-32">组合产品</th>
-              <th className="px-3 py-3 w-12 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {touristList.map((t, idx) => (
-              <tr key={t.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 text-center text-gray-500">{idx + 1}</td>
-                <td className="px-3 py-2">
-                  <select className="w-full h-8 border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" value={t.roomType} onChange={e => updateField(idx, 'roomType', e.target.value)}>
-                    <option value="标准间">标准间</option>
-                    <option value="豪华套房">豪华套房</option>
-                    <option value="总统套房">总统套房</option>
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <select className="w-full h-8 border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" value={t.ageGroup} onChange={e => updateField(idx, 'ageGroup', e.target.value)}>
-                    <option value="成人">成人</option>
-                    <option value="儿童">儿童</option>
-                    <option value="婴儿">婴儿</option>
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <select className="w-full h-8 border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" value={t.stayType} onChange={e => updateField(idx, 'stayType', e.target.value)}>
-                    <option value="标准">标准</option>
-                    <option value="单间">单间</option>
-                    <option value="儿童不占床">儿童不占床</option>
-                    <option value="加床">加床</option>
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <input className="w-full h-8 border border-gray-300 rounded text-xs px-2 outline-none focus:border-blue-500" placeholder="姓名" value={t.name} onChange={e => updateField(idx, 'name', e.target.value)} />
-                </td>
-                <td className="px-3 py-2">
-                  <select className="w-full h-8 border border-gray-300 rounded text-xs px-1 outline-none focus:border-blue-500" value={t.gender} onChange={e => updateField(idx, 'gender', e.target.value)}>
-                    <option value="男">男</option>
-                    <option value="女">女</option>
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <input className="w-full h-8 border border-gray-300 rounded text-xs px-2 outline-none focus:border-blue-500 text-center" placeholder="年龄" value={t.age} onChange={e => updateField(idx, 'age', e.target.value)} />
-                </td>
-                <td className="px-3 py-2">
-                  <input className="w-full h-8 border border-gray-300 rounded text-xs px-2 outline-none focus:border-blue-500" placeholder="证件号码" value={t.idNum} onChange={e => updateField(idx, 'idNum', e.target.value)} />
-                </td>
-                <td className="px-3 py-2">
-                  <input className="w-full h-8 border border-gray-300 rounded text-xs px-2 outline-none focus:border-blue-500" placeholder="手机号" value={t.phone} onChange={e => updateField(idx, 'phone', e.target.value)} />
-                </td>
-                <td className="px-3 py-2">
-                  <input className="w-full h-8 border border-gray-300 rounded text-xs px-2 outline-none focus:border-blue-500 text-center" placeholder="序号" value={t.roomSeq} onChange={e => updateField(idx, 'roomSeq', e.target.value)} />
-                </td>
-                <td className="px-3 py-2 relative">
-                  <div className="h-8 border border-gray-300 rounded text-xs px-2 flex items-center justify-between cursor-pointer bg-white" onClick={() => setComboOpenIndex(comboOpenIndex === idx ? null : idx)}>
-                    <span className="truncate max-w-[80px]">{t.comboProducts.length ? `已选${t.comboProducts.length}项` : <span className="text-gray-400">请选择</span>}</span>
-                    <ChevronDown className="w-3 h-3 text-gray-400" />
+      <div className="flex items-start gap-5">
+        <div className="min-w-0 w-[75%] space-y-4">
+        {teams.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400">
+            请先点击「新增团名」创建团，再添加房型与游客
+          </div>
+        ) : (
+          roomsByTeam.map(({ team, rooms }) => {
+            const teamPax = rooms.reduce((sum, room) => sum + room.guests.length, 0)
+            const teamTotal = rooms.reduce((sum, room) => sum + (roomPriceMap.get(room.id)?.total ?? 0), 0)
+            return (
+              <section key={team.id} className="rounded-lg border border-blue-100 bg-blue-50/20 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-3">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <Users className="h-4 w-4 shrink-0 text-blue-600" />
+                    <input
+                      className="min-w-[120px] max-w-[240px] rounded border border-transparent bg-white/80 px-2 py-1 text-sm font-semibold text-gray-900 outline-none focus:border-blue-400"
+                      value={team.name}
+                      onChange={(e) => updateTeamName(team.id, e.target.value)}
+                      placeholder="团名"
+                    />
+                    <span className="text-xs text-gray-500">
+                      {rooms.length} 间房 · {teamPax} 人
+                      {teamTotal > 0 && <> · ¥{teamTotal.toLocaleString()}</>}
+                    </span>
                   </div>
-                  {comboOpenIndex === idx && (
-                    <div className="absolute top-10 right-0 w-40 bg-white border border-gray-200 shadow-lg rounded-md p-1 z-10" onMouseLeave={() => setComboOpenIndex(null)}>
-                      {comboOptions.map(opt => (
-                        <label key={opt} className="flex items-center gap-2 p-1.5 hover:bg-gray-50 cursor-pointer text-xs">
-                          <input type="checkbox" checked={t.comboProducts.includes(opt)} onChange={() => toggleComboProduct(idx, opt)} className="rounded" />
-                          {opt}
-                        </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openAddRoom(team.id)}
+                      className="inline-flex h-8 items-center gap-1 rounded-md border border-blue-200 bg-white px-3 text-xs text-blue-600 hover:bg-blue-50"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> 新增房型
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeTeam(team.id)}
+                      className="inline-flex h-8 items-center gap-1 rounded-md border border-gray-200 bg-white px-3 text-xs text-gray-500 hover:bg-gray-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> 删除团
+                    </button>
+                  </div>
+                </div>
+
+                {rooms.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-white py-8 text-center text-xs text-gray-400">
+                    该团暂无房间，点击「新增房型」开始录入
+                  </div>
+                ) : (
+                  rooms.map((room) => {
+            const roomPrice = roomPriceMap.get(room.id)
+            return (
+            <div key={room.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-medium text-gray-800">房间 {room.roomSeq}</span>
+                  <select
+                    value={room.roomType}
+                    onChange={(e) => updateRoomType(room.id, e.target.value)}
+                    className="h-8 min-w-[120px] rounded border border-gray-300 bg-white px-2 text-sm outline-none focus:border-blue-500"
+                  >
+                    {roomTypeOptions.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={room.teamId}
+                    onChange={(e) => updateRoomTeam(room.id, e.target.value)}
+                    className="h-8 min-w-[100px] rounded border border-gray-300 bg-white px-2 text-xs text-gray-600 outline-none focus:border-blue-500"
+                    title="所属团"
+                  >
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-gray-500">{room.guests.length} 人</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addGuestToRoom(room.id)}
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs text-blue-600 hover:bg-blue-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> 新增游客
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRoomGroup(room.id)}
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 text-xs text-red-600 hover:bg-red-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> 删除房型
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-b border-gray-100 bg-white px-4 py-2">
+                <input
+                  className="h-8 w-full rounded border border-gray-200 px-3 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400"
+                  placeholder="房间备注，如：靠窗优先、含儿童需婴儿床"
+                  value={room.remark}
+                  onChange={(e) => updateRoomRemark(room.id, e.target.value)}
+                />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[920px] text-left text-sm whitespace-nowrap">
+                  <thead className="border-b border-gray-100 bg-white text-gray-600">
+                    <tr>
+                      <th className="w-10 px-3 py-3 text-center">序</th>
+                      <th className="w-24 px-3 py-3">入住类型</th>
+                      <th className="w-28 px-3 py-3">姓名 <span className="text-red-500">*</span></th>
+                      <th className="w-24 px-3 py-3">证件类型</th>
+                      <th className="w-32 px-3 py-3">证件号码 <span className="text-red-500">*</span></th>
+                      <th className="w-28 px-3 py-3">手机号</th>
+                      <th className="w-32 px-3 py-3">组合产品</th>
+                      <th className="w-12 px-3 py-3 text-center">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {room.guests.map((guest, guestIndex) => {
+                      const rowNo = getRowOffset(room.id) + guestIndex + 1
+                      const comboKey = `${room.id}-${guest.id}`
+                      return (
+                        <tr key={guest.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-center text-gray-500">{rowNo}</td>
+                          <td className="px-3 py-2">
+                            <select
+                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              value={guest.stayType}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'stayType', e.target.value)}
+                            >
+                              <option value="标准">标准</option>
+                              <option value="单间">单间</option>
+                              <option value="儿童不占床">儿童不占床</option>
+                              <option value="加床">加床</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <NameCombobox
+                              value={guest.name}
+                              onChange={(name) => updateGuestField(room.id, guest.id, 'name', name)}
+                              onSelectGuest={(option) => applyGuestSuggestion(room.id, guest.id, option)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              value={guest.idType}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'idType', e.target.value)}
+                            >
+                              {idTypeOptions.map((type) => (
+                                <option key={type} value={type}>{type}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              className="h-8 w-full rounded border border-gray-300 px-2 text-xs outline-none focus:border-blue-500"
+                              placeholder="证件号码"
+                              value={guest.idNum}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'idNum', e.target.value)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              className="h-8 w-full rounded border border-gray-300 px-2 text-xs outline-none focus:border-blue-500"
+                              placeholder="手机号"
+                              value={guest.phone}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'phone', e.target.value)}
+                            />
+                          </td>
+                          <td className="relative px-3 py-2">
+                            <div
+                              className="flex h-8 cursor-pointer items-center justify-between rounded border border-gray-300 bg-white px-2 text-xs"
+                              onClick={() => setComboOpenKey(comboOpenKey === comboKey ? null : comboKey)}
+                            >
+                              <span className="max-w-[80px] truncate">
+                                {guest.comboProducts.length ? `已选${guest.comboProducts.length}项` : <span className="text-gray-400">请选择</span>}
+                              </span>
+                              <ChevronDown className="h-3 w-3 text-gray-400" />
+                            </div>
+                            {comboOpenKey === comboKey && (
+                              <div
+                                className="absolute right-0 top-10 z-10 w-40 rounded-md border border-gray-200 bg-white p-1 shadow-lg"
+                                onMouseLeave={() => setComboOpenKey(null)}
+                              >
+                                {comboOptions.map((opt) => (
+                                  <label key={opt} className="flex cursor-pointer items-center gap-2 p-1.5 text-xs hover:bg-gray-50">
+                                    <input
+                                      type="checkbox"
+                                      checked={guest.comboProducts.includes(opt)}
+                                      onChange={() => toggleComboProduct(room.id, guest.id, opt)}
+                                      className="rounded"
+                                    />
+                                    {opt}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              className="mx-auto flex h-6 w-6 items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100"
+                              onClick={() => removeGuestFromRoom(room.id, guest.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {roomPrice && (
+                <div className="border-t border-gray-200 bg-gray-50/80 px-4 py-3">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {roomPrice.lines.map((line) => (
+                        <span key={line.desc} className="text-xs text-gray-500">
+                          {line.desc}
+                          <span className="ml-1 tabular-nums font-medium text-gray-700">¥{line.price.toLocaleString()}</span>
+                        </span>
                       ))}
                     </div>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-center">
-                  <button className="w-6 h-6 rounded bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 mx-auto" onClick={() => deleteTouristRow(idx)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    <div className="shrink-0 text-sm text-gray-700">
+                      房间总价
+                      <span className="ml-2 text-base font-semibold tabular-nums text-red-500">¥{roomPrice.total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            )
+          })
+                )}
+              </section>
+            )
+          })
+        )}
+        </div>
+
+        <aside className="w-[25%] shrink-0 min-w-0 rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="mb-3 text-sm font-medium text-gray-800">快捷录入</div>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={handleImportList}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 text-sm text-blue-700 transition hover:bg-blue-100"
+            >
+              <Upload className="h-4 w-4" /> 导入名单
+            </button>
+            <button
+              type="button"
+              onClick={handleOcrRecognize}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white text-sm text-gray-700 transition hover:bg-gray-100"
+            >
+              <Camera className="h-4 w-4" /> OCR 识别
+            </button>
+          </div>
+
+          {importTip && (
+            <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs text-green-700">{importTip}</p>
+          )}
+
+          {importPreview.length > 0 ? (
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-medium text-gray-500">游客信息</div>
+              <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                {importPreview.map((guest) => (
+                  <div key={`${guest.source}-${guest.id}`} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-gray-900">{guest.name}</div>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.guestType}</span>
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.ageGroup}</span>
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.gender}</span>
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${guest.source === 'ocr' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {guest.source === 'ocr' ? 'OCR' : '导入'}
+                      </span>
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs text-gray-600">
+                      <div className="truncate font-mono">{guest.idNum}</div>
+                      <div>{guest.phone || '-'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-8 text-center text-xs text-gray-400">
+              导入名单或 OCR 识别后，将在此显示游客卡片
+            </div>
+          )}
+        </aside>
       </div>
 
       {incompleteTip && (
-        <div className="mt-3 text-right text-sm text-red-500 flex items-center justify-end gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+        <div className="mt-3 flex items-center justify-end gap-1 text-right text-sm text-red-500">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
           {incompleteTip}
         </div>
       )}
 
-      <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
-        <button className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors" onClick={onPrev}>
+      {addTeamOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setAddTeamOpen(false)} />
+          <div className="relative mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">新增团名</h3>
+              <button onClick={() => setAddTeamOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mb-4 text-sm text-gray-500">同一团下可包含多种房型，便于按旅行团分组管理游客。</p>
+            <label className="mb-2 block text-sm text-gray-600">团名</label>
+            <input
+              value={newTeamName}
+              onChange={(e) => setNewTeamName(e.target.value)}
+              placeholder="如：华东旅行社一团"
+              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              onKeyDown={(e) => e.key === 'Enter' && addTeam()}
+            />
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setAddTeamOpen(false)} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={addTeam} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">确认新增</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addRoomOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setAddRoomOpen(false)} />
+          <div className="relative mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">新增房型</h3>
+              <button onClick={() => setAddRoomOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mb-4 text-sm text-gray-500">新增一间房，并自动生成该房型的默认入住人空行。</p>
+            <label className="mb-2 block text-sm text-gray-600">所属团</label>
+            <select
+              value={newRoomTeamId}
+              onChange={(e) => setNewRoomTeamId(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            >
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>{team.name}</option>
+              ))}
+            </select>
+            <label className="mb-2 block text-sm text-gray-600">房型</label>
+            <select
+              value={newRoomType}
+              onChange={(e) => setNewRoomType(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            >
+              {roomTypeOptions.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              将新增房间 <strong className="text-gray-900">{nextRoomSeq}</strong>，
+              默认添加 <strong className="text-gray-900">{defaultGuestCount(newRoomType)}</strong> 位游客
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setAddRoomOpen(false)} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={addRoomGroup} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">确认新增</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
+        <button className="rounded-md border border-gray-300 px-6 py-2 text-gray-700 transition-colors hover:bg-gray-50" onClick={onPrev}>
           ← 上一步：占舱
         </button>
         <div className="flex gap-3">
-          <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors shadow-sm font-medium" onClick={() => onNext({ touristList })}>
+          <button className="rounded-md bg-orange-500 px-6 py-2 font-medium text-white shadow-sm transition-colors hover:bg-orange-600" onClick={() => onNext({ touristList, teams, roomGroups })}>
             未实名下单
           </button>
-          <button className={`px-6 py-2 rounded-md transition-colors shadow-sm font-medium ${canProceed ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`} disabled={!canProceed} onClick={() => onNext({ touristList })}>
+          <button
+            className={`rounded-md px-6 py-2 font-medium shadow-sm transition-colors ${canProceed ? 'bg-blue-600 text-white hover:bg-blue-700' : 'cursor-not-allowed bg-gray-200 text-gray-400'}`}
+            disabled={!canProceed}
+            onClick={() => onNext({ touristList, teams, roomGroups })}
+          >
             下一步：订单确认 →
           </button>
         </div>

@@ -34,6 +34,7 @@ export default function VoyagePage() {
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchStatus, setBatchStatus] = useState('ticketing')
   const [listBatchPriceOpen, setListBatchPriceOpen] = useState(false)
+  const [docOpen, setDocOpen] = useState<'boarding' | 'receipt' | null>(null)
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<Voyage | null>(null)
@@ -249,6 +250,16 @@ export default function VoyagePage() {
 
   const timelineStepColors: Record<string, string> = { approved: 'bg-green-500', pending: 'bg-yellow-400', rejected: 'bg-red-500' }
 
+  const openVoyageDoc = (type: 'boarding' | 'receipt') => {
+    if (selected.size === 0) {
+      window.alert('请先勾选航次')
+      return
+    }
+    setDocOpen(type)
+  }
+
+  const selectedVoyages = data.data.filter((v) => selected.has(v.id))
+
   return (
     <div>
       <PageHeader title="航次列表" description="管理所有游轮航次信息" />
@@ -270,6 +281,8 @@ export default function VoyagePage() {
             </>
           )}
           <button onClick={() => { setGenProductId(''); setGenTemplateId(''); setGenStartDate(''); setGenEndDate(''); setGenConflict([]); setGenOpen(true) }} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"><Plus className="w-4 h-4" />添加</button>
+          <button onClick={() => openVoyageDoc('boarding')} className="inline-flex h-11 items-center rounded-md border border-gray-300 bg-white px-6 text-base text-gray-700 transition hover:bg-gray-50">乘船通知书</button>
+          <button onClick={() => openVoyageDoc('receipt')} className="inline-flex h-11 items-center rounded-md border border-gray-300 bg-white px-6 text-base text-gray-700 transition hover:bg-gray-50">宾客回执单</button>
         </div>
       </div>
 
@@ -394,6 +407,30 @@ export default function VoyagePage() {
       )}
 
       {/* Batch Status */}
+      {docOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDocOpen(null)} />
+          <div className="relative mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">{docOpen === 'boarding' ? '乘船通知书' : '宾客回执单'}</h3>
+              <button onClick={() => setDocOpen(null)} className="p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mb-3 text-sm text-gray-500">已选择 {selectedVoyages.length} 个航次</p>
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
+              {selectedVoyages.map((v) => (
+                <div key={v.id} className="text-sm text-gray-700">
+                  {v.voyageNo} · {v.shipName} · {v.startDate}
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setDocOpen(null)} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">关闭</button>
+              <button onClick={() => setDocOpen(null)} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">生成并下载</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {batchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"><div className="absolute inset-0 bg-black/40" onClick={() => setBatchOpen(false)} />
           <div className="relative bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6"><h3 className="text-base font-semibold text-gray-900 mb-1">设置航次状态</h3><p className="text-sm text-gray-500 mb-4">已选择 {selected.size} 个</p>

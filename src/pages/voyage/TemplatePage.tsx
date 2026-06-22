@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, X, ChevronLeft, Warehouse } from 'lucide-react'
+import { Plus, X, ChevronLeft, Warehouse, Pencil } from 'lucide-react'
 import { productApi, templateApi } from '@/mock/api'
 import { products, ships, routes, dealers } from '@/mock/data'
 import type { VoyageTemplate, TemplateInventory, TemplateItinerary, TemplateDeposit, TemplateTip, PaginatedResult, PricingRow, Product, SearchParams, DealerChannelType } from '@/types'
@@ -86,7 +86,8 @@ export default function TemplatePage() {
   const [supplierOpen, setSupplierOpen] = useState(false)
   const [supplierTemplate, setSupplierTemplate] = useState<VoyageTemplate | null>(null)
   const [supplierChannelFilter, setSupplierChannelFilter] = useState<SupplierChannelFilter>('all')
-  const [supplierDealerId, setSupplierDealerId] = useState('all')
+  const [supplierDealerId, setSupplierDealerId] = useState('')
+  const [supplierEditing, setSupplierEditing] = useState(false)
   const [supplierSegments, setSupplierSegments] = useState<SupplierSegmentRow[]>([])
   const [supplierCabins, setSupplierCabins] = useState<string[]>([])
   const [supplierMatrix, setSupplierMatrix] = useState<SupplierMatrix>({})
@@ -95,12 +96,15 @@ export default function TemplatePage() {
     const product = products.find(item => item.id === template.productId)
     const segments = createSupplierSegments(product, template)
     const cabins = createSupplierCabins(product)
+    const dealerOptions = getSupplierDealerOptions(template, 'all')
+    const firstDealerId = dealerOptions[0]?.id || ''
     setSupplierTemplate(template)
     setSupplierChannelFilter('all')
-    setSupplierDealerId('all')
+    setSupplierDealerId(firstDealerId)
+    setSupplierEditing(false)
     setSupplierSegments(segments)
     setSupplierCabins(cabins)
-    setSupplierMatrix(createSupplierMatrix(template, product, segments, cabins, 'all', 'all'))
+    setSupplierMatrix(createSupplierMatrix(template, product, segments, cabins, 'all', firstDealerId))
     setSupplierOpen(true)
   }
 
@@ -117,14 +121,18 @@ export default function TemplatePage() {
   }
 
   const changeSupplierChannel = (value: SupplierChannelFilter) => {
-    const nextDealerId = 'all'
+    if (!supplierTemplate) return
+    const options = getSupplierDealerOptions(supplierTemplate, value)
+    const nextDealerId = options[0]?.id || ''
     setSupplierChannelFilter(value)
     setSupplierDealerId(nextDealerId)
+    setSupplierEditing(false)
     refreshSupplierMatrix(supplierTemplate, value, nextDealerId)
   }
 
   const changeSupplierDealer = (value: string) => {
     setSupplierDealerId(value)
+    setSupplierEditing(false)
     refreshSupplierMatrix(supplierTemplate, supplierChannelFilter, value)
   }
 
@@ -144,9 +152,16 @@ export default function TemplatePage() {
   const closeSupplierBook = () => {
     setSupplierOpen(false)
     setSupplierTemplate(null)
+    setSupplierEditing(false)
+  }
+
+  const cancelSupplierEdit = () => {
+    setSupplierEditing(false)
+    refreshSupplierMatrix(supplierTemplate, supplierChannelFilter, supplierDealerId)
   }
 
   const saveSupplierBook = () => {
+    setSupplierEditing(false)
     setSupplierOpen(false)
     setSupplierTemplate(null)
   }
@@ -498,37 +513,46 @@ export default function TemplatePage() {
                   <h4 className="text-sm font-semibold text-gray-900">分销商库存</h4>
                   <p className="mt-1 text-xs text-gray-500">按分销商、航段和房型调整可售库存；已售数仅展示不可编辑。</p>
                 </div>
-                <div className="flex items-end gap-3">
-                  <div>
-                    <label className="mb-1 block text-xs text-gray-500">组团分类</label>
-                    <select
-                      value={supplierChannelFilter}
-                      onChange={(event) => changeSupplierChannel(event.target.value as SupplierChannelFilter)}
-                      className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    >
-                      {(Object.keys(supplierChannelLabels) as SupplierChannelFilter[]).map(value => (
-                        <option key={value} value={value}>{supplierChannelLabels[value]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-gray-500">分销商</label>
-                    <select
-                      value={supplierDealerId}
-                      onChange={(event) => changeSupplierDealer(event.target.value)}
-                      className="w-56 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                    >
-                      <option value="all">全部分销商</option>
-                      {supplierDealerOptions.map(dealer => (
-                        <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">组团分类</label>
+                  <select
+                    value={supplierChannelFilter}
+                    onChange={(event) => changeSupplierChannel(event.target.value as SupplierChannelFilter)}
+                    className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    {(Object.keys(supplierChannelLabels) as SupplierChannelFilter[]).map(value => (
+                      <option key={value} value={value}>{supplierChannelLabels[value]}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
+
+              {supplierDealerOptions.length > 0 ? (
+                <div className="mt-4 flex gap-1 overflow-x-auto border-b -mb-px">
+                  {supplierDealerOptions.map(dealer => (
+                    <button
+                      key={dealer.id}
+                      type="button"
+                      onClick={() => changeSupplierDealer(dealer.id)}
+                      className={`shrink-0 border-b-2 px-4 py-2.5 text-sm transition-colors -mb-px ${
+                        supplierDealerId === dealer.id
+                          ? 'border-gray-900 font-medium text-gray-900'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {dealer.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 pb-3 text-sm text-gray-400">当前分类下暂无可用分销商</p>
+              )}
             </div>
 
             <div className="flex-1 overflow-auto px-6 py-4">
+              {supplierDealerOptions.length === 0 ? (
+                <div className="flex h-48 items-center justify-center text-sm text-gray-400">请选择其他组团分类或授权分销商</div>
+              ) : (
               <table className="w-full min-w-[760px] border border-gray-200 text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50">
@@ -551,15 +575,19 @@ export default function TemplatePage() {
                                 <span>已售</span>
                                 <span className="font-semibold text-gray-900">{cell.sold}</span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="shrink-0 text-xs text-gray-500">可售</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={cell.available}
-                                  onChange={(event) => updateSupplierCell(segment.key, cabin, Number(event.target.value))}
-                                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
-                                />
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <span>可售</span>
+                                {supplierEditing ? (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={cell.available}
+                                    onChange={(event) => updateSupplierCell(segment.key, cabin, Number(event.target.value))}
+                                    className="w-20 rounded border border-gray-300 px-2 py-1.5 text-right text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold text-gray-900">{cell.available}</span>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -569,11 +597,28 @@ export default function TemplatePage() {
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 border-t px-6 py-4">
-               <button onClick={closeSupplierBook} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-               <button onClick={saveSupplierBook} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">保存</button>
+              {supplierEditing ? (
+                <>
+                  <button onClick={cancelSupplierEdit} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+                  <button onClick={saveSupplierBook} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">保存</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={closeSupplierBook} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">关闭</button>
+                  {supplierDealerOptions.length > 0 && (
+                    <button
+                      onClick={() => setSupplierEditing(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />编辑
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

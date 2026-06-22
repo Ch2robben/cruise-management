@@ -1,77 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronLeft, RotateCcw, Search } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
+import OrderDetailPanel from '@/components/order/OrderDetailPanel'
+import { type CruiseOrder, type OrderStatus } from '@/components/order/orderTypes'
 import { formatCurrency } from '@/utils/format'
-
-type OrderStatus = '取消' | '船款确认' | '已预订' | '已完成'
-
-interface CruiseOrder {
-  id: string
-  index: number
-  history: string
-  orderNo: string
-  groupName: string
-  voyageNo: string
-  orderStatus: OrderStatus
-  route: string
-  ship: string
-  sailDate: string
-  marketCategory: string
-  nationality: string
-  totalPeople: number
-  adult: number
-  child: number
-  infant: number
-  companion: number
-  unitPrice: number
-  receivableTicket: number
-  smallFee: number
-  localFee: number
-  combinedProduct: number
-  totalAmount: number
-  paidAmount: number
-  arrears: number
-  depositAmount: number
-  ticketBalance: number
-  dealer: string
-  remark: string
-  depositDate: string
-  parentOrderNo: string
-  thirdPartyOrderNo: string
-  sailDeadline: string
-  bookingTime: string
-  lockValidUntil: string
-  voucherApplyStatus: string
-  voucherApprovalStatus: string
-  shareCenterStatus: string
-  pushTime: string
-  invoiceRequired: string
-  miniProgramChannel: string
-  advanceAccount: string
-  relatedOrderNo: string
-  salesPerson: string
-  voyageDays: number
-  departurePort: string
-  arrivalPort: string
-  transitPort: string
-  supplier: string
-  policyName: string
-  line: string
-  voyageStatus: string
-  salesType: string
-  orderType: string
-  amountType: string
-  roomType: string
-  ageGroup: string
-  occupancyType: string
-  priceCoefficient: number
-  contactName: string
-  contactPhone: string
-  fixedPhone: string
-  fax: string
-  email: string
-  leaveMessage: string
-}
 
 const statusColor: Record<OrderStatus, string> = {
   取消: 'bg-red-100 text-red-700',
@@ -110,7 +42,7 @@ const orders: CruiseOrder[] = [
     depositAmount: 0,
     ticketBalance: 0,
     dealer: '宜昌趸多',
-    remark: '',
+    remark: '客户要求靠窗床位，开航前需电话确认名单。',
     depositDate: '',
     parentOrderNo: 'S0000000H',
     thirdPartyOrderNo: '',
@@ -287,7 +219,11 @@ const orders: CruiseOrder[] = [
     index: 4,
     history: '历史',
     orderNo: '00000001',
-    groupName: '123456789',
+    groupName: '重庆云阳一团',
+    teams: [
+      { id: 'team-1', name: '重庆云阳一团', roomCount: 3, guestCount: 6 },
+      { id: 'team-2', name: '神州散客团', roomCount: 2, guestCount: 4 },
+    ],
     voyageNo: '212103',
     orderStatus: '取消',
     route: '长航渝宜',
@@ -466,40 +402,6 @@ function OrderStatusPill({ status }: { status: OrderStatus }) {
   )
 }
 
-function MetricItem({ label, value, highlight }: { label: string; value: ReactNode; highlight?: boolean }) {
-  return (
-    <div className="rounded-lg bg-gray-50 px-4 py-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-1 text-lg font-semibold ${highlight ? 'text-blue-600' : 'text-gray-900'}`}>{value}</div>
-    </div>
-  )
-}
-
-function DetailSection({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
-  return (
-    <section className={`overflow-hidden rounded-lg border border-gray-200 bg-white ${className}`}>
-      <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
-        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  )
-}
-
-function FieldGrid({ children, columns = 2 }: { children: ReactNode; columns?: 2 | 3 }) {
-  const columnClass = columns === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'
-  return <div className={`grid gap-x-8 gap-y-3 ${columnClass}`}>{children}</div>
-}
-
-function FieldItem({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
-  return (
-    <div className="grid min-h-8 grid-cols-[108px_1fr] items-start gap-3 text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className={`min-w-0 break-words text-gray-900 ${mono ? 'font-mono' : ''}`}>{value || '-'}</span>
-    </div>
-  )
-}
-
 function formatOrderCellValue(order: CruiseOrder, key: keyof CruiseOrder) {
   const value = order[key]
   if (amountColumnKeys.has(key)) return formatCurrency(Number(value || 0))
@@ -529,93 +431,6 @@ function FilterControl({ field, value, onChange }: { field: (typeof filterFields
         <input type="text" value={value || ''} onChange={(event) => onChange(field.key, event.target.value)} placeholder={field.placeholder} className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-blue-500" />
       )}
     </label>
-  )
-}
-
-function RoomPriceTable({ order }: { order: CruiseOrder }) {
-  const rows = [
-    {
-      roomType: order.roomType,
-      ageGroup: order.ageGroup,
-      occupancyType: order.occupancyType,
-      coefficient: order.priceCoefficient,
-      price: order.unitPrice,
-      people: order.totalPeople,
-      subtotal: order.receivableTicket,
-    },
-  ]
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[820px] text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">房型</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">年龄段</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">入住类型</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">价格系数</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">结算价</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">人数</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">小计</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={`${row.roomType}-${row.ageGroup}`}>
-              <td className="px-4 py-3 text-gray-700">{row.roomType}</td>
-              <td className="px-4 py-3 text-gray-700">{row.ageGroup}</td>
-              <td className="px-4 py-3 text-gray-700">{row.occupancyType}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.coefficient}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(row.price)}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.people}</td>
-              <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(row.subtotal)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function AmountTable({ order }: { order: CruiseOrder }) {
-  const rows = [
-    ['1', '定金', '-', 0, 0],
-    ['2', '船票尾款', '-', 0, order.receivableTicket],
-    ['3', '陪同款', '-', 0, 0],
-    ['4', '船票总款', '-', 0, order.receivableTicket],
-    ['5', '升舱费', '-', 0, 0],
-    ['6', '地接费', '-', 0, order.localFee],
-    ['7', '罚金', '-', 0, order.depositAmount],
-    ['8', '小费', '-', order.smallFee, order.smallFee],
-    ['9', '组合产品', '-', 0, order.combinedProduct],
-    ['10', '其他', '-', 0, 0],
-    ['11', '结算总价', '-', 0, order.totalAmount],
-  ]
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[820px] text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">序号</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">名称</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">系数</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">单价</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">总价</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={row[0]}>
-              <td className="px-4 py-3 text-gray-700">{row[0]}</td>
-              <td className="px-4 py-3 text-gray-700">{row[1]}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row[2]}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(Number(row[3]))}</td>
-              <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(Number(row[4]))}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   )
 }
 
@@ -656,128 +471,7 @@ export default function OrderListPage() {
             返回列表
           </button>
         </PageHeader>
-        <div className="border border-gray-200 bg-white px-9 py-6">
-          <div className="mb-4 text-sm text-blue-600">订单管理 / 订单详情</div>
-          <p className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-            特别提示：订单变更后如遇紧急情况（航次停航、变更等）客服人员会及时与您电话联系。
-          </p>
-
-          <DetailSection title="订单概览" className="mb-5">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-              <MetricItem label="订单状态" value={<OrderStatusPill status={detail.orderStatus} />} />
-              <MetricItem label="订单总额" value={formatCurrency(detail.totalAmount)} highlight />
-              <MetricItem label="实收总额" value={formatCurrency(detail.paidAmount)} />
-              <MetricItem label="欠款" value={formatCurrency(detail.arrears)} />
-              <MetricItem label="总人数" value={`${detail.totalPeople} 人`} />
-            </div>
-          </DetailSection>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <DetailSection title="订单信息">
-              <FieldGrid>
-                <FieldItem label="订单号" value={detail.orderNo} mono />
-                <FieldItem label="总单号" value={detail.parentOrderNo} mono />
-                <FieldItem label="第三方订单号" value={detail.thirdPartyOrderNo || '-'} mono />
-                <FieldItem label="预订时间" value={detail.bookingTime} />
-                <FieldItem label="订单类型" value={detail.orderType} />
-                <FieldItem label="分管业务员" value={detail.salesPerson} />
-              </FieldGrid>
-            </DetailSection>
-
-            <DetailSection title="游轮产品信息">
-              <FieldGrid>
-                <FieldItem label="游轮" value={detail.ship} />
-                <FieldItem label="航次号" value={detail.voyageNo} mono />
-                <FieldItem label="航线" value={detail.line} />
-                <FieldItem label="开船日期" value={detail.sailDate} />
-                <FieldItem label="行程天数" value={`${detail.voyageDays} 天`} />
-                <FieldItem label="供应商" value={detail.supplier} />
-              </FieldGrid>
-            </DetailSection>
-
-            <DetailSection title="港口与行程">
-              <FieldGrid>
-                <FieldItem label="出发港" value={detail.departurePort} />
-                <FieldItem label="终到港" value={detail.arrivalPort} />
-                <FieldItem label="途经港" value={detail.transitPort} />
-                <FieldItem label="线路" value={detail.route} />
-                <FieldItem label="航次状态" value={detail.voyageStatus} />
-                <FieldItem label="船款日期" value={detail.sailDeadline} />
-              </FieldGrid>
-            </DetailSection>
-
-            <DetailSection title="组团社及政策">
-              <FieldGrid>
-                <FieldItem label="组团社" value={detail.dealer} />
-                <FieldItem label="组团社用户" value={detail.advanceAccount} />
-                <FieldItem label="价格政策" value={detail.policyName} />
-                <FieldItem label="市场类别" value={detail.marketCategory} />
-                <FieldItem label="国籍" value={detail.nationality} />
-                <FieldItem label="销售类型" value={detail.salesType} />
-              </FieldGrid>
-            </DetailSection>
-
-            <DetailSection title="人数信息">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                <MetricItem label="总人数" value={detail.totalPeople} />
-                <MetricItem label="成人" value={detail.adult} />
-                <MetricItem label="儿童" value={detail.child} />
-                <MetricItem label="婴儿" value={detail.infant} />
-                <MetricItem label="陪同" value={detail.companion} />
-                <MetricItem label="16免1数" value={0} />
-              </div>
-            </DetailSection>
-
-            <DetailSection title="凭证与共享状态">
-              <FieldGrid>
-                <FieldItem label="凭证申请" value={detail.voucherApplyStatus} />
-                <FieldItem label="凭证审批" value={detail.voucherApprovalStatus} />
-                <FieldItem label="共享中心" value={detail.shareCenterStatus} />
-                <FieldItem label="推送时间" value={detail.pushTime || '-'} />
-                <FieldItem label="是否开票" value={detail.invoiceRequired} />
-                <FieldItem label="预定账号" value={detail.advanceAccount} />
-              </FieldGrid>
-            </DetailSection>
-          </div>
-
-          <DetailSection title="费用信息" className="mt-5">
-            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricItem label="应收船款" value={formatCurrency(detail.receivableTicket)} highlight />
-              <MetricItem label="小费" value={formatCurrency(detail.smallFee)} />
-              <MetricItem label="地接费" value={formatCurrency(detail.localFee)} />
-              <MetricItem label="组合产品" value={formatCurrency(detail.combinedProduct)} />
-            </div>
-            <RoomPriceTable order={detail} />
-            <div className="mt-4">
-              <AmountTable order={detail} />
-            </div>
-          </DetailSection>
-
-          <DetailSection title="联系人信息" className="mt-5">
-            <FieldGrid columns={3}>
-              <FieldItem label="团队名称" value={detail.groupName} />
-              <FieldItem label="联系人" value={detail.contactName} />
-              <FieldItem label="手机号" value={detail.contactPhone} />
-              <FieldItem label="固定电话" value={detail.fixedPhone || '-'} />
-              <FieldItem label="传真" value={detail.fax || '-'} />
-              <FieldItem label="Email" value={detail.email || '-'} />
-              <FieldItem label="是否留言" value={detail.leaveMessage} />
-              <FieldItem label="特殊要求" value="-" />
-            </FieldGrid>
-            <div className="mt-4 overflow-x-auto rounded-lg bg-white">
-              <table className="w-full min-w-[780px] text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    {['陪同', '姓名', '证件类型', '证件号', '手机号', '是否转运'].map((item) => <th key={item} className="px-4 py-3 text-left text-xs font-medium text-gray-500">{item}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">暂无数据</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </DetailSection>
-        </div>
+        <OrderDetailPanel order={detail} />
       </div>
     )
   }

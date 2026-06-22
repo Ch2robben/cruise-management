@@ -405,8 +405,6 @@ export default function RebateRulePage() {
             </div>
           </div>
 
-          <ApplicableScopeTransfer value={form.applyScope as ApplicableScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
-
           {form.policyType === 'rebate_point' && (
             <div>
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">返利点规则</h4>
@@ -473,6 +471,8 @@ export default function RebateRulePage() {
               </div>
             </div>
           </div>
+
+          <ApplicableScopeTransfer value={form.applyScope as ApplicableScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
 
           <div>
             <label className="block text-sm text-gray-700 mb-1">备注</label>

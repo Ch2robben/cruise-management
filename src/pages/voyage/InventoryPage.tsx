@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronDown, Edit3, X } from 'lucide-react'
+import { ChevronDown, Edit3, Pencil, X } from 'lucide-react'
 import { inventoryApi } from '@/mock/api'
 import { dealers, products, routes, ships, voyageTemplates, voyages } from '@/mock/data'
 import type { Product, ProductSegment, Voyage, VoyageInventory } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
+import InventoryConfigDialog, { type InventoryConfigContext } from '@/components/voyage/InventoryConfigDialog'
 import { SalesControlWorkspace } from '@/pages/voyage/SalesControlPage'
 
 type ViewMode = 'voyage' | 'channel'
@@ -335,6 +336,8 @@ export default function InventoryPage() {
   const [editState, setEditState] = useState<EditState | null>(null)
   const [channelSupplierState, setChannelSupplierState] = useState<ChannelSupplierInventoryState | null>(null)
   const [channelInventoryOverrides, setChannelInventoryOverrides] = useState<Record<string, number>>({})
+  const [checkedVoyageIds, setCheckedVoyageIds] = useState<Set<string>>(new Set())
+  const [inventoryConfigContext, setInventoryConfigContext] = useState<InventoryConfigContext | null>(null)
 
   const fetchInventories = useCallback(async () => {
     setLoading(true)
@@ -523,12 +526,35 @@ export default function InventoryPage() {
     setChannelSupplierState(null)
   }
 
+  const toggleVoyageChecked = (voyageId: string) => {
+    setCheckedVoyageIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(voyageId)) next.delete(voyageId)
+      else next.add(voyageId)
+      return next
+    })
+  }
+
+  const openInventoryConfig = (voyagesToConfig: Voyage[], mode: InventoryConfigContext['mode']) => {
+    if (voyagesToConfig.length === 0) return
+    setInventoryConfigContext({ mode, voyages: voyagesToConfig })
+  }
+
+  const openBatchInventoryConfig = () => {
+    const selected = filteredVoyages.filter((voyage) => checkedVoyageIds.has(voyage.id))
+    openInventoryConfig(selected, 'batch')
+  }
+
+  const openSingleInventoryConfig = (voyage: Voyage) => {
+    openInventoryConfig([voyage], 'single')
+  }
+
   const pageTitle = selectedVoyage ? `航次库存看板 · ${selectedVoyage.voyageNo}` : '航次库存看板'
   const channelSupplierOptions = channelSupplierState ? filterChannelRowsBySupplierGroup(channelRows, channelSupplierState.group) : []
 
   return (
     <div>
-      <PageHeader title={pageTitle} description="按航期、航线、游轮筛选航次，支持航次视角、房型视角和渠道视角查看库存。" />
+      <PageHeader title={pageTitle} description="按航期筛选航次，统一配置共有库存与分销商库存；支持单航次与批量配置。" />
 
       <SearchPanel onSearch={() => setRouteDropdownOpen(false)} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -596,9 +622,20 @@ export default function InventoryPage() {
 
       <div className="grid grid-cols-[340px_minmax(0,1fr)] gap-4">
         <aside className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+          <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-gray-900">筛选结果航次</span>
-            <span className="text-xs text-gray-500">共 {filteredVoyages.length} 条</span>
+            <div className="flex items-center gap-2">
+              {checkedVoyageIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={openBatchInventoryConfig}
+                  className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  批量配置库存（{checkedVoyageIds.size}）
+                </button>
+              )}
+              <span className="text-xs text-gray-500">共 {filteredVoyages.length} 条</span>
+            </div>
           </div>
           <div className="max-h-[690px] overflow-y-auto p-3 space-y-2">
             {filteredVoyages.length === 0 ? (
@@ -608,21 +645,30 @@ export default function InventoryPage() {
               const detailTemplate = selected ? selectedTemplate : undefined
               return (
                 <div key={voyage.id} className="space-y-2">
-                  <button
-                    onClick={() => setSelectedVoyageId(voyage.id)}
-                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                      selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs font-semibold text-gray-900">{voyage.voyageNo}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] ${selected ? 'bg-blue-600 text-white' : voyageStatusClass[voyage.status] || 'bg-gray-100 text-gray-500'}`}>
-                        {voyageStatusLabels[voyage.status] || voyage.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 text-sm font-medium text-gray-900 truncate">{voyage.productName}</div>
-                    <div className="mt-1 text-xs text-gray-500 truncate">{voyage.startDate} · {voyage.shipName}</div>
-                  </button>
+                  <div className={`flex items-start gap-2 rounded-lg border p-2 transition-colors ${
+                    selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={checkedVoyageIds.has(voyage.id)}
+                      onChange={() => toggleVoyageChecked(voyage.id)}
+                      className="mt-2 h-4 w-4 rounded border-gray-300 text-blue-600"
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                    <button
+                      onClick={() => setSelectedVoyageId(voyage.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-semibold text-gray-900">{voyage.voyageNo}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] ${selected ? 'bg-blue-600 text-white' : voyageStatusClass[voyage.status] || 'bg-gray-100 text-gray-500'}`}>
+                          {voyageStatusLabels[voyage.status] || voyage.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-sm font-medium text-gray-900 truncate">{voyage.productName}</div>
+                      <div className="mt-1 text-xs text-gray-500 truncate">{voyage.startDate} · {voyage.shipName}</div>
+                    </button>
+                  </div>
 
                   {selected && (
                     <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 shadow-sm">
@@ -636,6 +682,13 @@ export default function InventoryPage() {
                         <CompactInfoItem label="航线" value={voyage.routeName} />
                         <CompactInfoItem label="模板名称" value={detailTemplate?.name || voyage.templateName || '-'} />
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => openSingleInventoryConfig(voyage)}
+                        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />库存配置
+                      </button>
                     </div>
                   )}
                 </div>
@@ -677,6 +730,13 @@ export default function InventoryPage() {
           ) : null}
         </section>
       </div>
+
+      {inventoryConfigContext && (
+        <InventoryConfigDialog
+          context={inventoryConfigContext}
+          onClose={() => setInventoryConfigContext(null)}
+        />
+      )}
 
       {channelSupplierState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">

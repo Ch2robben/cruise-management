@@ -30,6 +30,7 @@ export default function TicketPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [baseName, setBaseName] = useState('')
+  const [baseTicketId, setBaseTicketId] = useState('')
   const [multiForms, setMultiForms] = useState<(TicketForm & { _key: string })[]>([])
   const [formLoading, setFormLoading] = useState(false)
 
@@ -55,12 +56,14 @@ export default function TicketPage() {
   const openCreate = () => { 
     setEditingId(null)
     setBaseName('')
+    setBaseTicketId('')
     setMultiForms([{ ...emptyForm, _key: Date.now().toString() }])
     setFormOpen(true) 
   }
   const openEdit = (r: Ticket) => {
     setEditingId(r.id)
     setBaseName(r.name)
+    setBaseTicketId(r.ticketId)
     setMultiForms([{
       _key: 'edit', ticketId: r.ticketId, name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', personCount: r.personCount || 1,
       priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase',
@@ -78,11 +81,11 @@ export default function TicketPage() {
     
     if (editingId) {
       const { _key, ...rest } = multiForms[0]
-      await ticketApi.update(editingId, { ...rest, name: baseName.trim(), updatedBy: '当前用户', updatedAt: now })
+      await ticketApi.update(editingId, { ...rest, ticketId: baseTicketId.trim(), name: baseName.trim(), updatedBy: '当前用户', updatedAt: now })
     } else {
       for (const form of multiForms) {
         const { _key, ...rest } = form
-        await ticketApi.create({ ...rest, name: baseName.trim(), status: 'enabled' as const, updatedBy: '当前用户', updatedAt: now, createdAt: now } as Ticket)
+        await ticketApi.create({ ...rest, ticketId: baseTicketId.trim(), name: baseName.trim(), status: 'enabled' as const, updatedBy: '当前用户', updatedAt: now, createdAt: now } as Ticket)
       }
     }
     setFormLoading(false); setFormOpen(false); fetchData(data.page)
@@ -127,14 +130,26 @@ export default function TicketPage() {
         <div className="space-y-6">
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
-            <div className="w-1/2 pr-4">
-              <label className="block text-xs text-gray-500 mb-1.5">票名称 <span className="text-red-500">*</span></label>
-              <input 
-                value={baseName} 
-                onChange={(e) => setBaseName(e.target.value)} 
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow" 
-                placeholder="请输入公用票名称，如: 成人特惠票"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">票名称 <span className="text-red-500">*</span></label>
+                <input 
+                  value={baseName} 
+                  onChange={(e) => setBaseName(e.target.value)} 
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow" 
+                  placeholder="请输入公用票名称，如: 成人特惠票"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5">票ID</label>
+                <input
+                  type="text"
+                  value={baseTicketId}
+                  onChange={(e) => setBaseTicketId(e.target.value)}
+                  placeholder="票ID"
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow"
+                />
+              </div>
             </div>
           </div>
 
@@ -164,22 +179,7 @@ export default function TicketPage() {
                       ×
                     </button>
                   )}
-                  <div className="grid grid-cols-4 gap-6">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1.5">票ID</label>
-                      <input 
-                        type="text"
-                        value={mf.ticketId || ''} 
-                        onChange={(e) => { 
-                          const val = e.target.value
-                          const newForms = [...multiForms]
-                          newForms[index].ticketId = val
-                          setMultiForms(newForms) 
-                        }} 
-                        placeholder="票ID"
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none transition-shadow"
-                      />
-                    </div>
+                  <div className="grid grid-cols-3 gap-6">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1.5">游客类型</label>
                       <select 
