@@ -1,0 +1,103 @@
+import type { OrderRoomLine } from '@/components/order/orderTypes'
+
+function guest(
+  lineId: string,
+  slot: number,
+  name: string,
+  price: number,
+): OrderRoomLine['guests'][number] {
+  return {
+    id: `${lineId}-g${slot}`,
+    slotIndex: slot,
+    name,
+    ageGroup: '成人',
+    occupancyType: '正常',
+    gender: slot % 2 === 1 ? '男' : '女',
+    idType: '身份证',
+    idNumber: '-',
+    phone: slot === 1 ? '13800000000' : '-',
+    settlementPrice: price,
+    priceCoefficient: 1,
+    isCompanion: false,
+    transferRequired: '否',
+  }
+}
+
+/** 订单 00000001 演示用房间行（含超售调配） */
+export const demoOrder00000001RoomLines: OrderRoomLine[] = [
+  {
+    id: '4-r1',
+    roomSeq: 1,
+    roomType: '标准间',
+    occupancyMode: '正常入住',
+    teamId: 'team-1',
+    teamName: '重庆云阳一团',
+    soldFloor: '2F',
+    soldRoomType: '标准间',
+    soldPrice: 2980,
+    allocatedFloor: '4F',
+    allocatedRoomType: '标准间',
+    inventoryStatus: 'oversold_pending',
+    roomAssignmentStatus: '待排房',
+    upgradeFee: 0,
+    guests: [guest('4-r1', 1, '张明', 1490), guest('4-r1', 2, '李红', 1490)],
+  },
+  {
+    id: '4-r2',
+    roomSeq: 2,
+    roomType: '标准间',
+    occupancyMode: '正常入住',
+    teamId: 'team-1',
+    teamName: '重庆云阳一团',
+    soldFloor: '2F',
+    soldRoomType: '标准间',
+    soldPrice: 2980,
+    allocatedFloor: '4F',
+    allocatedRoomType: '标准间',
+    inventoryStatus: 'oversold_pending',
+    roomAssignmentStatus: '待排房',
+    upgradeFee: 0,
+    guests: [guest('4-r2', 1, '王强', 1490), guest('4-r2', 2, '赵丽', 1490)],
+  },
+  {
+    id: '4-r3',
+    roomSeq: 3,
+    roomType: '标准间',
+    occupancyMode: '正常入住',
+    teamId: 'team-2',
+    teamName: '神州散客团',
+    soldFloor: '3F',
+    soldRoomType: '标准间',
+    soldPrice: 2980,
+    allocatedFloor: '3F',
+    allocatedRoomType: '标准间',
+    inventoryStatus: 'normal',
+    roomAssignmentStatus: '已排房',
+    assignedRoomNo: '3208',
+    assignedFloor: '3F',
+    assignedRoomType: '标准间',
+    upgradeFee: 0,
+    guests: [guest('4-r3', 1, '陈刚', 1490), guest('4-r3', 2, '刘芳', 1490)],
+  },
+]
+
+/** 订单 00000088 升舱补差对调演示 */
+export const demoOrder00000088RoomLines: OrderRoomLine[] = [
+  {
+    id: '5-r1',
+    roomSeq: 1,
+    roomType: '标准间',
+    occupancyMode: '正常入住',
+    teamId: 'default',
+    teamName: '神州散客团',
+    soldFloor: '4F',
+    soldRoomType: '标准间',
+    soldPrice: 3680,
+    allocatedFloor: '2F',
+    allocatedRoomType: '标准间',
+    inventoryStatus: 'normal',
+    roomAssignmentStatus: '待排房',
+    upgradeFee: 700,
+    guests: [guest('5-r1', 1, '周杰', 1840), guest('5-r1', 2, '吴敏', 1840)],
+  },
+]

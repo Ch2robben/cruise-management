@@ -208,7 +208,7 @@ export default function ShipPage() {
     if (!canNext()) return
     setFormLoading(true)
     const now = new Date().toISOString()
-    // 计算总船舱数
+    // 计算总房型数
     const cabinCount = form.decks.reduce((sum, d) => sum + d.facilities.length * 20, 0)
 
     const shipData = {
@@ -263,7 +263,7 @@ export default function ShipPage() {
     { key: 'name', title: '游轮名称', dataIndex: 'name' as keyof Ship },
     { key: 'series', title: '游轮系列', dataIndex: 'series' as keyof Ship },
     { key: 'capacity', title: '载客量', render: (r: Ship) => `${r.capacity}人` },
-    { key: 'cabinCount', title: '船舱数量', render: (r: Ship) => `${r.cabinCount}间` },
+    { key: 'cabinCount', title: '房型数量', render: (r: Ship) => `${r.cabinCount}间` },
     { key: 'floors', title: '层数', render: (r: Ship) => `${r.floors}层` },
     { key: 'length', title: '长度', render: (r: Ship) => `${r.length}m` },
     { key: 'width', title: '型宽', render: (r: Ship) => `${r.width}m` },
@@ -457,14 +457,14 @@ export default function ShipPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">舱房管理</h4>
-        <span className="text-xs text-gray-400">按甲板分组管理船舱配置</span>
+        <span className="text-xs text-gray-400">按甲板分组管理房型配置</span>
       </div>
       {(form.decks || []).map((deck, dIdx) => (
         <div key={dIdx} className="border border-gray-200 rounded-lg overflow-hidden">
           <table className="w-full text-xs">
             <thead><tr className="bg-gray-100 border-b border-gray-200">
               <th className="px-2 py-1.5 text-left text-gray-600 w-14">层数</th><th className="px-2 py-1.5 text-left text-gray-600">甲板名称</th>
-              <th className="px-2 py-1.5 text-left text-gray-600">船舱名称</th><th className="px-2 py-1.5 text-left text-gray-600">英文</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">数量</th>
+              <th className="px-2 py-1.5 text-left text-gray-600">房型名称</th><th className="px-2 py-1.5 text-left text-gray-600">英文</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">数量</th>
               <th className="px-2 py-1.5 text-left text-gray-600 w-14">床位</th><th className="px-2 py-1.5 text-left text-gray-600 w-14">加床数</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">面积</th>
               <th className="px-2 py-1.5 text-left text-gray-600 w-14">排序</th><th className="px-2 py-1.5 text-center text-gray-600 w-12">按间</th>
               <th className="px-2 py-1.5 text-center text-gray-600 w-14">操作</th>
@@ -651,7 +651,7 @@ export default function ShipPage() {
               <DetailRow label="型宽" value={`${detail.width}m`} />
               <DetailRow label="型深" value={`${detail.depth}m`} />
               <DetailRow label="静水航速" value={`${detail.speed}km/h`} />
-              <DetailRow label="船舱数量" value={`${detail.cabinCount}间`} />
+              <DetailRow label="房型数量" value={`${detail.cabinCount}间`} />
             </DetailCard>
             <DetailCard title="设施与工程">
               <DetailRow label="电压" value={`${detail.voltage}V`} />

@@ -17,6 +17,7 @@ interface ItinerarySegment {
   toPortId: string
   departureTime: string
   speedKmH: number
+  passengerOnOff: boolean
   attractionIds: string[]
   remark: string
 }
@@ -72,9 +73,9 @@ const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm f
 const speedOptions = [14, 16, 18, 20, 22]
 
 const demoSegments: ItinerarySegment[] = [
-  { id: 'seg01', fromPortId: 'p10', toPortId: 'p02', departureTime: '08:00', speedKmH: 18, attractionIds: ['a02'], remark: '首日重庆启航，抵达涪陵后安排白鹤梁参观。' },
-  { id: 'seg02', fromPortId: 'p02', toPortId: 'p03', departureTime: '20:00', speedKmH: 18, attractionIds: ['a03'], remark: '夜航至丰都，次日上午安排名山景区。' },
-  { id: 'seg03', fromPortId: 'p03', toPortId: 'p07', departureTime: '14:00', speedKmH: 18, attractionIds: ['a07'], remark: '丰都出发前往奉节。' },
+  { id: 'seg01', fromPortId: 'p10', toPortId: 'p02', departureTime: '08:00', speedKmH: 18, passengerOnOff: true, attractionIds: ['a02'], remark: '首日重庆启航，抵达涪陵后安排白鹤梁参观。' },
+  { id: 'seg02', fromPortId: 'p02', toPortId: 'p03', departureTime: '20:00', speedKmH: 18, passengerOnOff: false, attractionIds: ['a03'], remark: '夜航至丰都，次日上午安排名山景区。' },
+  { id: 'seg03', fromPortId: 'p03', toPortId: 'p07', departureTime: '14:00', speedKmH: 18, passengerOnOff: false, attractionIds: ['a07'], remark: '丰都出发前往奉节。' },
 ]
 
 const emptySegment = (fromPortId = ''): ItinerarySegment => ({
@@ -83,6 +84,7 @@ const emptySegment = (fromPortId = ''): ItinerarySegment => ({
   toPortId: '',
   departureTime: '',
   speedKmH: 18,
+  passengerOnOff: false,
   attractionIds: [],
   remark: '',
 })
@@ -236,7 +238,7 @@ export default function ItineraryManagementPage() {
   const openEdit = (plan: ItineraryPlan) => {
     setEditingPlanId(plan.id)
     setDraftName(plan.name)
-    setDraftSegments(plan.segments.map((segment) => ({ ...segment })))
+    setDraftSegments(plan.segments.map((segment) => ({ ...segment, passengerOnOff: segment.passengerOnOff ?? false })))
   }
 
   const closeEditor = () => {
@@ -407,6 +409,7 @@ export default function ItineraryManagementPage() {
           <td>${safeText(fromPortName)}</td>
           <td>${safeText(toPortName)}</td>
           <td>${safeText(row.segment.departureTime || '-')}</td>
+          <td>${row.segment.passengerOnOff ? '是' : '否'}</td>
           <td>${safeText(row.distance ? `${row.distance.distanceKm} km` : '未维护')}</td>
           <td>${safeText(`${row.segment.speedKmH} km/h`)}</td>
           <td>${safeText(minutesToText(row.sailingMinutes))}</td>
@@ -460,6 +463,7 @@ export default function ItineraryManagementPage() {
                 <th>起始码头</th>
                 <th>下个码头</th>
                 <th>启航时间</th>
+                <th>上下客</th>
                 <th>距离</th>
                 <th>航速</th>
                 <th>航行时间</th>
@@ -618,16 +622,28 @@ export default function ItineraryManagementPage() {
                         {ports.map((port) => <option key={port.id} value={port.id}>{port.name}</option>)}
                       </select>
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <label className="mb-1 block text-sm text-gray-700">启航时间</label>
                       <input type="time" value={segment.departureTime} onChange={(event) => updateSegment(segment.id, { departureTime: event.target.value })} className={inputClass} />
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <label className="mb-1 block text-sm text-gray-700">航行速度</label>
                       <select value={segment.speedKmH} onChange={(event) => updateSegment(segment.id, { speedKmH: Number(event.target.value) })} className={inputClass}>
                         {speedOptions.map((speed) => <option key={speed} value={speed}>{speed} km/h</option>)}
                         {distance?.speedKmH && !speedOptions.includes(distance.speedKmH) && <option value={distance.speedKmH}>{distance.speedKmH} km/h</option>}
                       </select>
+                    </div>
+                    <div className="col-span-2 flex flex-col justify-end">
+                      <label className="mb-1 block text-sm text-gray-700">上下客</label>
+                      <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={segment.passengerOnOff}
+                          onChange={(event) => updateSegment(segment.id, { passengerOnOff: event.target.checked })}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        {segment.passengerOnOff ? '允许上下客' : '不允许'}
+                      </label>
                     </div>
 
                     <div className="col-span-3 rounded-lg bg-gray-50 px-4 py-3">
@@ -807,6 +823,7 @@ export default function ItineraryManagementPage() {
                         <th className="w-16 px-4 py-3 text-left text-xs font-medium text-gray-500">航段</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">起止码头</th>
                         <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">启航</th>
+                        <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500">上下客</th>
                         <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">到达</th>
                         <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500">距离</th>
                         <th className="w-28 px-4 py-3 text-left text-xs font-medium text-gray-500">航行时间</th>
@@ -827,6 +844,7 @@ export default function ItineraryManagementPage() {
                               {row.segment.remark && <p className="mt-1 text-xs leading-5 text-gray-500">{row.segment.remark}</p>}
                             </td>
                             <td className="px-4 py-4 text-gray-700">{row.segment.departureTime || '-'}</td>
+                            <td className="px-4 py-4 text-gray-700">{row.segment.passengerOnOff ? '是' : '否'}</td>
                             <td className="px-4 py-4 text-gray-700">{row.arrivalTime}</td>
                             <td className="px-4 py-4 text-gray-700">{row.distance ? `${row.distance.distanceKm} km` : '未维护'}</td>
                             <td className="px-4 py-4 text-gray-700">{minutesToText(row.sailingMinutes)}</td>

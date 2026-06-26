@@ -73,3 +73,21 @@ export const DEFAULT_MARKET_CATEGORY = MARKET_CATEGORY_OPTIONS[0].value
 export function getMarketCategoryLabel(value: string) {
   return MARKET_CATEGORY_OPTIONS.find((item) => item.value === value)?.label || value || '-'
 }
+
+/** 入住人国籍选项（与下单游客信息一致） */
+export const NATIONALITY_OPTIONS = [
+  '中国',
+  '日本',
+  '美国',
+  '韩国',
+  '英国',
+  '法国',
+  '德国',
+  '澳大利亚',
+  '加拿大',
+  '新加坡',
+  '马来西亚',
+  '泰国',
+  '俄罗斯',
+  '阿富汗',
+] as const

@@ -394,7 +394,6 @@ export default function RoutePage() {
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">停靠码头</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-28">预计航行时间</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-28">上段航距(nmi)</th>
-                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 w-16">上下客</th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 w-16">操作</th>
                   </tr>
                 </thead>
@@ -460,14 +459,6 @@ export default function RoutePage() {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={stop.embarkDisembark}
-                            onChange={(e) => updateStop(stop.key, 'embarkDisembark', e.target.checked)}
-                            className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
                           {!isEnd && (
                             <button onClick={() => addStop()} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="增加">
                               <Plus className="w-4 h-4" />
@@ -525,7 +516,6 @@ export default function RoutePage() {
                     <th className="pb-2 font-medium">第N天</th>
                     <th className="pb-2 font-medium">预计航行时间</th>
                     <th className="pb-2 font-medium">航距(nmi)</th>
-                    <th className="pb-2 font-medium">上下客</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -535,7 +525,6 @@ export default function RoutePage() {
                       <td className="py-1.5">{s.type === 'start' ? '起航' : `第${s.day}天`}</td>
                       <td className="py-1.5">{s.sailTime || '-'}</td>
                       <td className="py-1.5 font-mono">{s.distance}</td>
-                      <td className="py-1.5">{s.embarkDisembark ? '是' : '否'}</td>
                     </tr>
                   ))}
                 </tbody>

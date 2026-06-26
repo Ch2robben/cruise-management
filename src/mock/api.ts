@@ -58,7 +58,7 @@ export function createCrudApi<T extends { id: string; status: string }>(
       }
 
       // 码头距离库起终点筛选
-      for (const key of ['fromPortId', 'toPortId', 'waterway'] as const) {
+      for (const key of ['fromPortId', 'toPortId', 'direction'] as const) {
         if (params[key] && params[key] !== 'all') {
           const itemVal = (item as Record<string, unknown>)[key]
           if (itemVal !== params[key]) return false
@@ -225,7 +225,7 @@ export const portApi = createCrudApi<Port>(ports, {
 })
 
 export const portDistanceApi = createCrudApi<PortDistance>(portDistances, {
-  searchFields: ['fromPortName', 'toPortName', 'waterway', 'remark'],
+  searchFields: ['fromPortName', 'toPortName', 'remark'],
 })
 
 export const attractionApi = createCrudApi<Attraction>(attractions, {
@@ -986,5 +986,54 @@ export const reportApi = {
     if (params.dateFrom && typeof params.dateFrom === 'string') { const dateFrom = params.dateFrom; filtered = filtered.filter((item) => item.dateLabel >= dateFrom) }
     if (params.dateTo && typeof params.dateTo === 'string') { const dateTo = params.dateTo; filtered = filtered.filter((item) => item.dateLabel <= dateTo) }
     return paginate(filtered, params, 12)
+  },
+}
+
+export const supplementaryPaymentApi = {
+  async listByOrderId(orderId: string) {
+    await delay(200)
+    const { getSupplementaryPaymentsByOrderId } = await import('@/mock/supplementaryPayment')
+    return getSupplementaryPaymentsByOrderId(orderId)
+  },
+
+  async list(params: SearchParams = {}) {
+    await delay(300)
+    const { getSupplementaryPayments } = await import('@/mock/supplementaryPayment')
+    let items = [...getSupplementaryPayments()]
+    if (params.keyword && typeof params.keyword === 'string' && params.keyword.trim()) {
+      const kw = params.keyword.toLowerCase()
+      items = items.filter(
+        (item) =>
+          item.paymentNo.toLowerCase().includes(kw)
+          || item.orderNo.toLowerCase().includes(kw)
+          || item.dealer.toLowerCase().includes(kw)
+          || item.groupName.toLowerCase().includes(kw),
+      )
+    }
+    if (params.status && params.status !== 'all') {
+      items = items.filter((item) => item.status === params.status)
+    }
+    return paginate(items, params, 10)
+  },
+
+  async create(
+    order: import('@/components/order/orderTypes').CruiseOrder,
+    form: import('@/components/order/orderTypes').CreateSupplementaryPaymentForm,
+  ) {
+    await delay(300)
+    const { createSupplementaryPayment } = await import('@/mock/supplementaryPayment')
+    return createSupplementaryPayment(order, form)
+  },
+
+  async confirm(paymentId: string, payload: { receipt: string; arrivalTime: string }) {
+    await delay(300)
+    const { confirmSupplementaryPayment } = await import('@/mock/supplementaryPayment')
+    return confirmSupplementaryPayment(paymentId, payload)
+  },
+
+  async cancel(paymentId: string) {
+    await delay(200)
+    const { cancelSupplementaryPayment } = await import('@/mock/supplementaryPayment')
+    return cancelSupplementaryPayment(paymentId)
   },
 }

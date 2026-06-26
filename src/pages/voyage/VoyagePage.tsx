@@ -238,11 +238,10 @@ export default function VoyagePage() {
     )},
     { key: 'updatedBy', title: '修改人', render: (r: Voyage) => (r as any).updatedBy || '-' },
     { key: 'updatedAt', title: '修改时间', render: (r: Voyage) => (r as any).updatedAt ? formatDateTime((r as any).updatedAt) : '-' },
-    { key: 'actions', title: '操作', width: '290px', render: (r: Voyage) => (
+    { key: 'actions', title: '操作', width: '220px', render: (r: Voyage) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openItinerary(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">行程</button>
-        <button onClick={() => navigate(`/voyage/pricing?id=${r.id}`)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">定价</button>
         <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
       </div>
     )},
@@ -275,10 +274,7 @@ export default function VoyagePage() {
       <div className="bg-white px-9 py-6">
         <div className="flex items-center gap-3">
           {selected.size > 0 && (
-            <>
-              <button onClick={() => setBatchOpen(true)} className="inline-flex h-11 items-center rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">设置状态（{selected.size}）</button>
-              <button onClick={() => setListBatchPriceOpen(true)} className="inline-flex h-11 items-center rounded-md border border-blue-600 bg-white px-6 text-base font-medium text-blue-600 transition hover:bg-blue-50">批量定价（{selected.size}）</button>
-            </>
+            <button onClick={() => setBatchOpen(true)} className="inline-flex h-11 items-center rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">设置状态（{selected.size}）</button>
           )}
           <button onClick={() => { setGenProductId(''); setGenTemplateId(''); setGenStartDate(''); setGenEndDate(''); setGenConflict([]); setGenOpen(true) }} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"><Plus className="w-4 h-4" />添加</button>
           <button onClick={() => openVoyageDoc('boarding')} className="inline-flex h-11 items-center rounded-md border border-gray-300 bg-white px-6 text-base text-gray-700 transition hover:bg-gray-50">乘船通知书</button>

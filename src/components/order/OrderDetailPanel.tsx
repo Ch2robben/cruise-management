@@ -1,19 +1,22 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, useEffect, type ReactNode } from 'react'
 import { formatCurrency } from '@/utils/format'
 import {
+  buildOrderFeeItems,
   buildOrderResources,
   buildOrderRoomLines,
-  buildOrderTeams,
   buildOrderTransactions,
-  buildOrderVersions,
   enrichOrder,
-  formatGroupNameSummary,
   summarizeRoomLines,
   type CruiseOrder,
   type OrderRoomLine,
   type OrderStatus,
-  type OrderVersion,
+  type SupplementaryPaymentOrder,
 } from './orderTypes'
+import GroupNameDisplay from './GroupNameDisplay'
+import RoomFulfillmentDisplay from './RoomFulfillmentDisplay'
+import SupplementaryPaymentSection from './SupplementaryPaymentSection'
+import { supplementaryPaymentApi } from '@/mock/api'
+import { getRoomFulfillment } from './orderTypes'
 
 /** 对应订单结构文档五类子单，Tab 名称面向业务人员 */
 const DETAIL_TABS = [
@@ -82,6 +85,9 @@ function RoomLinesPriceTable({ order }: { order: CruiseOrder }) {
           <div key={line.id} className="overflow-hidden rounded-lg border border-gray-200">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm">
               <span className="font-medium text-gray-800">
+                {line.teamName && (
+                  <span className="mr-2 inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">{line.teamName}</span>
+                )}
                 房间 {line.roomSeq} · {line.roomType} · {line.occupancyMode}
               </span>
               <span className="text-gray-500">{line.guests.length} 人 · 小计 {formatCurrency(lineSubtotal)}</span>
@@ -119,19 +125,25 @@ function RoomLinesPriceTable({ order }: { order: CruiseOrder }) {
   )
 }
 
-function RoomGuestGroups({ lines }: { lines: OrderRoomLine[] }) {
+function RoomGuestGroups({ lines, unitPrice }: { lines: OrderRoomLine[]; unitPrice: number }) {
   return (
     <div className="space-y-4">
       {lines.map((line) => (
         <div key={line.id} className="overflow-hidden rounded-lg border border-gray-200">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm">
-            <span className="font-medium text-gray-800">
-              房间 {line.roomSeq} · {line.roomType} · {line.occupancyMode}（{line.guests.length} 人）
-            </span>
-            <div className="flex min-w-0 max-w-xl items-start gap-2 text-sm">
-              <span className="shrink-0 text-gray-500">备注</span>
-              <span className="min-w-0 break-words text-gray-700">{line.remark || '-'}</span>
+          <div className="space-y-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <span className="font-medium text-gray-800">
+                {line.teamName && (
+                  <span className="mr-2 inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">{line.teamName}</span>
+                )}
+                房间 {line.roomSeq} · {line.roomType} · {line.occupancyMode}（{line.guests.length} 人）
+              </span>
+              <div className="flex min-w-0 max-w-xl items-start gap-2 text-sm">
+                <span className="shrink-0 text-gray-500">团备注</span>
+                <span className="min-w-0 break-words text-gray-700">{line.teamRemark || '-'}</span>
+              </div>
             </div>
+            <RoomFulfillmentDisplay fulfillment={getRoomFulfillment(line, line.soldPrice ?? unitPrice)} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
@@ -165,19 +177,7 @@ function RoomGuestGroups({ lines }: { lines: OrderRoomLine[] }) {
 }
 
 function AmountTable({ order }: { order: CruiseOrder }) {
-  const rows = [
-    ['1', '定金', '-', 0, 0],
-    ['2', '船票尾款', '-', 0, order.receivableTicket],
-    ['3', '陪同款', '-', 0, 0],
-    ['4', '船票总款', '-', 0, order.receivableTicket],
-    ['5', '升舱费', '-', 0, 0],
-    ['6', '地接费', '-', 0, order.localFee],
-    ['7', '罚金', '-', 0, order.depositAmount],
-    ['8', '小费', '-', order.tipUnitPrice ?? order.smallFee, order.smallFee],
-    ['9', '组合产品', '-', 0, order.combinedProduct],
-    ['10', '其他', '-', 0, 0],
-    ['11', '结算总价', '-', 0, order.totalAmount],
-  ]
+  const feeItems = buildOrderFeeItems(order)
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[820px] text-sm">
@@ -191,48 +191,21 @@ function AmountTable({ order }: { order: CruiseOrder }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={row[0]}>
-              <td className="px-4 py-3 text-gray-700">{row[0]}</td>
-              <td className="px-4 py-3 text-gray-700">{row[1]}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row[2]}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(Number(row[3]))}</td>
-              <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(Number(row[4]))}</td>
+          {feeItems.map((item, index) => (
+            <tr key={item.id}>
+              <td className="px-4 py-3 text-gray-700">{index + 1}</td>
+              <td className="px-4 py-3 text-gray-700">{item.name}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{item.coefficient}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(item.unitPrice)}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCurrency(item.amount)}</td>
             </tr>
           ))}
+          <tr className="bg-gray-50/80">
+            <td className="px-4 py-3 text-gray-700" colSpan={4}>结算总价</td>
+            <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">{formatCurrency(order.totalAmount)}</td>
+          </tr>
         </tbody>
       </table>
-    </div>
-  )
-}
-
-function formatVersionOption(version: OrderVersion) {
-  const latestTag = version.isLatest ? '（当前）' : ''
-  return `第${version.versionNo}版 · ${version.changeType} · ${version.snapshotAt}${latestTag}`
-}
-
-function GroupNameField({ order }: { order: CruiseOrder }) {
-  const teams = useMemo(() => buildOrderTeams(order), [order])
-  const summary = formatGroupNameSummary(teams)
-
-  if (teams.length <= 1) {
-    return <span>{summary}</span>
-  }
-
-  return (
-    <div className="group relative inline-block max-w-full">
-      <span className="cursor-default border-b border-dashed border-gray-400 text-gray-900">{summary}</span>
-      <div className="invisible absolute left-0 top-full z-30 mt-1 min-w-[240px] rounded-lg border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-all duration-150 group-hover:visible group-hover:opacity-100">
-        <div className="mb-2 text-xs font-medium text-gray-500">团信息</div>
-        <ul className="space-y-2.5">
-          {teams.map((team) => (
-            <li key={team.id} className="text-sm">
-              <div className="font-medium text-gray-900">{team.name}</div>
-              <div className="mt-0.5 text-xs text-gray-500">{team.roomCount} 间房 · {team.guestCount} 人</div>
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   )
 }
@@ -250,7 +223,7 @@ function BasicTab({ order }: { order: CruiseOrder }) {
           <FieldItem label="下单渠道" value={order.orderChannel} />
           <FieldItem label="下单人" value={order.advanceAccount} />
           <FieldItem label="订单类型" value={order.orderType} />
-          <FieldItem label="团名" value={<GroupNameField order={order} />} />
+          <FieldItem label="团名" value={<GroupNameDisplay order={order} />} />
           <FieldItem label="商品ID" value={order.productId} mono />
           <FieldItem label="总单号" value={order.parentOrderNo} mono />
           <FieldItem label="第三方订单号" value={order.thirdPartyOrderNo || '-'} mono />
@@ -295,8 +268,34 @@ function BasicTab({ order }: { order: CruiseOrder }) {
   )
 }
 
-function PaymentTab({ order }: { order: CruiseOrder }) {
-  const transactions = buildOrderTransactions(order)
+function PaymentTab({
+  order,
+  onOrderChange,
+  createOpen,
+  onCreateOpenChange,
+}: {
+  order: CruiseOrder
+  onOrderChange?: (order: CruiseOrder) => void
+  createOpen?: boolean
+  onCreateOpenChange?: (open: boolean) => void
+}) {
+  const [supplementaryPayments, setSupplementaryPayments] = useState<SupplementaryPaymentOrder[]>([])
+
+  useEffect(() => {
+    supplementaryPaymentApi.listByOrderId(order.id).then(setSupplementaryPayments)
+  }, [order.id, order.paidAmount, order.arrears])
+
+  const transactions = buildOrderTransactions(order, supplementaryPayments)
+
+  const refreshPayments = () => {
+    supplementaryPaymentApi.listByOrderId(order.id).then(setSupplementaryPayments)
+  }
+
+  const handleOrderChange = (updated: CruiseOrder) => {
+    onOrderChange?.(updated)
+    refreshPayments()
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -333,6 +332,13 @@ function PaymentTab({ order }: { order: CruiseOrder }) {
           </table>
         </div>
       </DetailSection>
+
+      <SupplementaryPaymentSection
+        order={order}
+        onOrderChange={handleOrderChange}
+        createOpen={createOpen}
+        onCreateOpenChange={onCreateOpenChange}
+      />
 
       <DetailSection title="定金与船款节点">
         <FieldGrid columns={3}>
@@ -451,7 +457,7 @@ function TravelerTab({ order }: { order: CruiseOrder }) {
         {roomLines.length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-400">暂无入住人信息</p>
         ) : (
-          <RoomGuestGroups lines={roomLines} />
+          <RoomGuestGroups lines={roomLines} unitPrice={order.unitPrice} />
         )}
       </DetailSection>
 
@@ -487,36 +493,44 @@ function FeeTab({ order }: { order: CruiseOrder }) {
   )
 }
 
-export default function OrderDetailPanel({ order }: { order: CruiseOrder }) {
+export default function OrderDetailPanel({
+  order,
+  onOrderChange,
+}: {
+  order: CruiseOrder
+  onOrderChange?: (order: CruiseOrder) => void
+}) {
   const [activeTab, setActiveTab] = useState<DetailTabId>('basic')
-  const versions = useMemo(() => buildOrderVersions(order), [order])
-  const [selectedVersionId, setSelectedVersionId] = useState(() => versions[0]?.id ?? '')
-  const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? versions[0]
-  const displayOrder = enrichOrder(selectedVersion?.snapshot ?? order)
+  const [createPaymentOpen, setCreatePaymentOpen] = useState(false)
+  const displayOrder = enrichOrder(order)
+  const canCreatePayment = displayOrder.orderStatus !== '取消' && displayOrder.orderStatus !== '已完成'
+
+  const handleOpenCreatePayment = () => {
+    setActiveTab('payment')
+    setCreatePaymentOpen(true)
+  }
 
   return (
     <div className="border border-gray-200 bg-white px-9 py-6">
       <div className="mb-4 text-sm text-blue-600">订单管理 / 订单详情</div>
 
-      <label className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="text-sm text-gray-600">变更快照</span>
-        <select
-          value={selectedVersion?.id ?? ''}
-          onChange={(event) => setSelectedVersionId(event.target.value)}
-          className="h-10 min-w-[280px] max-w-2xl flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-500"
-        >
-          {versions.map((version) => (
-            <option key={version.id} value={version.id}>
-              {formatVersionOption(version)}
-            </option>
-          ))}
-        </select>
-        {selectedVersion && !selectedVersion.isLatest && (
-          <span className="text-xs text-amber-600">正在查看历史版本</span>
-        )}
-      </label>
-
       <DetailSection title="订单概览" className="mb-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-500">订单号 <span className="font-mono font-medium text-gray-900">{displayOrder.orderNo}</span></p>
+          {canCreatePayment ? (
+            <button
+              type="button"
+              onClick={handleOpenCreatePayment}
+              className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              生成补款单
+            </button>
+          ) : (
+            <span className="rounded-md bg-gray-100 px-3 py-1.5 text-xs text-gray-500">
+              {displayOrder.orderStatus === '取消' ? '已取消，不可补款' : '已完成，不可补款'}
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
           <MetricItem label="订单状态" value={<OrderStatusPill status={displayOrder.orderStatus} />} />
           <MetricItem label="订单总额" value={formatCurrency(displayOrder.totalAmount)} highlight />
@@ -550,7 +564,14 @@ export default function OrderDetailPanel({ order }: { order: CruiseOrder }) {
       </div>
 
       {activeTab === 'basic' && <BasicTab order={displayOrder} />}
-      {activeTab === 'payment' && <PaymentTab order={displayOrder} />}
+      {activeTab === 'payment' && (
+        <PaymentTab
+          order={displayOrder}
+          onOrderChange={onOrderChange}
+          createOpen={createPaymentOpen}
+          onCreateOpenChange={setCreatePaymentOpen}
+        />
+      )}
       {activeTab === 'voyage' && <VoyageTab order={displayOrder} />}
       {activeTab === 'traveler' && <TravelerTab order={displayOrder} />}
       {activeTab === 'fee' && <FeeTab order={displayOrder} />}

@@ -2,7 +2,14 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronLeft, RotateCcw, Search } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import OrderDetailPanel from '@/components/order/OrderDetailPanel'
-import { type CruiseOrder, type OrderStatus } from '@/components/order/orderTypes'
+import OrderEditDialog, { orderToEditForm, type OrderEditForm } from '@/components/order/OrderEditDialog'
+import OrderPriceChangeDialog, { type OrderPriceChangeForm } from '@/components/order/OrderPriceChangeDialog'
+import { buildPriceChangeLogs, diffEditFormChanges, appendOrderLogFromOrder, ORDER_LOG_OPERATOR } from '@/components/order/orderLogUtils'
+import GroupNameDisplay from '@/components/order/GroupNameDisplay'
+import OrderHistoryPanel from '@/components/order/OrderHistoryPanel'
+import { matchOrderGroupName, syncOrderFromFeeItems, type CruiseOrder, type OrderStatus } from '@/components/order/orderTypes'
+import { getOrders, updateOrder } from '@/mock/orderStore'
+import { appendOrderLog, nowLogTime } from '@/mock/orderLogStore'
 import { formatCurrency } from '@/utils/format'
 
 const statusColor: Record<OrderStatus, string> = {
@@ -11,281 +18,6 @@ const statusColor: Record<OrderStatus, string> = {
   已预订: 'bg-green-100 text-green-700',
   已完成: 'bg-gray-100 text-gray-600',
 }
-
-const orders: CruiseOrder[] = [
-  {
-    id: '1',
-    index: 1,
-    history: '历史',
-    orderNo: '0000000H',
-    groupName: 'ycwd20211007x',
-    voyageNo: '212101',
-    orderStatus: '取消',
-    route: '渝宜',
-    ship: '长江壹号',
-    sailDate: '2021-09-30',
-    marketCategory: '内宾-巫山县',
-    nationality: '中国',
-    totalPeople: 1,
-    adult: 1,
-    child: 0,
-    infant: 0,
-    companion: 0,
-    unitPrice: 2300,
-    receivableTicket: 2300,
-    smallFee: 0,
-    localFee: 0,
-    combinedProduct: 0,
-    totalAmount: 2300,
-    paidAmount: 0,
-    arrears: 2300,
-    depositAmount: 0,
-    ticketBalance: 0,
-    dealer: '宜昌趸多',
-    remark: '客户要求靠窗床位，开航前需电话确认名单。',
-    depositDate: '',
-    parentOrderNo: 'S0000000H',
-    thirdPartyOrderNo: '',
-    sailDeadline: '2021-09-27',
-    bookingTime: '2021-10-08 17:41',
-    lockValidUntil: '',
-    voucherApplyStatus: '未申请凭证',
-    voucherApprovalStatus: '待审核',
-    shareCenterStatus: '暂存',
-    pushTime: '',
-    invoiceRequired: '否',
-    miniProgramChannel: '',
-    advanceAccount: '邓浪',
-    relatedOrderNo: '',
-    salesPerson: '彭辉',
-    voyageDays: 4,
-    departurePort: '重庆',
-    arrivalPort: '宜昌',
-    transitPort: '丰都-巫山',
-    supplier: '重庆长江轮船有限公司',
-    policyName: '内宾共享',
-    line: '渝宜',
-    voyageStatus: '开放',
-    salesType: '散客',
-    orderType: '普通订单',
-    amountType: '船票款',
-    roomType: '标准间',
-    ageGroup: '成人',
-    occupancyType: '正常',
-    priceCoefficient: 1,
-    contactName: '邓浪',
-    contactPhone: '13871222817',
-    fixedPhone: '',
-    fax: '',
-    email: '',
-    leaveMessage: '是',
-  },
-  {
-    id: '2',
-    index: 2,
-    history: '历史',
-    orderNo: '0000000C',
-    groupName: '补单2人',
-    voyageNo: '211901',
-    orderStatus: '取消',
-    route: '渝宜',
-    ship: '长江叁号',
-    sailDate: '2021-10-02',
-    marketCategory: '内宾-奉节县',
-    nationality: '中国',
-    totalPeople: 2,
-    adult: 2,
-    child: 0,
-    infant: 0,
-    companion: 0,
-    unitPrice: 2300,
-    receivableTicket: 4600,
-    smallFee: 0,
-    localFee: 0,
-    combinedProduct: 0,
-    totalAmount: 4600,
-    paidAmount: 0,
-    arrears: 4600,
-    depositAmount: 0,
-    ticketBalance: 0,
-    dealer: '宜昌趸多',
-    remark: '',
-    depositDate: '',
-    parentOrderNo: 'S0000000C',
-    thirdPartyOrderNo: '',
-    sailDeadline: '2021-09-29',
-    bookingTime: '2021-10-08 16:01',
-    lockValidUntil: '',
-    voucherApplyStatus: '未申请凭证',
-    voucherApprovalStatus: '待审核',
-    shareCenterStatus: '暂存',
-    pushTime: '',
-    invoiceRequired: '否',
-    miniProgramChannel: '',
-    advanceAccount: '彭彬',
-    relatedOrderNo: '',
-    salesPerson: '彭辉',
-    voyageDays: 4,
-    departurePort: '重庆',
-    arrivalPort: '宜昌',
-    transitPort: '丰都-巫山',
-    supplier: '重庆长江轮船有限公司',
-    policyName: '内宾共享',
-    line: '渝宜',
-    voyageStatus: '开放',
-    salesType: '补单',
-    orderType: '普通订单',
-    amountType: '船票款',
-    roomType: '标准间',
-    ageGroup: '成人',
-    occupancyType: '正常',
-    priceCoefficient: 1,
-    contactName: '彭彬',
-    contactPhone: '13800001111',
-    fixedPhone: '',
-    fax: '',
-    email: 'demo@example.com',
-    leaveMessage: '否',
-  },
-  {
-    id: '3',
-    index: 3,
-    history: '历史',
-    orderNo: '0000003K',
-    groupName: '销售二分部1003S16入住行政房1',
-    voyageNo: '212102',
-    orderStatus: '取消',
-    route: '宜渝',
-    ship: '长江贰号',
-    sailDate: '2021-10-03',
-    marketCategory: '外宾-日本',
-    nationality: '阿富汗',
-    totalPeople: 16,
-    adult: 16,
-    child: 0,
-    infant: 0,
-    companion: 1,
-    unitPrice: 2204.16,
-    receivableTicket: 52900,
-    smallFee: 0,
-    localFee: 0,
-    combinedProduct: 0,
-    totalAmount: 52900,
-    paidAmount: 0,
-    arrears: 52900,
-    depositAmount: 100,
-    ticketBalance: 100,
-    dealer: '销售二分部',
-    remark: '',
-    depositDate: '',
-    parentOrderNo: 'S000003K',
-    thirdPartyOrderNo: '',
-    sailDeadline: '2021-09-12',
-    bookingTime: '2021-11-08 15:55',
-    lockValidUntil: '',
-    voucherApplyStatus: '单证凭证失败',
-    voucherApprovalStatus: '审批完成',
-    shareCenterStatus: '暂存',
-    pushTime: '2022-03-18 10:29',
-    invoiceRequired: '否',
-    miniProgramChannel: '',
-    advanceAccount: '章莹',
-    relatedOrderNo: '',
-    salesPerson: '彭辉',
-    voyageDays: 4,
-    departurePort: '宜昌',
-    arrivalPort: '重庆',
-    transitPort: '奉节-丰都',
-    supplier: '重庆长江轮船有限公司',
-    policyName: '外宾协议',
-    line: '宜渝',
-    voyageStatus: '开放',
-    salesType: '团队',
-    orderType: '普通订单',
-    amountType: '船票款',
-    roomType: '行政房',
-    ageGroup: '成人',
-    occupancyType: '正常',
-    priceCoefficient: 1,
-    contactName: '章莹',
-    contactPhone: '13900002222',
-    fixedPhone: '',
-    fax: '',
-    email: '',
-    leaveMessage: '是',
-  },
-  {
-    id: '4',
-    index: 4,
-    history: '历史',
-    orderNo: '00000001',
-    groupName: '重庆云阳一团',
-    teams: [
-      { id: 'team-1', name: '重庆云阳一团', roomCount: 3, guestCount: 6 },
-      { id: 'team-2', name: '神州散客团', roomCount: 2, guestCount: 4 },
-    ],
-    voyageNo: '212103',
-    orderStatus: '取消',
-    route: '长航渝宜',
-    ship: '长江凯号',
-    sailDate: '2021-10-07',
-    marketCategory: '内宾-云阳县',
-    nationality: '中国',
-    totalPeople: 10,
-    adult: 10,
-    child: 0,
-    infant: 0,
-    companion: 0,
-    unitPrice: 2050,
-    receivableTicket: 19885,
-    smallFee: 0,
-    localFee: 0,
-    combinedProduct: 0,
-    totalAmount: 19885,
-    paidAmount: 0,
-    arrears: 19885,
-    depositAmount: 0,
-    ticketBalance: 0,
-    dealer: '重庆神州',
-    remark: '',
-    depositDate: '2021-10-02',
-    parentOrderNo: 'S00000001',
-    thirdPartyOrderNo: '',
-    sailDeadline: '2021-10-04',
-    bookingTime: '2021-09-29 14:48',
-    lockValidUntil: '',
-    voucherApplyStatus: '未申请凭证',
-    voucherApprovalStatus: '待审核',
-    shareCenterStatus: '暂存',
-    pushTime: '',
-    invoiceRequired: '否',
-    miniProgramChannel: '',
-    advanceAccount: 'CHW38000C',
-    relatedOrderNo: '',
-    salesPerson: '栾伶伶',
-    voyageDays: 4,
-    departurePort: '重庆',
-    arrivalPort: '宜昌',
-    transitPort: '丰都-巫山',
-    supplier: '重庆长江轮船有限公司',
-    policyName: '内宾团队价',
-    line: '长航渝宜',
-    voyageStatus: '开放',
-    salesType: '团队',
-    orderType: '普通订单',
-    amountType: '船票款',
-    roomType: '标准间',
-    ageGroup: '成人',
-    occupancyType: '正常',
-    priceCoefficient: 1,
-    contactName: '张经理',
-    contactPhone: '13600003333',
-    fixedPhone: '023-88888888',
-    fax: '',
-    email: '',
-    leaveMessage: '否',
-  },
-]
 
 const filterFields = [
   { key: 'keyword', label: '总单号/订单号', type: 'input', placeholder: '请输入' },
@@ -324,9 +56,9 @@ const advancedFilterFields = filterFields.filter((field) => !primaryFilterKeys.i
 
 const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: string; render?: (record: CruiseOrder) => ReactNode }[] = [
   { key: 'index', title: '序号', width: '58px' },
-  { key: 'history', title: '历史', width: '70px', render: (record) => <span className="text-blue-600 underline">{record.history}</span> },
+  { key: 'history', title: '历史', width: '70px' },
   { key: 'orderNo', title: '订单号', width: '110px' },
-  { key: 'groupName', title: '团名', width: '160px' },
+  { key: 'groupName', title: '团名', width: '160px', render: (record) => <GroupNameDisplay order={record} compact placement="above" /> },
   { key: 'voyageNo', title: '航次', width: '88px' },
   { key: 'orderStatus', title: '订单状态', width: '96px', render: (record) => <span className={`rounded px-2 py-1 text-xs ${statusColor[record.orderStatus]}`}>{record.orderStatus}</span> },
   { key: 'route', title: '线路', width: '90px' },
@@ -365,7 +97,7 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'advanceAccount', title: '预定账号', width: '120px' },
   { key: 'relatedOrderNo', title: '关联单号', width: '120px' },
   { key: 'salesPerson', title: '分管业务员', width: '110px' },
-  { key: 'actions', title: '操作', width: '110px' },
+  { key: 'actions', title: '操作', width: '280px' },
 ]
 
 const amountColumnKeys = new Set<keyof CruiseOrder>([
@@ -408,15 +140,16 @@ function formatOrderCellValue(order: CruiseOrder, key: keyof CruiseOrder) {
   return value === '' || value == null ? '-' : String(value)
 }
 
-function renderHeaderTitle(title: string) {
-  if (title === '序号') {
-    return (
-      <>
-        序<br />号
-      </>
-    )
-  }
-  return title
+function getColumnAlign(key: keyof CruiseOrder | 'actions' | 'checkbox') {
+  if (key === 'checkbox' || key === 'index' || key === 'actions') return 'center'
+  if (numericColumnKeys.has(key as keyof CruiseOrder)) return 'right'
+  return 'left'
+}
+
+function headerAlignClass(align: 'left' | 'center' | 'right') {
+  if (align === 'center') return 'text-center'
+  if (align === 'right') return 'text-right'
+  return 'text-left'
 }
 
 function FilterControl({ field, value, onChange }: { field: (typeof filterFields)[number]; value: string; onChange: (key: string, value: string) => void }) {
@@ -434,11 +167,25 @@ function FilterControl({ field, value, onChange }: { field: (typeof filterFields
   )
 }
 
+function canModifyOrder(order: CruiseOrder) {
+  return order.orderStatus !== '取消' && order.orderStatus !== '已完成'
+}
+
 export default function OrderListPage() {
+  const [orders, setOrders] = useState(() => getOrders())
   const [filters, setFilters] = useState<Record<string, string>>(createEmptyFilters)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [page, setPage] = useState(1)
-  const [detail, setDetail] = useState<CruiseOrder | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<CruiseOrder | null>(null)
+  const [priceTarget, setPriceTarget] = useState<CruiseOrder | null>(null)
+  const [logTarget, setLogTarget] = useState<CruiseOrder | null>(null)
+  const [dialogLoading, setDialogLoading] = useState(false)
+
+  const detail = useMemo(
+    () => (detailId ? orders.find((order) => order.id === detailId) ?? null : null),
+    [detailId, orders],
+  )
 
   const filteredOrders = useMemo(() => {
     const keyword = filters.keyword?.trim().toLowerCase()
@@ -447,7 +194,7 @@ export default function OrderListPage() {
       const matchedStatus = !filters.orderStatus || filters.orderStatus === '全部' || order.orderStatus === filters.orderStatus
       const matchedMarket = !filters.marketCategory || filters.marketCategory === '全部' || order.marketCategory === filters.marketCategory
       const matchedVoyage = !filters.voyageNo || order.voyageNo.includes(filters.voyageNo)
-      const matchedGroup = !filters.groupName || order.groupName.includes(filters.groupName)
+      const matchedGroup = matchOrderGroupName(order, filters.groupName?.trim() || '')
       return matchedKeyword && matchedStatus && matchedMarket && matchedVoyage && matchedGroup
     })
   }, [filters])
@@ -462,16 +209,91 @@ export default function OrderListPage() {
     setPage(1)
   }
 
-  if (detail) {
+  const refreshOrders = () => setOrders(getOrders())
+
+  const handleEditSubmit = async (form: OrderEditForm) => {
+    if (!editTarget) return
+    setDialogLoading(true)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const changes = diffEditFormChanges(orderToEditForm(editTarget), form)
+    updateOrder(editTarget.id, form)
+    if (changes.length > 0) {
+      const updated = getOrders().find((item) => item.id === editTarget.id) ?? editTarget
+      appendOrderLog(appendOrderLogFromOrder(updated, {
+        action: '编辑订单',
+        operator: ORDER_LOG_OPERATOR,
+        operatedAt: nowLogTime(),
+        changes,
+      }))
+    }
+    refreshOrders()
+    setDialogLoading(false)
+    setEditTarget(null)
+    window.alert(`订单 ${editTarget.orderNo} 已保存`)
+  }
+
+  const handlePriceSubmit = async (form: OrderPriceChangeForm) => {
+    if (!priceTarget) return
+    setDialogLoading(true)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const changes = buildPriceChangeLogs(priceTarget, form)
+    const patch = syncOrderFromFeeItems(priceTarget, form.feeItems, {
+      unitPrice: form.unitPrice,
+      reason: form.reason,
+    })
+    updateOrder(priceTarget.id, patch)
+    if (changes.length > 0) {
+      const saved = getOrders().find((item) => item.id === priceTarget.id) ?? { ...priceTarget, ...patch }
+      appendOrderLog(appendOrderLogFromOrder(saved, {
+        action: '改价',
+        operator: ORDER_LOG_OPERATOR,
+        operatedAt: nowLogTime(),
+        changes,
+      }))
+    }
+    refreshOrders()
+    setDialogLoading(false)
+    const diff = form.totalAmount - priceTarget.totalAmount
+    setPriceTarget(null)
+    if (diff > 0) {
+      window.alert(`改价完成。订单总额增加 ${formatCurrency(diff)}，请视情况生成补款单。`)
+    } else if (diff < 0) {
+      window.alert(`改价完成。订单总额减少 ${formatCurrency(Math.abs(diff))}，如有多收请走退款流程。`)
+    } else {
+      window.alert('改价完成。')
+    }
+  }
+
+  if (logTarget) {
     return (
       <div className="space-y-5">
-        <PageHeader title="订单详情">
-          <button onClick={() => setDetail(null)} className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-base text-gray-600 transition hover:bg-gray-50">
+        <PageHeader title="订单历史">
+          <button onClick={() => setLogTarget(null)} className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-base text-gray-600 transition hover:bg-gray-50">
             <ChevronLeft className="h-4 w-4" />
             返回列表
           </button>
         </PageHeader>
-        <OrderDetailPanel order={detail} />
+        <OrderHistoryPanel order={logTarget} />
+      </div>
+    )
+  }
+
+  if (detail) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="订单详情">
+          <button onClick={() => setDetailId(null)} className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-base text-gray-600 transition hover:bg-gray-50">
+            <ChevronLeft className="h-4 w-4" />
+            返回列表
+          </button>
+        </PageHeader>
+        <OrderDetailPanel
+          order={detail}
+          onOrderChange={(updated) => {
+            updateOrder(updated.id, updated)
+            setOrders(getOrders())
+          }}
+        />
       </div>
     )
   }
@@ -527,31 +349,72 @@ export default function OrderListPage() {
           <table className="min-w-[4200px] border-collapse text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="h-[72px] w-10 border-b border-r border-gray-200 bg-gray-50 px-3 text-center align-middle"><input type="checkbox" /></th>
-                {tableColumns.map((column) => (
-                  <th
-                    key={column.key}
-                    style={{ width: column.width }}
-                    className="h-[72px] border-b border-r border-gray-200 bg-gray-50 px-4 text-center align-middle text-[18px] font-semibold leading-[1.15] text-gray-900 last:border-r-0"
-                  >
-                    <span className="inline-block whitespace-normal">{renderHeaderTitle(column.title)}</span>
-                  </th>
-                ))}
+                <th className="sticky top-0 z-10 w-10 border-b border-r border-gray-200 bg-gray-50 px-3 py-3 text-center align-middle">
+                  <input type="checkbox" className="rounded border-gray-300" />
+                </th>
+                {tableColumns.map((column) => {
+                  const align = getColumnAlign(column.key)
+                  return (
+                    <th
+                      key={column.key}
+                      style={{ width: column.width, minWidth: column.width }}
+                      className={`sticky top-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-3 py-3 align-middle text-xs font-medium text-gray-500 last:border-r-0 ${headerAlignClass(align)}`}
+                    >
+                      <span className="whitespace-nowrap">{column.title}</span>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
               {pagedOrders.map((order) => (
                 <tr key={order.id} className="transition hover:bg-gray-50">
-                  <td className="border-b border-r border-gray-200 px-4 py-5 text-center"><input type="checkbox" /></td>
-                  {tableColumns.map((column) => (
+                  <td className="border-b border-r border-gray-200 px-3 py-3 text-center align-middle">
+                    <input type="checkbox" className="rounded border-gray-300" />
+                  </td>
+                  {tableColumns.map((column) => {
+                    const align = getColumnAlign(column.key)
+                    return (
                     <td
                       key={column.key}
-                      className={`whitespace-nowrap border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700 last:border-r-0 ${numericColumnKeys.has(column.key as keyof CruiseOrder) ? 'text-right tabular-nums' : ''}`}
+                      className={`border-b border-r border-gray-200 px-3 py-3 text-sm text-gray-700 last:border-r-0 ${column.key === 'groupName' ? 'whitespace-normal' : 'whitespace-nowrap'} ${headerAlignClass(align)} ${numericColumnKeys.has(column.key as keyof CruiseOrder) ? 'tabular-nums' : ''}`}
                     >
                       {column.key === 'actions' ? (
-                        <button onClick={() => setDetail(order)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
+                        <div className="flex flex-wrap items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailId(order.id)}
+                            className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                          >
+                            详情
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canModifyOrder(order)}
+                            onClick={() => setEditTarget(order)}
+                            className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-300"
+                          >
+                            编辑订单
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canModifyOrder(order)}
+                            onClick={() => setPriceTarget(order)}
+                            className="rounded px-2 py-1 text-xs text-orange-600 hover:bg-orange-50 disabled:cursor-not-allowed disabled:text-gray-300"
+                          >
+                            改价
+                          </button>
+                        </div>
+                      ) : column.key === 'history' ? (
+                        <button
+                          type="button"
+                          onClick={() => setLogTarget(order)}
+                          className="text-blue-600 underline hover:text-blue-800"
+                        >
+                          {order.history}
+                        </button>
                       ) : column.key === 'orderNo' ? (
-                        <button onClick={() => setDetail(order)} className="font-mono text-blue-700 underline underline-offset-2 hover:text-blue-900">
+                        <button onClick={() => setDetailId(order.id)} className="font-mono text-blue-700 underline underline-offset-2 hover:text-blue-900">
                           {order.orderNo}
                         </button>
                       ) : column.render ? (
@@ -560,7 +423,8 @@ export default function OrderListPage() {
                         formatOrderCellValue(order, column.key)
                       )}
                     </td>
-                  ))}
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -576,6 +440,22 @@ export default function OrderListPage() {
           </div>
         </div>
       </div>
+
+      <OrderEditDialog
+        open={!!editTarget}
+        order={editTarget}
+        loading={dialogLoading}
+        onCancel={() => setEditTarget(null)}
+        onSubmit={handleEditSubmit}
+      />
+
+      <OrderPriceChangeDialog
+        open={!!priceTarget}
+        order={priceTarget}
+        loading={dialogLoading}
+        onCancel={() => setPriceTarget(null)}
+        onSubmit={handlePriceSubmit}
+      />
     </div>
   )
 }

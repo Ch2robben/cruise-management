@@ -28,12 +28,12 @@ type ProductForm = {
   description: string
 }
 
-type ProductTicketIdentity = 'tourist' | 'resident'
 type ProductTicketStatus = 'published' | 'offline'
 
+const roomTypeOptions = ['标准间', '套房', '阳台房', '海景房', '内舱房', '豪华套房', '总统套房']
+
 interface ProductTicketConfig {
-  ticketIds: string[]
-  identity: ProductTicketIdentity
+  roomTickets: Record<string, string[]>
   orderRule: string
   refundRule: string
   status: ProductTicketStatus
@@ -49,13 +49,48 @@ const refundRuleOptions = ['默认退改规则', '标准退改', '严格退改',
 
 function createDefaultTicketConfig(): ProductTicketConfig {
   const defaultNames = ['成人+不拼房', '儿童+不拼房', '成人+不拼房+学生']
+  const defaultTickets = tickets.filter((ticket) => defaultNames.includes(ticket.name))
   return {
-    ticketIds: tickets.filter(ticket => defaultNames.includes(ticket.name)).map(ticket => ticket.id),
-    identity: 'tourist',
+    roomTickets: { 标准间: defaultTickets.map((ticket) => ticket.id) },
     orderRule: '默认下单规则',
     refundRule: '默认退改规则',
     status: 'offline',
   }
+}
+
+function migrateTicketConfig(
+  config: Partial<ProductTicketConfig> & { ticketIds?: string[]; ticketRoomTypes?: Record<string, string> },
+): ProductTicketConfig {
+  if (config.roomTickets) {
+    return {
+      roomTickets: config.roomTickets,
+      orderRule: config.orderRule || '默认下单规则',
+      refundRule: config.refundRule || '默认退改规则',
+      status: config.status || 'offline',
+    }
+  }
+
+  const roomTickets: Record<string, string[]> = {}
+  const ticketIds = config.ticketIds || []
+  const ticketRoomTypes = config.ticketRoomTypes || {}
+  ticketIds.forEach((ticketId) => {
+    const roomType = ticketRoomTypes[ticketId] || '标准间'
+    if (!roomTickets[roomType]) roomTickets[roomType] = []
+    roomTickets[roomType].push(ticketId)
+  })
+
+  return {
+    roomTickets,
+    orderRule: config.orderRule || '默认下单规则',
+    refundRule: config.refundRule || '默认退改规则',
+    status: config.status || 'offline',
+  }
+}
+
+function flattenRoomTickets(roomTickets: Record<string, string[]>) {
+  return roomTypeOptions.flatMap((roomType) =>
+    (roomTickets[roomType] || []).map((ticketId) => ({ roomType, ticketId })),
+  )
 }
 
 // ========== 工具函数 ==========
@@ -141,7 +176,7 @@ export default function ProductPage() {
   // 票类管理
   const [ticketOpen, setTicketOpen] = useState(false)
   const [ticketProduct, setTicketProduct] = useState<Product | null>(null)
-  const [ticketDropdownOpen, setTicketDropdownOpen] = useState(false)
+  const [activeRoomType, setActiveRoomType] = useState(roomTypeOptions[0])
   const [ticketConfigs, setTicketConfigs] = useState<Record<string, ProductTicketConfig>>({})
   const [ticketDraft, setTicketDraft] = useState<ProductTicketConfig>(() => createDefaultTicketConfig())
 
@@ -397,17 +432,30 @@ export default function ProductPage() {
   const invSegments = [...new Set(invData.map((i) => i.segmentKey))]
 
   const openTicketManagement = (record: Product) => {
+    const config = migrateTicketConfig(ticketConfigs[record.id] || createDefaultTicketConfig())
+    const firstConfiguredRoom = roomTypeOptions.find((roomType) => (config.roomTickets[roomType] || []).length > 0)
     setTicketProduct(record)
-    setTicketDraft(ticketConfigs[record.id] || createDefaultTicketConfig())
-    setTicketDropdownOpen(false)
+    setTicketDraft(config)
+    setActiveRoomType(firstConfiguredRoom || roomTypeOptions[0])
     setTicketOpen(true)
   }
 
-  const toggleTicketSelection = (ticketId: string) => {
-    setTicketDraft(prev => ({
-      ...prev,
-      ticketIds: prev.ticketIds.includes(ticketId) ? prev.ticketIds.filter(id => id !== ticketId) : [...prev.ticketIds, ticketId],
-    }))
+  const activeRoomTicketIds = ticketDraft.roomTickets[activeRoomType] || []
+
+  const toggleTicketForActiveRoom = (ticketId: string) => {
+    setTicketDraft((prev) => {
+      const current = prev.roomTickets[activeRoomType] || []
+      const nextForRoom = current.includes(ticketId)
+        ? current.filter((id) => id !== ticketId)
+        : [...current, ticketId]
+      const roomTickets = { ...prev.roomTickets }
+      if (nextForRoom.length > 0) {
+        roomTickets[activeRoomType] = nextForRoom
+      } else {
+        delete roomTickets[activeRoomType]
+      }
+      return { ...prev, roomTickets }
+    })
   }
 
   const saveTicketManagement = () => {
@@ -417,10 +465,7 @@ export default function ProductPage() {
     setTicketProduct(null)
   }
 
-  const selectedTicketNames = ticketDraft.ticketIds
-    .map(id => tickets.find(ticket => ticket.id === id)?.name)
-    .filter(Boolean)
-    .join('、')
+  const configuredTicketRows = flattenRoomTickets(ticketDraft.roomTickets)
 
   // ========== 定价逻辑 ==========
   const openPricing = (record: Product) => {
@@ -949,7 +994,7 @@ export default function ProductPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <div>
                 <h3 className="text-base font-semibold text-gray-900">票类管理 · {ticketProduct.name}</h3>
-                <p className="mt-1 text-xs text-gray-500">配置该产品可售票种、身份归属、下单规则和退改规则。</p>
+                <p className="mt-1 text-xs text-gray-500">先选择房型，再配置该房型下可售票种、下单规则和退改规则。</p>
               </div>
               <button onClick={() => setTicketOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
                 <X className="w-4 h-4" />
@@ -958,58 +1003,54 @@ export default function ProductPage() {
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
               <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">设置可售票种</h4>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setTicketDropdownOpen(open => !open)}
-                    className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm text-gray-700 hover:border-gray-400"
-                  >
-                    <span className="truncate">{selectedTicketNames || '请选择可售票种'}</span>
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${ticketDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {ticketDropdownOpen && (
-                    <div className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-                      <div className="max-h-64 overflow-y-auto py-1">
-                        {tickets.map(ticket => (
-                          <label key={ticket.id} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            <input
-                              type="checkbox"
-                              checked={ticketDraft.ticketIds.includes(ticket.id)}
-                              onChange={() => toggleTicketSelection(ticket.id)}
-                              className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                            />
-                            <span className="flex-1">{ticket.name}</span>
-                            <span className="text-xs text-gray-400">{ticket.status === 'enabled' ? '有效' : '停用'}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">1. 选择房型</h4>
+                <div className="flex flex-wrap gap-2">
+                  {roomTypeOptions.map((roomType) => {
+                    const count = (ticketDraft.roomTickets[roomType] || []).length
+                    const active = activeRoomType === roomType
+                    return (
+                      <button
+                        key={roomType}
+                        type="button"
+                        onClick={() => setActiveRoomType(roomType)}
+                        className={`rounded-lg border px-4 py-2 text-sm transition ${
+                          active
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                        }`}
+                      >
+                        {roomType}
+                        {count > 0 && <span className="ml-2 text-xs text-gray-500">({count})</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  2. 选择票类 · {activeRoomType}
+                </h4>
+                <div className="rounded-lg border border-gray-200">
+                  <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                    {tickets.map((ticket) => (
+                      <label key={ticket.id} className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={activeRoomTicketIds.includes(ticket.id)}
+                          onChange={() => toggleTicketForActiveRoom(ticket.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        <span className="flex-1 text-gray-900">{ticket.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div>
                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">规则</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">身份归属 <span className="text-red-500">*</span></label>
-                    <div className="flex rounded-lg border border-gray-300 p-1">
-                      {[
-                        { value: 'tourist', label: '游客' },
-                        { value: 'resident', label: '居民' },
-                      ].map(item => (
-                        <button
-                          key={item.value}
-                          type="button"
-                          onClick={() => setTicketDraft({ ...ticketDraft, identity: item.value as ProductTicketIdentity })}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-sm ${ticketDraft.identity === item.value ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">下单规则</label>
                     <select
@@ -1056,23 +1097,23 @@ export default function ProductPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">已选票种</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">房型</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">票种</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">入住类型</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">价格系数</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">状态</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {ticketDraft.ticketIds.length === 0 ? (
-                      <tr><td colSpan={4} className="px-3 py-8 text-center text-sm text-gray-400">请选择可售票种</td></tr>
-                    ) : ticketDraft.ticketIds.map(ticketId => {
-                      const ticket = tickets.find(item => item.id === ticketId)
+                    {configuredTicketRows.length === 0 ? (
+                      <tr><td colSpan={4} className="px-3 py-8 text-center text-sm text-gray-400">请先选择房型并配置票类</td></tr>
+                    ) : configuredTicketRows.map(({ roomType, ticketId }) => {
+                      const ticket = tickets.find((item) => item.id === ticketId)
                       if (!ticket) return null
                       return (
-                        <tr key={ticket.id}>
+                        <tr key={`${roomType}-${ticket.id}`}>
+                          <td className="px-3 py-2 text-gray-700">{roomType}</td>
                           <td className="px-3 py-2 text-gray-900">{ticket.name}</td>
                           <td className="px-3 py-2 text-gray-600">{ticket.guestType === 'adult' ? '成人' : ticket.guestType === 'child' ? '儿童' : '婴儿'}</td>
-                          <td className="px-3 py-2 text-gray-600">{ticket.priceCoefficient.toFixed(1)}</td>
                           <td className="px-3 py-2">
                             <StatusBadge status={ticket.status} />
                           </td>

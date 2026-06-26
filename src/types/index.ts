@@ -120,6 +120,7 @@ export interface Port {
   code: string
   city: string
   province: string
+  district?: string
   address?: string
   longitude?: number
   latitude?: number
@@ -146,6 +147,7 @@ export interface PortForm {
   code: string
   city: string
   province: string
+  district: string
   address: string
   longitude: number
   latitude: number
@@ -170,7 +172,7 @@ export interface PortDistance {
   toPortName: string
   distanceKm: number
   speedKmH: number
-  waterway: string
+  direction: 'upstream' | 'downstream'
   remark: string
   status: Status
   updatedBy: string
@@ -183,7 +185,7 @@ export interface PortDistanceForm {
   toPortId: string
   distanceKm: number
   speedKmH: number
-  waterway: string
+  direction: 'upstream' | 'downstream'
   remark: string
 }
 
@@ -202,7 +204,6 @@ export interface Attraction {
   category?: string
   visitDuration: string
   suggestedDurationMin?: number
-  minStopoverMin?: number
   portDistanceKm?: number
   transferDurationMin?: number
   openSeason?: string
@@ -231,7 +232,6 @@ export interface AttractionForm {
   category: string
   visitDuration: string
   suggestedDurationMin: number
-  minStopoverMin: number
   portDistanceKm: number
   transferDurationMin: number
   openSeason: string
@@ -292,7 +292,7 @@ export interface DeckFacility {
   enabled: boolean
 }
 
-// ========== 船舱 ==========
+// ========== 房型 ==========
 export interface Cabin {
   id: string
   name: string
@@ -779,12 +779,25 @@ export type RebatePolicyType = 'rebate_point' | 'sales_rebate' | 'penalty_refund
 export type RebateSettlementCycle = 'voyage' | 'monthly' | 'yearly'
 export type RebateSalesBase = 'settlement_price' | 'order_amount'
 export type RebatePolicyStatus = 'draft' | 'enabled' | 'disabled'
+export type RebateAdjustmentDirection = 'rebate' | 'deduction'
+export type RebateTierBasis = 'absolute_sales' | 'target_completion_rate'
+export type RebateTargetBindingUsage =
+  | 'completion_rate'
+  | 'penalty_denominator'
+  | 'guarantee_reminder'
+  | 'scope_reference'
+
+export interface RebatePolicyTargetBinding {
+  indicatorId: string
+  usage: RebateTargetBindingUsage
+}
 
 export interface RebateTier {
   id: string
   minValue: number
   maxValue: number | null
   rebateValue: number
+  adjustmentDirection: RebateAdjustmentDirection
 }
 
 export interface RebatePolicy {
@@ -798,9 +811,13 @@ export interface RebatePolicy {
   effectiveEnd: string
   priority: number
   baseRebatePoint: number
+  basePointDirection: RebateAdjustmentDirection
   bonusRebatePoint: number
+  bonusPointDirection: RebateAdjustmentDirection
   salesBase: RebateSalesBase
+  tierBasis: RebateTierBasis
   tiers: RebateTier[]
+  targetBindings: RebatePolicyTargetBinding[]
   confirmationRateThreshold: number
   makeupDaysBeforeSail: number
   remindLowConfirmRate: boolean
@@ -816,6 +833,60 @@ export interface RebatePolicy {
 }
 
 export type RebatePolicyForm = Omit<RebatePolicy, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>
+
+// ========== 返利任务指标 ==========
+export type RebateTargetIndicatorType = 'annual_sales' | 'voyage_planned' | 'guarantee' | 'regional_task'
+export type RebateTargetMetricBase = 'sales_amount' | 'passenger_count' | 'cabin_count'
+export type RebateTargetPeriod = 'yearly' | 'voyage' | 'contract'
+export type RebateTargetStatus = 'draft' | 'enabled' | 'disabled'
+
+export interface RebateTargetAdjustment {
+  id: string
+  adjustedAt: string
+  adjustedBy: string
+  reason: string
+  beforeValue: number
+  afterValue: number
+}
+
+export interface RebateTargetIndicator {
+  id: string
+  code: string
+  name: string
+  indicatorType: RebateTargetIndicatorType
+  period: RebateTargetPeriod
+  metricBase: RebateTargetMetricBase
+  dealerId: string
+  dealerName: string
+  contractNo?: string
+  region?: string
+  year?: number
+  voyageNo?: string
+  sailDate?: string
+  /** 绑定船只，空数组表示不限 */
+  shipIds: string[]
+  /** 绑定航线，空数组表示不限 */
+  routeIds: string[]
+  /** 绑定房型，空数组表示不限 */
+  roomTypes: string[]
+  targetValue: number
+  actualValue: number
+  unit: string
+  depositDeadlineDays?: number
+  effectiveStart: string
+  effectiveEnd: string
+  adjustments: RebateTargetAdjustment[]
+  remark: string
+  status: RebateTargetStatus
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export type RebateTargetIndicatorForm = Omit<RebateTargetIndicator, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt' | 'actualValue' | 'adjustments'> & {
+  adjustments?: RebateTargetAdjustment[]
+}
+
 export type DealerStatus = 'cooperating' | 'terminated'
 export type DealerSubjectType = 'travel_agency' | 'hotel' | 'homestay' | 'other'
 export type DealerPurchasePermission = 'enabled' | 'disabled'

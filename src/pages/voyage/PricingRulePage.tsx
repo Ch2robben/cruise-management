@@ -114,8 +114,8 @@ export default function PricingRulePage() {
       render: (record: PricingRuleRecord) => filteredData.findIndex((item) => item.id === record.id) + 1,
     },
     { key: 'shipName', title: '船舶', dataIndex: 'shipName' as keyof PricingRuleRecord, width: '120px' },
-    { key: 'cabinName', title: '船舱名称', dataIndex: 'cabinName' as keyof PricingRuleRecord },
-    { key: 'cabinCount', title: '船舱数量', dataIndex: 'cabinCount' as keyof PricingRuleRecord, width: '120px' },
+    { key: 'cabinName', title: '房型名称', dataIndex: 'cabinName' as keyof PricingRuleRecord },
+    { key: 'cabinCount', title: '房型数量', dataIndex: 'cabinCount' as keyof PricingRuleRecord, width: '120px' },
     { key: 'guestCapacity', title: '客容量', dataIndex: 'guestCapacity' as keyof PricingRuleRecord, width: '100px' },
     { key: 'bedCount', title: '床位数', dataIndex: 'bedCount' as keyof PricingRuleRecord, width: '100px' },
     { key: 'sortNo', title: '排序号', dataIndex: 'sortNo' as keyof PricingRuleRecord, width: '100px' },
@@ -127,7 +127,7 @@ export default function PricingRulePage() {
       width: '120px',
       render: (record: PricingRuleRecord) => (
         <button onClick={() => openPricingRule(record)} className="text-sm text-blue-600 hover:text-blue-700">
-          船舱房型定价规则
+          房型定价规则
         </button>
       ),
     },
@@ -135,7 +135,7 @@ export default function PricingRulePage() {
 
   return (
     <div>
-      <PageHeader title="船舱房型定价规则" />
+      <PageHeader title="房型定价规则" />
 
       <SearchPanel
         onSearch={() => {
@@ -178,7 +178,7 @@ export default function PricingRulePage() {
 
       <FormDialog
         open={pricingOpen && !!pricingRecord && !!pricingRule}
-        title={`船舱房型定价规则 - ${pricingRecord?.cabinName || ''}`}
+        title={`房型定价规则 - ${pricingRecord?.cabinName || ''}`}
         width="max-w-3xl"
         onCancel={() => setPricingOpen(false)}
         onSubmit={savePricingRule}
@@ -193,7 +193,7 @@ export default function PricingRulePage() {
                   <span className="mt-1 block font-medium text-gray-900">{pricingRecord.shipName}</span>
                 </div>
                 <div>
-                  <span className="block text-xs text-gray-500">船舱数量</span>
+                  <span className="block text-xs text-gray-500">房型数量</span>
                   <span className="mt-1 block font-medium text-gray-900">{pricingRecord.cabinCount} 间</span>
                 </div>
                 <div>

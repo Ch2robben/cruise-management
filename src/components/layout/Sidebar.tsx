@@ -21,7 +21,7 @@ const menuItems: MenuItem[] = [
       { key: 'itinerary', label: '行程管理', path: '/resources/itineraries' },
       { key: 'ship', label: '船舶管理', path: '/resources/ships' },
       { key: 'room', label: '房间管理', path: '/resources/rooms' },
-      { key: 'cabin', label: '船舱管理', path: '/resources/cabins' },
+      { key: 'cabin', label: '房型管理', path: '/resources/cabins' },
       { key: 'facility', label: '设施管理', path: '/resources/facilities' },
       { key: 'ticket', label: '票类管理', path: '/resources/tickets' },
       { key: 'product', label: '产品管理', path: '/resources/products' },
@@ -33,16 +33,18 @@ const menuItems: MenuItem[] = [
       { key: 'voyage_list', label: '航次列表', path: '/voyage/list' },
       { key: 'voyage_template', label: '航次模板', path: '/voyage/templates' },
       { key: 'voyage_inv', label: '航次库存看板', path: '/voyage/inventory' },
-      { key: 'pricing_rule', label: '船舱房型定价规则', path: '/voyage/pricing-rules' },
+      { key: 'voyage_allocation', label: '库存调配工作台', path: '/voyage/inventory-allocation' },
+      // { key: 'pricing_rule', label: '房型定价规则', path: '/voyage/pricing-rules' },
       // { key: 'sales_control', label: '销售控制', path: '/voyage/sales-control' },
-      { key: 'voyage_price', label: '价格日历', path: '/voyage/pricing' },
-      { key: 'price_management', label: '价格管理', path: '/voyage/price-management' },
+      // { key: 'voyage_price', label: '价格日历', path: '/voyage/pricing' },
+      // { key: 'price_management', label: '价格管理', path: '/voyage/price-management' },
     ],
   },
   {
     key: 'order', label: '订单管理', icon: 'ShoppingCart',
     children: [
       { key: 'order_list', label: '订单列表', path: '/orders/list' },
+      { key: 'voyage_passenger_room', label: '航次旅客房型管理', path: '/orders/voyage-passenger-rooms' },
     ],
   },
   {
@@ -71,6 +73,7 @@ const menuItems: MenuItem[] = [
     key: 'finance', label: '财务管理', icon: 'Wallet',
     children: [
       { key: 'reconciliation', label: '对账批次', path: '/finance/reconciliations' },
+      { key: 'supplementary_payment', label: '补款单管理', path: '/finance/supplementary-payments' },
     ],
   },
   {
@@ -106,7 +109,9 @@ const menuItems: MenuItem[] = [
       { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
       { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
       { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
+      { key: 'price_type_rule', label: '价格类型规则', path: '/rule/price-type' },
       { key: 'rebate_rule', label: '返利政策管理', path: '/rule/rebate' },
+      { key: 'rebate_target', label: '返利任务指标', path: '/rule/rebate-targets' },
       { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
       { key: 'order_validity_rule', label: '订单有效期规则', path: '/rule/order-validity' },
       { key: 'warning_rule', label: '预警规则', path: '/rule/warning' },

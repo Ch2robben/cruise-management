@@ -18,6 +18,7 @@ const menuItems: MenuItem[] = [
     key: 'booking', label: '产品预定', icon: 'Navigation',
     children: [
       { key: 'cruise', label: '游轮预定', path: '/dealer/booking/cruise' },
+      { key: 'special_price', label: '特价申请', path: '/dealer/booking/special-price' },
       { key: 'boat', label: '城市游船预定', path: '/dealer/booking/boat' },
       { key: 'flight', label: '航班查询', path: '/dealer/booking/flight' },
       { key: 'combo', label: '组合产品售票', path: '/dealer/booking/combo-sales' },
@@ -27,6 +28,7 @@ const menuItems: MenuItem[] = [
     key: 'orders', label: '订单管理', icon: 'ShoppingCart',
     children: [
       { key: 'cruise_orders', label: '游轮订单', path: '/dealer/orders/cruise' },
+      { key: 'special_price_orders', label: '特价申请单', path: '/dealer/orders/special-price' },
       { key: 'boat_orders', label: '游船订单', path: '/dealer/orders/boat' },
       { key: 'combo_orders', label: '组合产品订单', path: '/dealer/booking/combo-orders' },
     ],

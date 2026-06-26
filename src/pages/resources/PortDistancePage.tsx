@@ -17,9 +17,15 @@ const emptyForm: PortDistanceForm = {
   toPortId: '',
   distanceKm: 0,
   speedKmH: 18,
-  waterway: '长江上游',
+  direction: 'downstream',
   remark: '',
 }
+
+const directionLabel = (direction: PortDistance['direction']) => (
+  <span className={direction === 'upstream' ? 'text-blue-600' : 'text-green-600'}>
+    {direction === 'upstream' ? '上水' : '下水'}
+  </span>
+)
 
 export default function PortDistancePage() {
   const [loading, setLoading] = useState(false)
@@ -27,7 +33,7 @@ export default function PortDistancePage() {
   const [keyword, setKeyword] = useState('')
   const [fromPortFilter, setFromPortFilter] = useState('all')
   const [toPortFilter, setToPortFilter] = useState('all')
-  const [waterwayFilter, setWaterwayFilter] = useState('all')
+  const [directionFilter, setDirectionFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [portList, setPortList] = useState<Port[]>([])
 
@@ -47,31 +53,27 @@ export default function PortDistancePage() {
 
   const fetchData = useCallback(async (
     page = 1,
-    overrides?: { keyword?: string; fromPortId?: string; toPortId?: string; waterway?: string; status?: string },
+    overrides?: { keyword?: string; fromPortId?: string; toPortId?: string; direction?: string; status?: string },
   ) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     const nextKeyword = overrides?.keyword ?? keyword
     const nextFromPort = overrides?.fromPortId ?? fromPortFilter
     const nextToPort = overrides?.toPortId ?? toPortFilter
-    const nextWaterway = overrides?.waterway ?? waterwayFilter
+    const nextDirection = overrides?.direction ?? directionFilter
     const nextStatus = overrides?.status ?? statusFilter
     if (nextKeyword.trim()) params.keyword = nextKeyword.trim()
     if (nextFromPort !== 'all') params.fromPortId = nextFromPort
     if (nextToPort !== 'all') params.toPortId = nextToPort
-    if (nextWaterway !== 'all') params.waterway = nextWaterway
+    if (nextDirection !== 'all') params.direction = nextDirection
     if (nextStatus !== 'all') params.status = nextStatus
     const result = await portDistanceApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, fromPortFilter, toPortFilter, waterwayFilter, statusFilter])
+  }, [keyword, fromPortFilter, toPortFilter, directionFilter, statusFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const waterwayOptions = useMemo(
-    () => Array.from(new Set(data.data.map((item) => item.waterway).filter(Boolean))),
-    [data.data],
-  )
   const cityOptions = useMemo(
     () => Array.from(new Set(portList.map((item) => item.city).filter(Boolean))),
     [portList],
@@ -91,9 +93,9 @@ export default function PortDistancePage() {
     setKeyword('')
     setFromPortFilter('all')
     setToPortFilter('all')
-    setWaterwayFilter('all')
+    setDirectionFilter('all')
     setStatusFilter('all')
-    fetchData(1, { keyword: '', fromPortId: 'all', toPortId: 'all', waterway: 'all', status: 'all' })
+    fetchData(1, { keyword: '', fromPortId: 'all', toPortId: 'all', direction: 'all', status: 'all' })
   }
 
   const openCreate = () => {
@@ -113,7 +115,7 @@ export default function PortDistancePage() {
       toPortId: record.toPortId,
       distanceKm: record.distanceKm,
       speedKmH: record.speedKmH,
-      waterway: record.waterway,
+      direction: record.direction,
       remark: record.remark,
     })
     setFormFromCity(fromPort?.city || 'all')
@@ -168,7 +170,12 @@ export default function PortDistancePage() {
         </div>
       ),
     },
-    { key: 'waterway', title: '水域/航段', dataIndex: 'waterway' as keyof PortDistance, width: '140px' },
+    {
+      key: 'direction',
+      title: '上下水',
+      width: '100px',
+      render: (record: PortDistance) => directionLabel(record.direction),
+    },
     {
       key: 'distance',
       title: '距离',
@@ -209,7 +216,7 @@ export default function PortDistancePage() {
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="码头/水域/备注"
+            placeholder="码头/上下水/备注"
             className="w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
           />
         </div>
@@ -228,10 +235,11 @@ export default function PortDistancePage() {
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">水域/航段</label>
-          <select value={waterwayFilter} onChange={(event) => setWaterwayFilter(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+          <label className="text-xs text-gray-500">上下水</label>
+          <select value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
             <option value="all">全部</option>
-            {waterwayOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            <option value="upstream">上水</option>
+            <option value="downstream">下水</option>
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -342,8 +350,11 @@ export default function PortDistancePage() {
               <input type="number" value={form.distanceKm} onChange={(event) => setForm({ ...form, distanceKm: Number(event.target.value) })} className={inputClass} />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-gray-700">水域/航段</label>
-              <input value={form.waterway} onChange={(event) => setForm({ ...form, waterway: event.target.value })} className={inputClass} />
+              <label className="mb-1 block text-sm text-gray-700">上下水</label>
+              <select value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value as PortDistance['direction'] })} className={inputClass}>
+                <option value="upstream">上水</option>
+                <option value="downstream">下水</option>
+              </select>
             </div>
             <div className="col-span-2">
               <label className="mb-1 block text-sm text-gray-700">备注</label>

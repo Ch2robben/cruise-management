@@ -1096,7 +1096,7 @@ function VoyageInventoryTable({ rows, onEdit }: { rows: InventoryBoardRow[]; onE
         <table className="w-full">
           <thead>
             <tr className="border-b bg-gray-50">
-              {['序号', '船舱类型', '库存数量', '投放数量', '已售数', '库存未售数', '投放未售数', '库存状态', '预警等级', '操作'].map(title => (
+              {['序号', '房型类型', '库存数量', '投放数量', '已售数', '库存未售数', '投放未售数', '库存状态', '预警等级', '操作'].map(title => (
                 <th key={title} className="px-4 py-3 text-left text-xs font-medium text-gray-600 whitespace-nowrap">{title}</th>
               ))}
             </tr>

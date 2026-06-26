@@ -240,8 +240,8 @@ export default function CabinPage() {
       render: (r: CabinRecord) => filteredData.findIndex((item) => item.id === r.id) + 1,
     },
     { key: 'shipName', title: '船舶', dataIndex: 'shipName' as keyof CabinRecord, width: '120px' },
-    { key: 'cabinName', title: '船舱名称', dataIndex: 'cabinName' as keyof CabinRecord },
-    { key: 'cabinCount', title: '船舱数量', dataIndex: 'cabinCount' as keyof CabinRecord, width: '120px' },
+    { key: 'cabinName', title: '房型名称', dataIndex: 'cabinName' as keyof CabinRecord },
+    { key: 'cabinCount', title: '房型数量', dataIndex: 'cabinCount' as keyof CabinRecord, width: '120px' },
     { key: 'guestCapacity', title: '客容量', dataIndex: 'guestCapacity' as keyof CabinRecord, width: '100px' },
     { key: 'bedCount', title: '床位数', dataIndex: 'bedCount' as keyof CabinRecord, width: '100px' },
     { key: 'sortNo', title: '排序号', dataIndex: 'sortNo' as keyof CabinRecord, width: '100px' },
@@ -250,14 +250,14 @@ export default function CabinPage() {
     {
       key: 'actions',
       title: '操作',
-      width: '260px',
+      width: '280px',
       render: (record: CabinRecord) => (
         <div className="flex items-center gap-2">
           <button onClick={() => { setEditCabin({ ...record }); setEditCabinOpen(true); }} className="text-base text-blue-600 hover:text-blue-700">编辑</button>
           <span className="text-gray-300">|</span>
           <button className="text-base text-red-500 hover:text-red-600">删除</button>
           <button className="ml-3 text-sm text-gray-500 hover:text-gray-700">详情</button>
-          {/* <button onClick={() => openPricingRule(record)} className="text-sm text-blue-600 hover:text-blue-700">定价规则</button> */}
+          <button onClick={() => openPricingRule(record)} className="text-sm text-blue-600 hover:text-blue-700">价格系数</button>
         </div>
       ),
     },
@@ -265,7 +265,7 @@ export default function CabinPage() {
 
   return (
     <div>
-      <PageHeader title="船舱管理" />
+      <PageHeader title="房型管理" />
 
       <SearchPanel
         onSearch={() => {
@@ -308,7 +308,7 @@ export default function CabinPage() {
 
       <FormDialog
         open={editCabinOpen}
-        title="编辑船舱"
+        title="编辑房型"
         width="max-w-2xl"
         onCancel={() => setEditCabinOpen(false)}
         onSubmit={() => {
@@ -328,11 +328,11 @@ export default function CabinPage() {
                   <input value={editCabin.shipName} disabled className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm text-gray-700">船舱名称</label>
+                  <label className="mb-1 block text-sm text-gray-700">房型名称</label>
                   <input value={editCabin.cabinName} onChange={(e) => setEditCabin({ ...editCabin, cabinName: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm text-gray-700">船舱数量</label>
+                  <label className="mb-1 block text-sm text-gray-700">房型数量</label>
                   <input type="number" value={editCabin.cabinCount} onChange={(e) => setEditCabin({ ...editCabin, cabinCount: Number(e.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
@@ -363,7 +363,7 @@ export default function CabinPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="block text-sm font-medium text-gray-900">库存预警</span>
-                    <span className="mt-1 block text-xs text-gray-500">开启后，当该船舱的剩余库存低于设定阈值时会触发预警</span>
+                    <span className="mt-1 block text-xs text-gray-500">开启后，当该房型的剩余库存低于设定阈值时会触发预警</span>
                   </div>
                   <label className="relative inline-flex cursor-pointer items-center">
                     <input type="checkbox" className="peer sr-only" checked={editCabin.alertEnabled || false} onChange={(e) => setEditCabin({ ...editCabin, alertEnabled: e.target.checked })} />
@@ -410,7 +410,7 @@ export default function CabinPage() {
 
       <FormDialog
         open={pricingOpen && !!pricingCabin && !!pricingRule}
-        title={`定价规则 - ${pricingCabin?.cabinName || ''}`}
+        title={`价格系数 - ${pricingCabin?.cabinName || ''}`}
         width="max-w-6xl"
         onCancel={() => { setPricingOpen(false); setPricingEditMode(false) }}
         onSubmit={pricingEditMode ? savePricingRule : undefined}
@@ -428,7 +428,7 @@ export default function CabinPage() {
                     <span className="mt-1 block font-medium text-gray-900">{pricingCabin.shipName}</span>
                   </div>
                   <div>
-                    <span className="block text-xs text-gray-500">船舱数量</span>
+                    <span className="block text-xs text-gray-500">房型数量</span>
                     <span className="mt-1 block font-medium text-gray-900">{pricingCabin.cabinCount} 间</span>
                   </div>
                   <div>

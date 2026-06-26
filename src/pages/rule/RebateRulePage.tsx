@@ -7,20 +7,23 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
-import ApplicableScopeTransfer, {
-  createDefaultApplicableScope,
-  formatApplicableScope,
-  formatApplicableScopeDetail,
-  type ApplicableScope,
-} from '@/components/rule/ApplicableScopeTransfer'
+import { rebateTargetIndicatorSeeds } from '@/mock/rebateTargetIndicators'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
+import {
+  buildRebatePreview,
+  formatTierEffect,
+  requiredIndicatorTypes,
+} from '@/utils/rebatePolicyUtils'
 import type {
+  RebateAdjustmentDirection,
   RebatePolicy,
   RebatePolicyForm,
   RebatePolicyStatus,
+  RebatePolicyTargetBinding,
   RebatePolicyType,
   RebateSalesBase,
   RebateSettlementCycle,
+  RebateTargetIndicatorType,
   RebateTier,
 } from '@/types'
 
@@ -47,11 +50,26 @@ const statusOptions: { value: RebatePolicyStatus; label: string }[] = [
   { value: 'disabled', label: '已失效' },
 ]
 
+const directionOptions: { value: RebateAdjustmentDirection; label: string }[] = [
+  { value: 'rebate', label: '返点' },
+  { value: 'deduction', label: '扣点' },
+]
+
+const indicatorTypeLabel: Record<RebateTargetIndicatorType, string> = {
+  annual_sales: '年度销售任务',
+  voyage_planned: '航次计划位',
+  guarantee: '应缴保证金',
+  regional_task: '区域任务分解',
+}
+
+const emptyApplyScope = { productIds: [] as string[], voyageIds: [] as string[] }
+
 const emptyTier = (): RebateTier => ({
   id: generateId(),
   minValue: 0,
   maxValue: null,
   rebateValue: 0,
+  adjustmentDirection: 'rebate',
 })
 
 const emptyForm: RebatePolicyForm = {
@@ -59,14 +77,18 @@ const emptyForm: RebatePolicyForm = {
   name: '',
   policyType: 'rebate_point',
   settlementCycle: 'voyage',
-  applyScope: createDefaultApplicableScope(),
+  applyScope: emptyApplyScope,
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
   priority: 10,
   baseRebatePoint: 0,
+  basePointDirection: 'rebate',
   bonusRebatePoint: 0,
+  bonusPointDirection: 'rebate',
   salesBase: 'settlement_price',
+  tierBasis: 'target_completion_rate',
   tiers: [emptyTier()],
+  targetBindings: [],
   confirmationRateThreshold: 50,
   makeupDaysBeforeSail: 3,
   remindLowConfirmRate: true,
@@ -98,10 +120,20 @@ const initialPolicies: RebatePolicy[] = [
     policyType: 'rebate_point',
     settlementCycle: 'voyage',
     priority: 5,
-    baseRebatePoint: 2,
-    bonusRebatePoint: 1.5,
+    baseRebatePoint: 0,
+    basePointDirection: 'rebate',
+    bonusRebatePoint: 0,
+    bonusPointDirection: 'rebate',
+    targetBindings: [
+      { indicatorId: 'tgt-2026-001', usage: 'completion_rate' },
+    ],
+    tiers: [
+      { id: generateId(), minValue: 0, maxValue: 50, rebateValue: 0.5, adjustmentDirection: 'deduction' },
+      { id: generateId(), minValue: 50, maxValue: 80, rebateValue: 2, adjustmentDirection: 'rebate' },
+      { id: generateId(), minValue: 80, maxValue: null, rebateValue: 3.5, adjustmentDirection: 'rebate' },
+    ],
     status: 'enabled',
-    remark: '航次销售不佳时临时提高返利点，与价格直减政策并存，成交后按航次结算。',
+    remark: '按任务完成率阶梯调整返利点；与价格直减政策并存，成交后按航次结算。',
   }),
   createPolicy({
     ...emptyForm,
@@ -111,13 +143,17 @@ const initialPolicies: RebatePolicy[] = [
     settlementCycle: 'monthly',
     priority: 20,
     salesBase: 'settlement_price',
+    tierBasis: 'target_completion_rate',
+    targetBindings: [
+      { indicatorId: 'tgt-2026-001', usage: 'completion_rate' },
+    ],
     tiers: [
-      { id: generateId(), minValue: 0, maxValue: 100, rebateValue: 1 },
-      { id: generateId(), minValue: 100, maxValue: 300, rebateValue: 1.5 },
-      { id: generateId(), minValue: 300, maxValue: null, rebateValue: 2 },
+      { id: generateId(), minValue: 0, maxValue: 50, rebateValue: 0.5, adjustmentDirection: 'deduction' },
+      { id: generateId(), minValue: 50, maxValue: 70, rebateValue: 1, adjustmentDirection: 'rebate' },
+      { id: generateId(), minValue: 70, maxValue: null, rebateValue: 2, adjustmentDirection: 'rebate' },
     ],
     status: 'enabled',
-    remark: '按季度结算销售额返利；保证金未付清仅结算前提醒，不自动剔除订单。',
+    remark: '按任务完成率分档返点/扣点；完成率不足 50% 扣 0.5%；保证金未付清仅结算前提醒。',
   }),
   createPolicy({
     ...emptyForm,
@@ -128,12 +164,16 @@ const initialPolicies: RebatePolicy[] = [
     priority: 30,
     confirmationRateThreshold: 50,
     makeupDaysBeforeSail: 3,
+    targetBindings: [
+      { indicatorId: 'tgt-v260701', usage: 'completion_rate' },
+      { indicatorId: 'tgt-2026-001', usage: 'completion_rate' },
+    ],
     tiers: [
-      { id: generateId(), minValue: 50, maxValue: 70, rebateValue: 50 },
-      { id: generateId(), minValue: 70, maxValue: null, rebateValue: 100 },
+      { id: generateId(), minValue: 50, maxValue: 70, rebateValue: 50, adjustmentDirection: 'rebate' },
+      { id: generateId(), minValue: 70, maxValue: null, rebateValue: 100, adjustmentDirection: 'rebate' },
     ],
     status: 'enabled',
-    remark: '航次级违约金开航后一次性结算；T-3 内补齐确定人数则不计违约；年度按任务完成率返还已扣违约金。',
+    remark: '航次级违约金开航后结算；年度按任务完成率返还已扣违约金。',
   }),
 ]
 
@@ -150,26 +190,66 @@ function getSalesBaseLabel(base: RebateSalesBase) {
 }
 
 function formatTierRange(tier: RebateTier, policyType: RebatePolicyType) {
-  const unit = policyType === 'penalty_refund' ? '%' : '万元'
-  const suffix = policyType === 'penalty_refund' ? '完成率' : '销售额'
-  return `${tier.minValue}${unit} - ${tier.maxValue !== null ? `${tier.maxValue}${unit}` : '不限'}（${suffix}）`
+  const range = `${tier.minValue}% - ${tier.maxValue !== null ? `${tier.maxValue}%` : '不限'}`
+  if (policyType === 'penalty_refund') return `${range}（年度完成率）`
+  return `${range}（任务完成率）`
 }
 
 function formatTierValue(tier: RebateTier, policyType: RebatePolicyType) {
-  if (policyType === 'rebate_point') return `${tier.rebateValue} 点`
-  if (policyType === 'sales_rebate') return `返利 ${tier.rebateValue}%`
-  return `返还 ${tier.rebateValue}%`
+  return formatTierEffect(tier, policyType, 'target_completion_rate')
 }
 
 function formatRuleSummary(policy: RebatePolicy) {
-  if (policy.policyType === 'rebate_point') {
-    return `基础 ${policy.baseRebatePoint} 点 + 临时加成 ${policy.bonusRebatePoint} 点`
+  const first = policy.tiers[0]
+  if (!first) return '-'
+  if (policy.policyType === 'penalty_refund') {
+    return `确认率阈值 ${policy.confirmationRateThreshold}%，${formatTierRange(first, policy.policyType)} ${formatTierValue(first, policy.policyType)}`
   }
-  if (policy.policyType === 'sales_rebate') {
-    const first = policy.tiers[0]
-    return first ? `${getSalesBaseLabel(policy.salesBase)}，${formatTierRange(first, policy.policyType)} ${formatTierValue(first, policy.policyType)}` : '-'
+  return `按完成率，${formatTierRange(first, policy.policyType)} ${formatTierValue(first, policy.policyType)}`
+}
+
+function formatTargetBindings(policy: RebatePolicy) {
+  if (policy.targetBindings.length === 0) return '未关联'
+  return policy.targetBindings
+    .map((binding) => {
+      const indicator = rebateTargetIndicatorSeeds.find((item) => item.id === binding.indicatorId)
+      return indicator ? indicator.code : binding.indicatorId
+    })
+    .join('、')
+}
+
+function defaultBindingsForPolicyType(policyType: RebatePolicyType): RebatePolicyTargetBinding[] {
+  if (policyType === 'rebate_point' || policyType === 'sales_rebate') {
+    return [{ indicatorId: 'tgt-2026-001', usage: 'completion_rate' }]
   }
-  return `确认率阈值 ${policy.confirmationRateThreshold}%，T-${policy.makeupDaysBeforeSail} 补齐不计违约`
+  if (policyType === 'penalty_refund') {
+    return [
+      { indicatorId: 'tgt-v260701', usage: 'completion_rate' },
+      { indicatorId: 'tgt-2026-001', usage: 'completion_rate' },
+    ]
+  }
+  return []
+}
+
+function defaultTiersForPolicyType(policyType: RebatePolicyType): RebateTier[] {
+  if (policyType === 'rebate_point') {
+    return [
+      { id: generateId(), minValue: 0, maxValue: 50, rebateValue: 0.5, adjustmentDirection: 'deduction' },
+      { id: generateId(), minValue: 50, maxValue: 80, rebateValue: 2, adjustmentDirection: 'rebate' },
+      { id: generateId(), minValue: 80, maxValue: null, rebateValue: 3.5, adjustmentDirection: 'rebate' },
+    ]
+  }
+  if (policyType === 'penalty_refund') {
+    return [
+      { id: generateId(), minValue: 50, maxValue: 70, rebateValue: 50, adjustmentDirection: 'rebate' },
+      { id: generateId(), minValue: 70, maxValue: null, rebateValue: 100, adjustmentDirection: 'rebate' },
+    ]
+  }
+  return [
+    { id: generateId(), minValue: 0, maxValue: 50, rebateValue: 0.5, adjustmentDirection: 'deduction' },
+    { id: generateId(), minValue: 50, maxValue: 70, rebateValue: 1, adjustmentDirection: 'rebate' },
+    { id: generateId(), minValue: 70, maxValue: null, rebateValue: 2, adjustmentDirection: 'rebate' },
+  ]
 }
 
 function sanitizeTiers(tiers: RebateTier[]) {
@@ -178,6 +258,7 @@ function sanitizeTiers(tiers: RebateTier[]) {
     minValue: Math.max(0, Number(tier.minValue) || 0),
     maxValue: tier.maxValue === null ? null : Math.max(0, Number(tier.maxValue) || 0),
     rebateValue: Math.max(0, Number(tier.rebateValue) || 0),
+    adjustmentDirection: tier.adjustmentDirection ?? 'rebate',
   }))
 }
 
@@ -193,6 +274,8 @@ export default function RebateRulePage() {
   const [form, setForm] = useState<RebatePolicyForm>(emptyForm)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<RebatePolicy | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewPolicy, setPreviewPolicy] = useState<RebatePolicy | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
 
@@ -209,6 +292,17 @@ export default function RebateRulePage() {
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
 
+  const availableIndicators = useMemo(() => {
+    const required = requiredIndicatorTypes(form.policyType)
+    if (required.length === 0) return rebateTargetIndicatorSeeds
+    return rebateTargetIndicatorSeeds.filter((item) => required.includes(item.indicatorType))
+  }, [form.policyType])
+
+  const previewResult = useMemo(() => {
+    if (!previewPolicy) return null
+    return buildRebatePreview(previewPolicy, rebateTargetIndicatorSeeds)
+  }, [previewPolicy])
+
   const resetFilters = () => {
     setKeyword('')
     setTypeFilter('all')
@@ -218,7 +312,11 @@ export default function RebateRulePage() {
 
   const openCreate = () => {
     setEditingId(null)
-    setForm({ ...emptyForm, applyScope: createDefaultApplicableScope(), tiers: [emptyTier()] })
+    setForm({
+      ...emptyForm,
+      tiers: [emptyTier()],
+      targetBindings: [],
+    })
     setFormOpen(true)
   }
 
@@ -227,10 +325,16 @@ export default function RebateRulePage() {
     setEditingId(record.id)
     setForm({
       ...nextForm,
-      applyScope: { ...nextForm.applyScope, productIds: [...nextForm.applyScope.productIds], voyageIds: [...nextForm.applyScope.voyageIds] },
+      applyScope: emptyApplyScope,
       tiers: nextForm.tiers.map((tier) => ({ ...tier })),
+      targetBindings: nextForm.targetBindings.map((binding) => ({ ...binding })),
     })
     setFormOpen(true)
+  }
+
+  const openPreview = (record: RebatePolicy) => {
+    setPreviewPolicy(record)
+    setPreviewOpen(true)
   }
 
   const updateTier = <K extends keyof RebateTier>(id: string, key: K, value: RebateTier[K]) => {
@@ -243,7 +347,7 @@ export default function RebateRulePage() {
   const addTier = () => {
     setForm((prev) => {
       const lastTier = prev.tiers[prev.tiers.length - 1]
-      const nextMin = lastTier?.maxValue ?? (lastTier ? lastTier.minValue + 100 : 0)
+      const nextMin = lastTier?.maxValue ?? (lastTier ? lastTier.minValue + 10 : 0)
       return {
         ...prev,
         tiers: [...prev.tiers, { ...emptyTier(), minValue: nextMin }],
@@ -258,29 +362,41 @@ export default function RebateRulePage() {
     }))
   }
 
+  const addBinding = (indicatorId: string) => {
+    if (form.targetBindings.some((binding) => binding.indicatorId === indicatorId)) return
+    setForm((prev) => ({
+      ...prev,
+      targetBindings: [...prev.targetBindings, { indicatorId, usage: 'completion_rate' }],
+    }))
+  }
+
+  const removeBinding = (indicatorId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      targetBindings: prev.targetBindings.filter((binding) => binding.indicatorId !== indicatorId),
+    }))
+  }
+
   const handlePolicyTypeChange = (policyType: RebatePolicyType) => {
     setForm((prev) => ({
       ...prev,
       policyType,
       settlementCycle: policyType === 'penalty_refund' ? 'yearly' : policyType === 'sales_rebate' ? 'monthly' : 'voyage',
-      tiers: policyType === 'rebate_point'
-        ? []
-        : policyType === 'penalty_refund'
-          ? [
-            { id: generateId(), minValue: 50, maxValue: 70, rebateValue: 50 },
-            { id: generateId(), minValue: 70, maxValue: null, rebateValue: 100 },
-          ]
-          : [{ id: generateId(), minValue: 0, maxValue: 100, rebateValue: 1 }],
+      tierBasis: 'target_completion_rate',
+      targetBindings: defaultBindingsForPolicyType(policyType),
+      tiers: defaultTiersForPolicyType(policyType),
     }))
   }
 
   const submit = () => {
     if (!form.code.trim() || !form.name.trim()) return
-    if (form.policyType !== 'rebate_point' && form.tiers.length === 0) return
+    if (form.tiers.length === 0) return
     const now = new Date().toISOString()
     const normalizedForm: RebatePolicyForm = {
       ...form,
-      tiers: form.policyType === 'rebate_point' ? [] : sanitizeTiers(form.tiers),
+      applyScope: emptyApplyScope,
+      tiers: sanitizeTiers(form.tiers),
+      targetBindings: form.targetBindings.map((binding) => ({ ...binding })),
       quotaLimit: form.quotaLimit === null || form.quotaLimit === undefined ? null : Math.max(0, Number(form.quotaLimit) || 0),
     }
     if (editingId) {
@@ -308,24 +424,30 @@ export default function RebateRulePage() {
     setConfirmOpen(false)
   }
 
-  const tierMinLabel = form.policyType === 'penalty_refund' ? '完成率下限(%)' : '销售额下限(万元)'
-  const tierMaxLabel = form.policyType === 'penalty_refund' ? '完成率上限(%)' : '销售额上限(万元)'
-  const tierValueLabel = form.policyType === 'penalty_refund' ? '返还比例(%)' : '返利比例(%)'
+  const tierMinLabel = '完成率下限(%)'
+  const tierMaxLabel = '完成率上限(%)'
+  const tierValueLabel = form.policyType === 'rebate_point'
+    ? '调整点数(点)'
+    : form.policyType === 'penalty_refund'
+      ? '返还比例(%)'
+      : '调整比例(%)'
+  const tierValueStep = form.policyType === 'rebate_point' ? 0.1 : 0.1
 
   const columns = [
     { key: 'code', title: '政策编码', render: (r: RebatePolicy) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '政策名称', dataIndex: 'name' as keyof RebatePolicy },
     { key: 'policyType', title: '政策类型', render: (r: RebatePolicy) => getPolicyTypeLabel(r.policyType) },
     { key: 'settlementCycle', title: '结算周期', render: (r: RebatePolicy) => getSettlementCycleLabel(r.settlementCycle) },
-    { key: 'applyScope', title: '适用范围', render: (r: RebatePolicy) => formatApplicableScope(r.applyScope) },
+    { key: 'targets', title: '关联指标', render: (r: RebatePolicy) => <span className="text-xs text-gray-600">{formatTargetBindings(r)}</span> },
     { key: 'rule', title: '返利规则', render: (r: RebatePolicy) => <span className="text-xs text-gray-600">{formatRuleSummary(r)}</span> },
     { key: 'priority', title: '优先级', dataIndex: 'priority' as keyof RebatePolicy },
     { key: 'effective', title: '有效期', render: (r: RebatePolicy) => `${formatDate(r.effectiveStart)} 至 ${formatDate(r.effectiveEnd)}` },
     { key: 'status', title: '状态', render: (r: RebatePolicy) => <StatusBadge status={r.status} /> },
     { key: 'updatedAt', title: '修改时间', render: (r: RebatePolicy) => formatDateTime(r.updatedAt) },
-    { key: 'actions', title: '操作', width: '190px', render: (r: RebatePolicy) => (
+    { key: 'actions', title: '操作', width: '220px', render: (r: RebatePolicy) => (
       <div className="flex items-center gap-1">
         <button onClick={() => { setDetail(r); setDetailOpen(true) }} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
+        <button onClick={() => openPreview(r)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">试算</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">编辑</button>
         <button onClick={() => toggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">{r.status === 'enabled' ? '失效' : '生效'}</button>
         <button onClick={() => { setConfirmId(r.id); setConfirmOpen(true) }} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
@@ -337,7 +459,7 @@ export default function RebateRulePage() {
     <div>
       <PageHeader
         title="返利政策管理"
-        description="配置成交后结算的返利规则：返利点、销售额返利、违约金返还。保证金仅提醒不拦截；航次违约金开航后一次性结算。"
+        description="配置成交后结算的返利规则：按关联任务指标完成率阶梯返扣点；不单独配置适用产品。"
       />
 
       <SearchPanel onSearch={() => setPage(1)} onReset={resetFilters}>
@@ -405,14 +527,23 @@ export default function RebateRulePage() {
             </div>
           </div>
 
+          <TargetBindingSection
+            bindings={form.targetBindings}
+            availableIndicators={availableIndicators}
+            onAdd={addBinding}
+            onRemove={removeBinding}
+          />
+
           {form.policyType === 'rebate_point' && (
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">返利点规则</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm text-gray-700 mb-1">基础返利点</label><input type="number" min={0} step={0.1} value={form.baseRebatePoint} onChange={(e) => setForm({ ...form, baseRebatePoint: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-                <div><label className="block text-sm text-gray-700 mb-1">临时加成返利点</label><input type="number" min={0} step={0.1} value={form.bonusRebatePoint} onChange={(e) => setForm({ ...form, bonusRebatePoint: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">返利点阶梯规则</h4>
+                <button type="button" onClick={addTier} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700">
+                  <Plus className="w-4 h-4" />添加阶梯
+                </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500">成交后按航次结算，不改变下单结算价。</p>
+              <p className="mb-4 text-xs text-gray-500">按关联指标的任务完成率匹配阶梯，结算时返点或扣点相应返利点数；不改变下单结算价。</p>
+              <TierTable tiers={form.tiers} minLabel={tierMinLabel} maxLabel={tierMaxLabel} valueLabel={tierValueLabel} valueStep={tierValueStep} onUpdate={updateTier} onRemove={removeTier} canRemove={form.tiers.length > 1} />
             </div>
           )}
 
@@ -429,8 +560,9 @@ export default function RebateRulePage() {
                 <select value={form.salesBase} onChange={(e) => setForm({ ...form, salesBase: e.target.value as RebateSalesBase })} className="w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm">
                   {salesBaseOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
+                <p className="mt-2 text-xs text-gray-500">阶梯按关联指标的任务完成率（实际值 / 目标值）匹配返点或扣点。</p>
               </div>
-              <TierTable tiers={form.tiers} minLabel={tierMinLabel} maxLabel={tierMaxLabel} valueLabel={tierValueLabel} onUpdate={updateTier} onRemove={removeTier} canRemove={form.tiers.length > 1} />
+              <TierTable tiers={form.tiers} minLabel={tierMinLabel} maxLabel={tierMaxLabel} valueLabel={tierValueLabel} valueStep={tierValueStep} onUpdate={updateTier} onRemove={removeTier} canRemove={form.tiers.length > 1} />
             </div>
           )}
 
@@ -451,7 +583,7 @@ export default function RebateRulePage() {
                     <Plus className="w-4 h-4" />添加阶梯
                   </button>
                 </div>
-                <TierTable tiers={form.tiers} minLabel={tierMinLabel} maxLabel={tierMaxLabel} valueLabel={tierValueLabel} onUpdate={updateTier} onRemove={removeTier} canRemove={form.tiers.length > 1} />
+                <TierTable tiers={form.tiers} minLabel={tierMinLabel} maxLabel={tierMaxLabel} valueLabel={tierValueLabel} valueStep={tierValueStep} onUpdate={updateTier} onRemove={removeTier} canRemove={form.tiers.length > 1} />
               </div>
             </div>
           )}
@@ -472,8 +604,6 @@ export default function RebateRulePage() {
             </div>
           </div>
 
-          <ApplicableScopeTransfer value={form.applyScope as ApplicableScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
-
           <div>
             <label className="block text-sm text-gray-700 mb-1">备注</label>
             <textarea value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
@@ -490,46 +620,47 @@ export default function RebateRulePage() {
               <DetailRow label="政策类型" value={getPolicyTypeLabel(detail.policyType)} />
               <DetailRow label="结算周期" value={getSettlementCycleLabel(detail.settlementCycle)} />
               <DetailRow label="优先级" value={String(detail.priority)} />
-              <DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} />
               <DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} 至 ${formatDate(detail.effectiveEnd)}`} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
             </DetailCard>
-            <DetailCard title="适用范围">
-              <DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
+            <DetailCard title="关联任务指标">
+              {detail.targetBindings.length === 0 ? (
+                <p className="text-sm text-gray-500">未关联任务指标</p>
+              ) : (
+                <div className="space-y-2">
+                  {detail.targetBindings.map((binding) => {
+                    const indicator = rebateTargetIndicatorSeeds.find((item) => item.id === binding.indicatorId)
+                    return (
+                      <div key={binding.indicatorId} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600">
+                        <div className="font-medium text-gray-800">{indicator?.name ?? binding.indicatorId}</div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {indicator ? `${indicator.code} · ${indicatorTypeLabel[indicator.indicatorType]}` : ''} · 考核：任务完成率
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </DetailCard>
             <DetailCard title="返利规则">
-              {detail.policyType === 'rebate_point' && (
-                <>
-                  <DetailRow label="基础返利点" value={`${detail.baseRebatePoint} 点`} />
-                  <DetailRow label="临时加成返利点" value={`${detail.bonusRebatePoint} 点`} />
-                </>
-              )}
+              <DetailRow label="考核依据" value="任务完成率" />
               {detail.policyType === 'sales_rebate' && (
-                <>
-                  <DetailRow label="销售额口径" value={getSalesBaseLabel(detail.salesBase)} />
-                  <div className="space-y-2 mt-2">
-                    {detail.tiers.map((tier) => (
-                      <div key={tier.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600">
-                        {formatTierRange(tier, detail.policyType)} → {formatTierValue(tier, detail.policyType)}
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <DetailRow label="销售额口径" value={getSalesBaseLabel(detail.salesBase)} />
               )}
               {detail.policyType === 'penalty_refund' && (
                 <>
                   <DetailRow label="确认率阈值" value={`${detail.confirmationRateThreshold}%`} />
                   <DetailRow label="补齐窗口" value={`开航前 ${detail.makeupDaysBeforeSail} 天`} />
                   <DetailRow label="结算时点" value="开航后一次性结算" />
-                  <div className="space-y-2 mt-2">
-                    {detail.tiers.map((tier) => (
-                      <div key={tier.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600">
-                        年度完成率 {formatTierRange(tier, detail.policyType)} → {formatTierValue(tier, detail.policyType)}
-                      </div>
-                    ))}
-                  </div>
                 </>
               )}
+              <div className="space-y-2 mt-2">
+                {detail.tiers.map((tier) => (
+                  <div key={tier.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-600">
+                    {formatTierRange(tier, detail.policyType)} → {formatTierValue(tier, detail.policyType)}
+                  </div>
+                ))}
+              </div>
             </DetailCard>
             <DetailCard title="提醒与高级配置">
               <DetailRow label="低确认率提醒" value={detail.remindLowConfirmRate ? '开启' : '关闭'} />
@@ -548,6 +679,33 @@ export default function RebateRulePage() {
         )}
       </DetailDrawer>
 
+      <DetailDrawer open={previewOpen} title="返利试算预览" onClose={() => setPreviewOpen(false)}>
+        {previewPolicy && previewResult && (
+          <>
+            <DetailCard title="政策信息">
+              <DetailRow label="政策名称" value={previewPolicy.name} />
+              <DetailRow label="政策类型" value={getPolicyTypeLabel(previewPolicy.policyType)} />
+              <DetailRow label="关联指标" value={formatTargetBindings(previewPolicy)} />
+            </DetailCard>
+            <DetailCard title="试算结果">
+              <div className="space-y-2">
+                {previewResult.lines.map((line, index) => (
+                  <div key={index} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">{line}</div>
+                ))}
+              </div>
+              {previewResult.warnings.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">提醒</p>
+                  {previewResult.warnings.map((warning, index) => (
+                    <div key={index} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{warning}</div>
+                  ))}
+                </div>
+              )}
+            </DetailCard>
+          </>
+        )}
+      </DetailDrawer>
+
       <ConfirmDialog
         open={confirmOpen}
         title="删除返利政策"
@@ -560,11 +718,69 @@ export default function RebateRulePage() {
   )
 }
 
+function TargetBindingSection({
+  bindings,
+  availableIndicators,
+  onAdd,
+  onRemove,
+}: {
+  bindings: RebatePolicyTargetBinding[]
+  availableIndicators: typeof rebateTargetIndicatorSeeds
+  onAdd: (indicatorId: string) => void
+  onRemove: (indicatorId: string) => void
+}) {
+  const boundIds = new Set(bindings.map((binding) => binding.indicatorId))
+  const unboundIndicators = availableIndicators.filter((item) => !boundIds.has(item.id))
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">关联任务指标</h4>
+      <p className="mb-3 text-xs text-gray-500">
+        返扣点统一按任务完成率考核（实际值 / 目标值）。适用范围由关联指标及其绑定的船舶/航线/房型决定，不在此单独选产品。
+      </p>
+      {bindings.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {bindings.map((binding) => {
+            const indicator = rebateTargetIndicatorSeeds.find((item) => item.id === binding.indicatorId)
+            return (
+              <div key={binding.indicatorId} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-800 truncate">{indicator?.name ?? binding.indicatorId}</div>
+                  <div className="text-xs text-gray-500">{indicator ? `${indicator.code} · ${indicatorTypeLabel[indicator.indicatorType]}` : ''}</div>
+                </div>
+                <span className="shrink-0 rounded-md bg-white px-2.5 py-1 text-xs text-gray-600 border border-gray-200">考核：任务完成率</span>
+                <button type="button" onClick={() => onRemove(binding.indicatorId)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {unboundIndicators.length > 0 ? (
+        <select
+          value=""
+          onChange={(e) => { if (e.target.value) onAdd(e.target.value) }}
+          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg text-sm"
+        >
+          <option value="">+ 添加关联指标</option>
+          {unboundIndicators.map((item) => (
+            <option key={item.id} value={item.id}>{item.code} · {item.name}</option>
+          ))}
+        </select>
+      ) : (
+        <p className="text-xs text-gray-400">暂无可添加的指标</p>
+      )}
+    </div>
+  )
+}
+
 function TierTable({
   tiers,
   minLabel,
   maxLabel,
   valueLabel,
+  valueStep = 0.1,
   onUpdate,
   onRemove,
   canRemove,
@@ -573,17 +789,19 @@ function TierTable({
   minLabel: string
   maxLabel: string
   valueLabel: string
+  valueStep?: number
   onUpdate: <K extends keyof RebateTier>(id: string, key: K, value: RebateTier[K]) => void
   onRemove: (id: string) => void
   canRemove: boolean
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[720px] text-sm">
         <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500">
           <tr>
             <th className="px-3 py-3">{minLabel}</th>
             <th className="px-3 py-3">{maxLabel}</th>
+            <th className="px-3 py-3">方向</th>
             <th className="px-3 py-3">{valueLabel}</th>
             <th className="px-3 py-3 text-center">操作</th>
           </tr>
@@ -593,7 +811,12 @@ function TierTable({
             <tr key={tier.id}>
               <td className="px-3 py-3"><input type="number" min={0} value={tier.minValue} onChange={(e) => onUpdate(tier.id, 'minValue', Number(e.target.value))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></td>
               <td className="px-3 py-3"><input type="number" min={0} value={tier.maxValue ?? ''} onChange={(e) => onUpdate(tier.id, 'maxValue', e.target.value === '' ? null : Number(e.target.value))} placeholder="不限" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></td>
-              <td className="px-3 py-3"><input type="number" min={0} step={0.1} value={tier.rebateValue} onChange={(e) => onUpdate(tier.id, 'rebateValue', Number(e.target.value))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></td>
+              <td className="px-3 py-3">
+                <select value={tier.adjustmentDirection} onChange={(e) => onUpdate(tier.id, 'adjustmentDirection', e.target.value as RebateAdjustmentDirection)} className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm">
+                  {directionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </td>
+              <td className="px-3 py-3"><input type="number" min={0} step={valueStep} value={tier.rebateValue} onChange={(e) => onUpdate(tier.id, 'rebateValue', Number(e.target.value))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></td>
               <td className="px-3 py-3 text-center">
                 <button type="button" onClick={() => onRemove(tier.id)} disabled={!canRemove} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300">
                   <Trash2 className="h-4 w-4" />

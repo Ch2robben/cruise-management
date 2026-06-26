@@ -1,10 +1,12 @@
 import { useMemo, useRef, useState } from 'react'
 import { Save } from 'lucide-react'
 import { groupItineraryRows, itineraryActivityColumns } from '@/components/voyage/ItineraryEditor'
+import VoyageTipManagementPanel, { type RouteSegmentOption } from '@/components/voyage/VoyageTipManagementPanel'
+import VoyagePriceGradientPanel from '@/components/voyage/VoyagePriceGradientPanel'
 import { voyageTemplates, voyages } from '@/mock/data'
 import type { TemplateItinerary, Voyage, VoyageTemplate } from '@/types'
 
-type ControlTab = 'inventory' | 'sales' | 'itinerary' | 'warning'
+type ControlTab = 'inventory' | 'sales' | 'itinerary' | 'warning' | 'tip' | 'gradient'
 type PolicyType = 'all' | 'ota' | 'dealer' | 'group'
 type PriceStatus = 'enabled' | 'paused' | 'soldout'
 type InventoryThresholdType = 'quantity' | 'percent'
@@ -53,7 +55,7 @@ interface PriceRow {
   status: PriceStatus
 }
 
-const tabs: Array<{ key: ControlTab; label: string }> = [
+const baseTabs: Array<{ key: ControlTab; label: string }> = [
   { key: 'inventory', label: '航次库存' },
   { key: 'sales', label: '销售控制' },
   { key: 'itinerary', label: '航次行程' },
@@ -188,8 +190,27 @@ export default function SalesControlPage() {
   return <SalesControlWorkspace />
 }
 
-export function SalesControlWorkspace({ embedded = false }: { embedded?: boolean }) {
+export function SalesControlWorkspace({
+  embedded = false,
+  voyage,
+  selectedSegmentKey = 'all',
+  segmentOptions = [{ key: 'all', label: '全部航段' }],
+}: {
+  embedded?: boolean
+  voyage?: Voyage
+  selectedSegmentKey?: string
+  segmentOptions?: RouteSegmentOption[]
+}) {
   const [activeTab, setActiveTab] = useState<ControlTab>('sales')
+  const selectedSegmentLabel = segmentOptions.find((item) => item.key === selectedSegmentKey)?.label || '全部航段'
+  const tabs = embedded
+    ? [
+      ...baseTabs,
+      { key: 'tip' as const, label: `小费管理 · ${selectedSegmentLabel}` },
+      { key: 'gradient' as const, label: `调价梯度 · ${selectedSegmentLabel}` },
+    ]
+    : baseTabs
+  const resolvedVoyage = voyage || currentVoyage
   const [selectedCabinId, setSelectedCabinId] = useState(cabinRows[0]?.id || '')
   const [selectedPolicyId, setSelectedPolicyId] = useState(policyRows[0]?.id || '')
   const [policyType, setPolicyType] = useState<PolicyType>('all')
@@ -216,14 +237,14 @@ export function SalesControlWorkspace({ embedded = false }: { embedded?: boolean
   return (
     <div className={`${embedded ? 'overflow-hidden rounded-lg border border-gray-200 bg-slate-100' : '-m-6 min-h-[calc(100vh-56px)] bg-slate-100'} text-slate-700`}>
       <div className="border-b border-slate-200 bg-white px-4">
-        <nav className="flex h-11 items-center gap-7 text-sm">
+        <nav className="flex h-11 items-center gap-7 overflow-x-auto text-sm">
           {tabs.map(tab => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
               aria-selected={activeTab === tab.key}
-              className={`h-full border-b-2 px-1 transition-colors ${
+              className={`h-full shrink-0 border-b-2 px-1 transition-colors ${
                 activeTab === tab.key ? 'border-blue-600 font-medium text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-900'
               }`}
             >
@@ -238,10 +259,28 @@ export function SalesControlWorkspace({ embedded = false }: { embedded?: boolean
           <VoyageInventoryTab />
         ) : activeTab === 'warning' ? (
           <InventoryWarningTab />
+        ) : activeTab === 'tip' ? (
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <VoyageTipManagementPanel
+              voyage={resolvedVoyage}
+              selectedSegmentKey={selectedSegmentKey}
+              embedded
+            />
+          </section>
+        ) : activeTab === 'gradient' ? (
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <VoyagePriceGradientPanel
+              voyage={resolvedVoyage}
+              selectedSegmentKey={selectedSegmentKey}
+              embedded
+            />
+          </section>
         ) : activeTab === 'itinerary' ? (
           <VoyageItineraryTab
-            voyage={currentVoyage}
-            template={currentVoyageTemplate}
+            voyage={resolvedVoyage}
+            template={voyageTemplates.find(template => (
+              template.id === resolvedVoyage?.templateId || template.productId === resolvedVoyage?.productId
+            ))}
             itinerary={itinerary}
             hasOwnItinerary={voyageHasOwnItinerary}
           />
@@ -251,8 +290,8 @@ export function SalesControlWorkspace({ embedded = false }: { embedded?: boolean
           <div className="border-b border-slate-200 px-3 py-2.5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">船舱信息</h2>
-                <p className="mt-1 truncate text-xs text-slate-500">当前船舱：{selectedCabin?.name || '-'}</p>
+                <h2 className="text-sm font-semibold text-slate-900">房型信息</h2>
+                <p className="mt-1 truncate text-xs text-slate-500">当前房型：{selectedCabin?.name || '-'}</p>
               </div>
               <div className="rounded-md bg-slate-50 px-2.5 py-1 text-right">
                 <div className="text-[11px] text-slate-500">售卖率</div>
@@ -264,7 +303,7 @@ export function SalesControlWorkspace({ embedded = false }: { embedded?: boolean
             <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50 text-xs text-slate-500">
-                  <th className="border-b border-slate-200 px-2.5 py-2 text-left font-medium">船舱名称</th>
+                  <th className="border-b border-slate-200 px-2.5 py-2 text-left font-medium">房型名称</th>
                   <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">投放</th>
                   <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">已售</th>
                   <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">未售</th>
@@ -466,7 +505,7 @@ function VoyageInventoryTab() {
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-2.5">
           <h2 className="text-sm font-semibold text-slate-900">航次库存</h2>
-          <p className="mt-0.5 text-xs text-slate-500">共 {rows.length} 类船舱，点击「维护库存」可调整投放数量与状态</p>
+          <p className="mt-0.5 text-xs text-slate-500">共 {rows.length} 类房型，点击「维护库存」可调整投放数量与状态</p>
         </div>
 
         <div className="overflow-x-auto">
@@ -474,7 +513,7 @@ function VoyageInventoryTab() {
             <thead>
               <tr className="bg-slate-50 text-slate-500">
                 <th className="w-12 border-b border-slate-200 px-3 py-2.5 text-center font-medium">序号</th>
-                <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">船舱名称</th>
+                <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">房型名称</th>
                 <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">库存数量</th>
                 <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">投放数量</th>
                 <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已售数</th>
@@ -580,7 +619,7 @@ function InventoryWarningTab() {
             <thead>
               <tr className="bg-slate-50 text-slate-500">
                 <th className="w-12 border-b border-slate-200 px-3 py-2.5 text-center font-medium">序号</th>
-                <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">船舱名称</th>
+                <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">房型名称</th>
                 <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">投放数量</th>
                 <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已售数</th>
                 <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">投放未售数</th>

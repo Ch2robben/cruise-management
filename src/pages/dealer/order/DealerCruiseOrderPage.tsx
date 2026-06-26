@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronLeft, RotateCcw, Search } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import { formatCurrency } from '@/utils/format'
@@ -19,6 +20,7 @@ interface CruiseOrder {
   marketCategory: string
   nationality: string
   totalPeople: number
+  realNameCount: number
   adult: number
   child: number
   infant: number
@@ -95,6 +97,7 @@ const orders: CruiseOrder[] = [
     marketCategory: '内宾-巫山县',
     nationality: '中国',
     totalPeople: 1,
+    realNameCount: 0,
     adult: 1,
     child: 0,
     infant: 0,
@@ -162,6 +165,7 @@ const orders: CruiseOrder[] = [
     marketCategory: '内宾-奉节县',
     nationality: '中国',
     totalPeople: 2,
+    realNameCount: 1,
     adult: 2,
     child: 0,
     infant: 0,
@@ -229,6 +233,7 @@ const orders: CruiseOrder[] = [
     marketCategory: '外宾-日本',
     nationality: '阿富汗',
     totalPeople: 16,
+    realNameCount: 12,
     adult: 16,
     child: 0,
     infant: 0,
@@ -296,6 +301,7 @@ const orders: CruiseOrder[] = [
     marketCategory: '内宾-云阳县',
     nationality: '中国',
     totalPeople: 10,
+    realNameCount: 10,
     adult: 10,
     child: 0,
     infant: 0,
@@ -363,23 +369,16 @@ const filterFields = [
   { key: 'policy', label: '政策类别', type: 'select', options: ['全部', '内宾共享', '外宾协议', '内宾团队价'] },
   { key: 'sailDate', label: '开航日期', type: 'date', placeholder: '2021-01-01 - 2021-12-31' },
   { key: 'ship', label: '游轮', type: 'select', options: ['全部', '长江壹号', '长江贰号', '长江叁号', '长江凯号'] },
-  { key: 'dealer', label: '组团社', type: 'select', options: ['全部', '宜昌趸多', '销售二分部', '重庆神州'] },
   { key: 'amountType', label: '金额类型', type: 'select', options: ['全部', '船票款', '小费', '地接费'] },
   { key: 'lockStatus', label: '锁铺状态', type: 'select', options: ['全部', '暂存', '已锁定', '已释放'] },
-  { key: 'voucherApplyStatus', label: '凭证申请状态', type: 'select', options: ['全部', '未申请凭证', '单证凭证失败'] },
-  { key: 'voucherApprovalStatus', label: '凭证审批状态', type: 'select', options: ['全部', '待审核', '审批完成'] },
-  { key: 'shareStatus', label: '共享中心状态', type: 'select', options: ['全部', '暂存', '已同步'] },
   { key: 'salesType', label: '销售类型', type: 'select', options: ['全部', '散客', '团队', '补单'] },
   { key: 'invoiceRequired', label: '是否开票', type: 'select', options: ['全部', '是', '否'] },
   { key: 'depositDate', label: '定金时间', type: 'date', placeholder: '请选择' },
   { key: 'sailDeadline', label: '船款时间', type: 'date', placeholder: '请选择' },
-  { key: 'miniProgramChannel', label: '小程序来源渠道', type: 'select', options: ['全部', '公众号', '小程序', '旅行社'] },
   { key: 'thirdPartyOrderNo', label: '第三方订单号', type: 'input', placeholder: '请输入' },
   { key: 'orderType', label: '订单类型', type: 'select', options: ['全部', '普通订单', '补差订单'] },
-  { key: 'pushTime', label: '推送时间', type: 'date', placeholder: '请选择' },
   { key: 'relatedOrderNo', label: '关联单号', type: 'input', placeholder: '请输入' },
   { key: 'advanceAccount', label: '预定账号', type: 'input', placeholder: '请输入在线搜索' },
-  { key: 'salesPerson', label: '分管业务员', type: 'select', options: ['全部', '彭辉', '栾伶伶'] },
 ]
 
 const primaryFilterKeys = ['keyword', 'orderStatus', 'voyageNo', 'marketCategory', 'sailDate', 'groupName']
@@ -388,7 +387,6 @@ const advancedFilterFields = filterFields.filter((field) => !primaryFilterKeys.i
 
 const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: string; render?: (record: CruiseOrder) => ReactNode }[] = [
   { key: 'index', title: '序号', width: '58px' },
-  { key: 'history', title: '历史', width: '70px', render: (record) => <span className="text-blue-600 underline">{record.history}</span> },
   { key: 'orderNo', title: '订单号', width: '110px' },
   { key: 'groupName', title: '团名', width: '160px' },
   { key: 'voyageNo', title: '航次', width: '88px' },
@@ -399,6 +397,7 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'marketCategory', title: '市场类别', width: '120px' },
   { key: 'nationality', title: '国籍', width: '80px' },
   { key: 'totalPeople', title: '人数', width: '70px' },
+  { key: 'realNameCount', title: '游客信息', width: '90px', render: (record) => `${record.realNameCount}/${record.totalPeople}` },
   { key: 'child', title: '儿童', width: '70px' },
   { key: 'infant', title: '婴儿', width: '70px' },
   { key: 'companion', title: '陪同', width: '70px' },
@@ -412,7 +411,6 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'arrears', title: '欠款', width: '90px' },
   { key: 'depositAmount', title: '定金罚金', width: '100px' },
   { key: 'ticketBalance', title: '船款罚金', width: '100px' },
-  { key: 'dealer', title: '组团社', width: '120px' },
   { key: 'remark', title: '备注', width: '120px' },
   { key: 'depositDate', title: '定金日期', width: '110px' },
   { key: 'parentOrderNo', title: '总单号', width: '120px' },
@@ -420,16 +418,10 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'sailDeadline', title: '船款日期', width: '110px' },
   { key: 'bookingTime', title: '预订日期', width: '145px' },
   { key: 'lockValidUntil', title: '锁铺有效期', width: '120px' },
-  { key: 'voucherApplyStatus', title: '凭证申请状态', width: '130px' },
-  { key: 'voucherApprovalStatus', title: '凭证审批状态', width: '130px' },
-  { key: 'shareCenterStatus', title: '共享中心状态', width: '120px' },
-  { key: 'pushTime', title: '推送时间', width: '140px' },
   { key: 'invoiceRequired', title: '是否开票', width: '90px' },
-  { key: 'miniProgramChannel', title: '小程序来源渠道', width: '140px' },
   { key: 'advanceAccount', title: '预定账号', width: '120px' },
   { key: 'relatedOrderNo', title: '关联单号', width: '120px' },
-  { key: 'salesPerson', title: '分管业务员', width: '110px' },
-  { key: 'actions', title: '操作', width: '110px' },
+  { key: 'actions', title: '操作', width: '160px' },
 ]
 
 const amountColumnKeys = new Set<keyof CruiseOrder>([
@@ -620,10 +612,12 @@ function AmountTable({ order }: { order: CruiseOrder }) {
 }
 
 export default function DealerCruiseOrderPage() {
+  const navigate = useNavigate()
   const [filters, setFilters] = useState<Record<string, string>>(createEmptyFilters)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [page, setPage] = useState(1)
   const [detail, setDetail] = useState<CruiseOrder | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const filteredOrders = useMemo(() => {
     const keyword = filters.keyword?.trim().toLowerCase()
@@ -645,6 +639,41 @@ export default function DealerCruiseOrderPage() {
   const resetFilters = () => {
     setFilters(createEmptyFilters())
     setPage(1)
+  }
+
+  const selectedOrders = useMemo(
+    () => filteredOrders.filter((order) => selectedIds.includes(order.id)),
+    [filteredOrders, selectedIds],
+  )
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelectedIds(checked ? pagedOrders.map((order) => order.id) : [])
+  }
+
+  const toggleSelectOne = (orderId: string, checked: boolean) => {
+    setSelectedIds((prev) => (checked ? [...prev, orderId] : prev.filter((id) => id !== orderId)))
+  }
+
+  const handlePay = (order?: CruiseOrder) => {
+    const targets = order ? [order] : selectedOrders
+    if (targets.length === 0) {
+      window.alert('请先选择订单')
+      return
+    }
+    const summary = targets.map((item) => `${item.orderNo}（欠款 ${formatCurrency(item.arrears)}）`).join('\n')
+    window.alert(`即将支付以下订单：\n${summary}`)
+  }
+
+  const handleTouristInfo = (order?: CruiseOrder) => {
+    const target = order ?? selectedOrders[0]
+    if (!target) {
+      window.alert('请先选择订单')
+      return
+    }
+    if (!order && selectedOrders.length > 1) {
+      window.alert('一次只能维护一个订单的游客信息，已打开第一条选中订单')
+    }
+    navigate('/dealer/orders/cruise/tourists', { state: { order: target } })
   }
 
   if (detail) {
@@ -680,7 +709,6 @@ export default function DealerCruiseOrderPage() {
                 <FieldItem label="第三方订单号" value={detail.thirdPartyOrderNo || '-'} mono />
                 <FieldItem label="预订时间" value={detail.bookingTime} />
                 <FieldItem label="订单类型" value={detail.orderType} />
-                <FieldItem label="分管业务员" value={detail.salesPerson} />
               </FieldGrid>
             </DetailSection>
 
@@ -706,14 +734,14 @@ export default function DealerCruiseOrderPage() {
               </FieldGrid>
             </DetailSection>
 
-            <DetailSection title="组团社及政策">
+            <DetailSection title="政策与市场">
               <FieldGrid>
-                <FieldItem label="组团社" value={detail.dealer} />
-                <FieldItem label="组团社用户" value={detail.advanceAccount} />
+                <FieldItem label="预定账号" value={detail.advanceAccount} />
                 <FieldItem label="价格政策" value={detail.policyName} />
                 <FieldItem label="市场类别" value={detail.marketCategory} />
                 <FieldItem label="国籍" value={detail.nationality} />
                 <FieldItem label="销售类型" value={detail.salesType} />
+                <FieldItem label="锁铺有效期" value={detail.lockValidUntil || '-'} />
               </FieldGrid>
             </DetailSection>
 
@@ -728,14 +756,9 @@ export default function DealerCruiseOrderPage() {
               </div>
             </DetailSection>
 
-            <DetailSection title="凭证与共享状态">
+            <DetailSection title="开票信息">
               <FieldGrid>
-                <FieldItem label="凭证申请" value={detail.voucherApplyStatus} />
-                <FieldItem label="凭证审批" value={detail.voucherApprovalStatus} />
-                <FieldItem label="共享中心" value={detail.shareCenterStatus} />
-                <FieldItem label="推送时间" value={detail.pushTime || '-'} />
                 <FieldItem label="是否开票" value={detail.invoiceRequired} />
-                <FieldItem label="预定账号" value={detail.advanceAccount} />
               </FieldGrid>
             </DetailSection>
           </div>
@@ -788,10 +811,28 @@ export default function DealerCruiseOrderPage() {
 
       <div className="border-b border-gray-200 bg-white px-9 py-6">
         <div className="flex items-start gap-6">
-          <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3 2xl:grid-cols-6">
-            {primaryFilterFields.map((field) => (
-              <FilterControl key={field.key} field={field} value={filters[field.key]} onChange={updateFilter} />
-            ))}
+          <div className="flex-1 space-y-4">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3 2xl:grid-cols-6">
+              {primaryFilterFields.map((field) => (
+                <FilterControl key={field.key} field={field} value={filters[field.key]} onChange={updateFilter} />
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handlePay()}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-5 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+              >
+                支付
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTouristInfo()}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                游客信息
+              </button>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-3 pt-[22px]">
             <button onClick={() => setPage(1)} className="inline-flex h-11 min-w-[90px] items-center justify-center gap-2 rounded-md bg-blue-600 px-6 text-base font-medium text-white transition hover:bg-blue-700">
@@ -833,7 +874,13 @@ export default function DealerCruiseOrderPage() {
           <table className="min-w-[4200px] border-collapse text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="h-[72px] w-10 border-b border-r border-gray-200 bg-gray-50 px-3 text-center align-middle"><input type="checkbox" /></th>
+                <th className="h-[72px] w-10 border-b border-r border-gray-200 bg-gray-50 px-3 text-center align-middle">
+                  <input
+                    type="checkbox"
+                    checked={pagedOrders.length > 0 && pagedOrders.every((order) => selectedIds.includes(order.id))}
+                    onChange={(event) => toggleSelectAll(event.target.checked)}
+                  />
+                </th>
                 {tableColumns.map((column) => (
                   <th
                     key={column.key}
@@ -848,14 +895,27 @@ export default function DealerCruiseOrderPage() {
             <tbody>
               {pagedOrders.map((order) => (
                 <tr key={order.id} className="transition hover:bg-gray-50">
-                  <td className="border-b border-r border-gray-200 px-4 py-5 text-center"><input type="checkbox" /></td>
+                  <td className="border-b border-r border-gray-200 px-4 py-5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(order.id)}
+                      onChange={(event) => toggleSelectOne(order.id, event.target.checked)}
+                    />
+                  </td>
                   {tableColumns.map((column) => (
                     <td
                       key={column.key}
                       className={`whitespace-nowrap border-b border-r border-gray-200 px-4 py-5 text-sm text-gray-700 last:border-r-0 ${numericColumnKeys.has(column.key as keyof CruiseOrder) ? 'text-right tabular-nums' : ''}`}
                     >
                       {column.key === 'actions' ? (
-                        <button onClick={() => setDetail(order)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button type="button" onClick={() => handlePay(order)} className="rounded px-2 py-1 text-xs text-blue-700 hover:bg-blue-50">
+                            支付
+                          </button>
+                          <button type="button" onClick={() => handleTouristInfo(order)} className="rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-100">
+                            游客信息
+                          </button>
+                        </div>
                       ) : column.key === 'orderNo' ? (
                         <button onClick={() => setDetail(order)} className="font-mono text-blue-700 underline underline-offset-2 hover:text-blue-900">
                           {order.orderNo}

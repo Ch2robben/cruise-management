@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Info, Plus, Upload, Camera, Trash2, ChevronDown, X, BedDouble, Users } from 'lucide-react'
-import { defaultRoomReserveData } from '@/mock/data'
+import { defaultRoomReserveData, bookingSegmentOptions } from '@/mock/data'
+import {
+  calculateGuestBaseTicket,
+  parseAgeFromIdCard,
+  parseGenderFromIdCard,
+  resolveGuestPriceInfo,
+  type GuestPriceInfo,
+} from '@/components/dealer/booking/guestPricingUtils'
+import { formatCurrency } from '@/utils/format'
 
 const comboOptions = ['VIP餐厅', '岸上观光', '酒水套餐', 'WiFi套餐', 'SPA套餐', '摄影套餐']
 const defaultRoomTypes = ['标准间', '豪华套房', '总统套房']
@@ -38,43 +46,77 @@ function NameCombobox({
   const [open, setOpen] = useState(false)
   const filtered = useMemo(() => {
     const keyword = value.trim()
-    if (!keyword) return guestNameOptions.slice(0, 8)
-    return guestNameOptions.filter((option) => option.name.includes(keyword)).slice(0, 8)
+    if (!keyword) return guestNameOptions
+    return guestNameOptions.filter((option) => option.name.includes(keyword))
   }, [value])
+
+  const selectGuest = (option: GuestNameOption) => {
+    onSelectGuest(option)
+    setOpen(false)
+  }
 
   return (
     <div className="relative">
-      <input
-        className="h-8 w-full rounded border border-gray-300 px-2 text-xs outline-none focus:border-blue-500"
-        placeholder="姓名"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value)
-          setOpen(true)
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
-      {open && filtered.length > 0 && (
-        <ul className="absolute left-0 right-0 top-9 z-20 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-          {filtered.map((option) => (
-            <li key={`${option.name}-${option.idNum}`}>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-blue-50"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  onSelectGuest(option)
-                  setOpen(false)
-                }}
-              >
-                <span className="font-medium text-gray-900">{option.name}</span>
-                <span className="ml-2 truncate text-gray-400">{option.idNum}</span>
-              </button>
-            </li>
-          ))}
+      <div className="flex h-8 w-full items-center overflow-hidden rounded border border-gray-300 bg-white focus-within:border-blue-500">
+        <input
+          className="min-w-0 flex-1 border-0 bg-transparent px-2 text-xs outline-none"
+          placeholder="请选择或输入姓名"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          className="flex h-full shrink-0 items-center border-l border-gray-200 px-1.5 text-gray-400 hover:bg-gray-50"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            setOpen((prev) => !prev)
+          }}
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+      {open && (
+        <ul className="absolute left-0 right-0 top-9 z-20 max-h-44 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-gray-400">无匹配游客，可继续手动输入</li>
+          ) : (
+            filtered.map((option) => (
+              <li key={`${option.name}-${option.idNum}`}>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-blue-50 ${
+                    value.trim() === option.name ? 'bg-blue-50 text-blue-700' : ''
+                  }`}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    selectGuest(option)
+                  }}
+                >
+                  <span className="font-medium">{option.name}</span>
+                  <span className="ml-2 truncate text-gray-400">{option.idNum}</span>
+                </button>
+              </li>
+            ))
+          )}
         </ul>
       )}
+    </div>
+  )
+}
+
+function ReadOnlyCell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`flex min-h-8 items-center rounded border border-gray-100 bg-gray-50 px-2 text-xs text-gray-700 ${className}`}
+      title="系统自动识别，不可修改"
+    >
+      {children}
     </div>
   )
 }
@@ -101,6 +143,7 @@ interface TouristGuest {
 interface TourTeam {
   id: string
   name: string
+  remark: string
 }
 
 interface RoomGroup {
@@ -108,12 +151,18 @@ interface RoomGroup {
   roomSeq: string
   roomType: string
   teamId: string
-  remark: string
+  segmentId: string
+  segmentLabel: string
   guests: TouristGuest[]
 }
 
-function createTeam(name: string): TourTeam {
-  return { id: `team-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name }
+function getSegmentLabel(segmentId: string) {
+  const segment = bookingSegmentOptions.find((item) => item.id === segmentId) ?? bookingSegmentOptions[0]
+  return `${segment.startPort} → ${segment.endPort}`
+}
+
+function createTeam(name: string, remark = ''): TourTeam {
+  return { id: `team-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, remark }
 }
 
 function defaultGuestCount(roomType: string) {
@@ -150,7 +199,7 @@ function createRoomGroup(
   roomType: string,
   guestCount?: number,
   teamId = '',
-  remark = '',
+  segmentId = bookingSegmentOptions[0].id,
 ): RoomGroup {
   const count = guestCount ?? defaultGuestCount(roomType)
   const stayType = defaultStayType(roomType)
@@ -160,7 +209,8 @@ function createRoomGroup(
     roomSeq,
     roomType,
     teamId,
-    remark,
+    segmentId,
+    segmentLabel: getSegmentLabel(segmentId),
     guests: Array.from({ length: count }, (_, index) => createGuest(baseId + index, stayType)),
   }
 }
@@ -188,14 +238,16 @@ function buildInitialRoomGroups(roomData: Record<string, { count?: number }>): R
 }
 
 function flattenRoomGroups(roomGroups: RoomGroup[], teams: TourTeam[]) {
-  const teamMap = new Map(teams.map((team) => [team.id, team.name]))
+  const teamMap = new Map(teams.map((team) => [team.id, team]))
   return roomGroups.flatMap((room) =>
     room.guests.map((guest) => ({
       ...guest,
       roomType: room.roomType,
       roomSeq: room.roomSeq,
-      teamName: teamMap.get(room.teamId) || '',
-      roomRemark: room.remark,
+      segmentId: room.segmentId,
+      segmentLabel: room.segmentLabel,
+      teamName: teamMap.get(room.teamId)?.name || '',
+      teamRemark: teamMap.get(room.teamId)?.remark || '',
     })),
   )
 }
@@ -212,7 +264,7 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
     ageGroup = '成人',
     guestType = '内宾',
     idType = '身份证',
-  ): TouristGuest => ({
+  ): TouristGuest => enrichGuestFromId({
     ...createGuest(id, stayType),
     name,
     idNum,
@@ -222,7 +274,7 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
     guestType,
     idType,
     nationality: guestType === '外宾' ? '美国' : '中国',
-  })
+  }, idNum, idType)
 
   return [
     {
@@ -230,7 +282,8 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       roomSeq: '1',
       roomType: '标准间',
       teamId: teamIds.team1,
-      remark: '靠窗优先',
+      segmentId: bookingSegmentOptions[0].id,
+      segmentLabel: getSegmentLabel(bookingSegmentOptions[0].id),
       guests: [
         guest(baseId, '张明', '420106198801011234', '13812345678', '男', '标准'),
         guest(baseId + 1, '李红', '420106199002021235', '13912345679', '女', '标准'),
@@ -241,7 +294,8 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       roomSeq: '2',
       roomType: '豪华套房',
       teamId: teamIds.team1,
-      remark: '',
+      segmentId: bookingSegmentOptions[1]?.id ?? bookingSegmentOptions[0].id,
+      segmentLabel: getSegmentLabel(bookingSegmentOptions[1]?.id ?? bookingSegmentOptions[0].id),
       guests: [
         guest(baseId + 2, '王强', 'P12345678', '13712345670', '男', '单间', '成人', '外宾', '护照'),
       ],
@@ -251,7 +305,8 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       roomSeq: '3',
       roomType: '标准间',
       teamId: teamIds.team2,
-      remark: '含儿童，需安排婴儿床',
+      segmentId: bookingSegmentOptions[2]?.id ?? bookingSegmentOptions[0].id,
+      segmentLabel: getSegmentLabel(bookingSegmentOptions[2]?.id ?? bookingSegmentOptions[0].id),
       guests: [
         guest(baseId + 3, '赵丽', '420106199204041237', '13612345671', '女', '标准'),
         guest(baseId + 4, '陈浩', '420106201006051238', '13512345672', '男', '儿童不占床', '儿童'),
@@ -267,13 +322,13 @@ function buildMockOcrRoomGroups(existing: RoomGroup[]): RoomGroup[] {
     (existing.map((r) => Number.parseInt(r.roomSeq, 10)).filter((n) => !Number.isNaN(n)).pop() ?? 0) + 1,
   )
   const ocrRoom = createRoomGroup(nextSeq, '标准间', 1)
-  ocrRoom.guests[0] = {
+  ocrRoom.guests[0] = enrichGuestFromId({
     ...ocrRoom.guests[0],
     name: '刘洋',
     idNum: '420106199507071239',
     phone: '13412345673',
     gender: '男',
-  }
+  }, '420106199507071239')
   return [...existing, ocrRoom]
 }
 
@@ -285,29 +340,46 @@ interface ImportPreviewGuest {
   guestType: string
   ageGroup: string
   gender: string
+  age: string
+  ticketPrice: number
+  priceTypeLabel: string
+  roomLabel: string
   source: 'import' | 'ocr'
 }
 
-function flattenPreviewGuests(roomGroups: RoomGroup[], source: 'import' | 'ocr'): ImportPreviewGuest[] {
-  return roomGroups.flatMap((room) =>
-    room.guests
+function flattenPreviewGuests(
+  roomGroups: RoomGroup[],
+  roomData: Record<string, { price?: number }>,
+  source: 'import' | 'ocr',
+): ImportPreviewGuest[] {
+  return roomGroups.flatMap((room) => {
+    const baseP = getRoomBasePrice(room.roomType, roomData)
+    return room.guests
       .filter((guest) => guest.name)
-      .map((guest) => ({
-        id: guest.id,
-        name: guest.name,
-        idNum: guest.idNum,
-        phone: guest.phone,
-        guestType: guest.guestType,
-        ageGroup: guest.ageGroup,
-        gender: guest.gender,
-        source,
-      })),
-  )
+      .map((guest, index) => {
+        const priceInfo = resolveGuestPriceInfo(guest, room, index, baseP)
+        return {
+          id: guest.id,
+          name: guest.name,
+          idNum: guest.idNum,
+          phone: guest.phone,
+          guestType: guest.guestType,
+          ageGroup: guest.ageGroup,
+          gender: guest.gender,
+          age: guest.age,
+          ticketPrice: priceInfo.ticketPrice,
+          priceTypeLabel: priceInfo.priceTypeLabel,
+          roomLabel: `房间${room.roomSeq} · ${room.roomType}`,
+          source,
+        }
+      })
+  })
 }
 
 interface RoomPriceLine {
   desc: string
   price: number
+  priceTypeLabel: string
 }
 
 interface RoomPriceResult {
@@ -319,47 +391,48 @@ function getRoomBasePrice(roomType: string, roomData: Record<string, { price?: n
   return roomData?.[roomType]?.price ?? defaultRoomReserveData[roomType as keyof typeof defaultRoomReserveData]?.price ?? 2980
 }
 
-function calculateGuestPrice(
-  roomType: string,
-  guestIndex: number,
-  stayType: string,
-  guestCount: number,
-  baseP: number,
-): { price: number; desc: string } {
-  const position = guestIndex + 1
-
-  if (roomType !== '标准间' && stayType === '单间' && guestCount === 1) {
-    return { price: baseP, desc: `${roomType}·单间` }
+function enrichGuestFromId(guest: TouristGuest, idNum: string, idType?: string) {
+  const next = { ...guest, idNum }
+  const type = idType ?? guest.idType
+  if (type === '身份证' && idNum.trim()) {
+    const age = parseAgeFromIdCard(idNum)
+    const gender = parseGenderFromIdCard(idNum)
+    if (age) next.age = age
+    if (gender) next.gender = gender
   }
-
-  if (stayType === '单间') {
-    return { price: Math.round(baseP * 1.75), desc: `第${position}人·单间` }
-  }
-  if (stayType === '儿童不占床') {
-    return { price: Math.round(baseP * 0.5), desc: `第${position}人·儿童不占床` }
-  }
-  if (stayType === '不占床') {
-    return { price: Math.round(baseP * 0.1), desc: `第${position}人·婴儿不占床` }
-  }
-  if (stayType === '加床') {
-    const factor = position >= 3 ? 0.5 : 1.5
-    return { price: Math.round(baseP * factor), desc: `第${position}人·加床` }
-  }
-
-  return { price: baseP, desc: `第${position}人·标准` }
+  return next
 }
 
 function calculateRoomPrice(room: RoomGroup, roomData: Record<string, { price?: number }>): RoomPriceResult {
   const baseP = getRoomBasePrice(room.roomType, roomData)
   const lines = room.guests.map((guest, index) => {
-    const { price, desc } = calculateGuestPrice(room.roomType, index, guest.stayType, room.guests.length, baseP)
-    return { desc, price }
+    const priceInfo = resolveGuestPriceInfo(guest, room, index, baseP)
+    const { desc } = calculateGuestBaseTicket(room, index, baseP)
+    return {
+      desc,
+      price: priceInfo.ticketPrice ?? 0,
+      priceTypeLabel: priceInfo.priceTypeLabel,
+    }
   })
   const total = lines.reduce((sum, line) => sum + line.price, 0)
   return { total, lines }
 }
 
-export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomData: any, onNext: (data: any) => void, onPrev: () => void }) {
+export default function Step3TouristInfo({
+  roomData,
+  onNext,
+  onPrev,
+  mode = 'booking',
+  orderNo,
+  initialGroupName,
+}: {
+  roomData: any
+  onNext: (data: any) => void
+  onPrev: () => void
+  mode?: 'booking' | 'order-edit'
+  orderNo?: string
+  initialGroupName?: string
+}) {
   const [teams, setTeams] = useState<TourTeam[]>([])
   const [roomGroups, setRoomGroups] = useState<RoomGroup[]>([])
   const [comboOpenKey, setComboOpenKey] = useState<string | null>(null)
@@ -367,6 +440,7 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
   const [addTeamOpen, setAddTeamOpen] = useState(false)
   const [newRoomType, setNewRoomType] = useState('标准间')
   const [newRoomTeamId, setNewRoomTeamId] = useState('')
+  const [newRoomSegmentId, setNewRoomSegmentId] = useState(bookingSegmentOptions[0].id)
   const [newTeamName, setNewTeamName] = useState('')
   const [importPreview, setImportPreview] = useState<ImportPreviewGuest[]>([])
   const [importTip, setImportTip] = useState('')
@@ -412,6 +486,17 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
     return map
   }, [roomGroups, roomData])
 
+  const guestPriceMap = useMemo(() => {
+    const map = new Map<string, GuestPriceInfo>()
+    roomGroups.forEach((room) => {
+      const baseP = getRoomBasePrice(room.roomType, roomData || {})
+      room.guests.forEach((guest, index) => {
+        map.set(`${room.id}-${guest.id}`, resolveGuestPriceInfo(guest, room, index, baseP))
+      })
+    })
+    return map
+  }, [roomGroups, roomData])
+
   const orderTotal = useMemo(
     () => roomGroups.reduce((sum, room) => sum + (roomPriceMap.get(room.id)?.total ?? 0), 0),
     [roomGroups, roomPriceMap],
@@ -421,12 +506,12 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
     if (roomGroups.length === 0 && teams.length === 0) {
       const initial = buildInitialRoomGroups(roomData || {})
       if (initial.length > 0) {
-        const defaultTeam = createTeam('默认团')
+        const defaultTeam = createTeam(initialGroupName?.trim() || '默认团')
         setTeams([defaultTeam])
-        setRoomGroups(initial.map((room) => ({ ...room, teamId: defaultTeam.id, remark: '' })))
+        setRoomGroups(initial.map((room) => ({ ...room, teamId: defaultTeam.id })))
       }
     }
-  }, [roomData, roomGroups.length, teams.length])
+  }, [roomData, roomGroups.length, teams.length, initialGroupName])
 
   const rowOffsets = useMemo(() => {
     let offset = 0
@@ -500,7 +585,7 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
       alert('请先新增团名')
       return
     }
-    setRoomGroups((prev) => [...prev, createRoomGroup(nextRoomSeq, newRoomType, undefined, teamId)])
+    setRoomGroups((prev) => [...prev, createRoomGroup(nextRoomSeq, newRoomType, undefined, teamId, newRoomSegmentId)])
     setAddRoomOpen(false)
   }
 
@@ -517,6 +602,10 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
     setTeams((prev) => prev.map((team) => (team.id === teamId ? { ...team, name } : team)))
   }
 
+  const updateTeamRemark = (teamId: string, remark: string) => {
+    setTeams((prev) => prev.map((team) => (team.id === teamId ? { ...team, remark } : team)))
+  }
+
   const removeTeam = (teamId: string) => {
     const roomCount = roomGroups.filter((room) => room.teamId === teamId).length
     if (roomCount > 0) {
@@ -527,17 +616,24 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
     setTeams((prev) => prev.filter((team) => team.id !== teamId))
   }
 
-  const updateRoomRemark = (roomId: string, remark: string) => {
-    setRoomGroups((prev) => prev.map((room) => (room.id === roomId ? { ...room, remark } : room)))
-  }
-
   const updateRoomTeam = (roomId: string, teamId: string) => {
     setRoomGroups((prev) => prev.map((room) => (room.id === roomId ? { ...room, teamId } : room)))
+  }
+
+  const updateRoomSegment = (roomId: string, segmentId: string) => {
+    setRoomGroups((prev) =>
+      prev.map((room) =>
+        room.id === roomId
+          ? { ...room, segmentId, segmentLabel: getSegmentLabel(segmentId) }
+          : room,
+      ),
+    )
   }
 
   const openAddRoom = (teamId?: string) => {
     setNewRoomType(roomTypeOptions[0] || '标准间')
     setNewRoomTeamId(teamId || teams[0]?.id || '')
+    setNewRoomSegmentId(bookingSegmentOptions[0].id)
     setAddRoomOpen(true)
   }
 
@@ -554,9 +650,15 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
           ...room,
           guests: room.guests.map((guest) => {
             if (guest.id !== guestId) return guest
-            const nextGuest = { ...guest, [field]: value } as TouristGuest
+            let nextGuest = { ...guest, [field]: value } as TouristGuest
             if (field === 'nationality') {
               nextGuest.guestType = value === '中国' || !value ? '内宾' : '外宾'
+            }
+            if (field === 'idNum') {
+              nextGuest = enrichGuestFromId(nextGuest, String(value))
+            }
+            if (field === 'idType' && nextGuest.idNum) {
+              nextGuest = enrichGuestFromId(nextGuest, nextGuest.idNum, String(value))
             }
             return nextGuest
           }),
@@ -573,13 +675,13 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
           ...room,
           guests: room.guests.map((guest) =>
             guest.id === guestId
-              ? {
+              ? enrichGuestFromId({
                   ...guest,
                   name: option.name,
                   idType: option.idType,
                   idNum: option.idNum,
                   phone: option.phone,
-                }
+                }, option.idNum, option.idType)
               : guest,
           ),
         }
@@ -606,12 +708,12 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
   }
 
   const handleImportList = () => {
-    const team1 = createTeam('华东旅行社一团')
-    const team2 = createTeam('散客自组')
+    const team1 = createTeam('华东旅行社一团', '靠窗优先')
+    const team2 = createTeam('散客自组', '含儿童，需安排婴儿床')
     const mock = buildMockImportRoomGroups({ team1: team1.id, team2: team2.id })
     setTeams([team1, team2])
     setRoomGroups(mock)
-    setImportPreview(flattenPreviewGuests(mock, 'import'))
+    setImportPreview(flattenPreviewGuests(mock, roomData || {}, 'import'))
     setImportTip(`已导入 ${mock.reduce((sum, room) => sum + room.guests.length, 0)} 位游客，${mock.length} 间房，${2} 个团`)
   }
 
@@ -624,7 +726,7 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
       if (ocrRoom && !ocrRoom.teamId) {
         ocrRoom.teamId = fallbackTeam.id
       }
-      const newGuests = flattenPreviewGuests(next, 'ocr').slice(-1)
+      const newGuests = flattenPreviewGuests(next, roomData || {}, 'ocr').slice(-1)
       setImportPreview((old) => [...old.filter((g) => g.source !== 'ocr' || !newGuests.some((n) => n.id === g.id)), ...newGuests])
       setImportTip('OCR 识别成功，新增 1 位游客')
       return next
@@ -640,7 +742,10 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
 
       <div className="bg-blue-50 border border-blue-100 text-blue-600 px-4 py-3 rounded-lg text-sm mb-4 flex items-start gap-2">
         <Info className="w-5 h-5 shrink-0" />
-        <span>可按团名分组录入，同一团下可包含多种房型；每个房间可单独填写备注。姓名和证件号码为必填项。</span>
+        <span>
+          {mode === 'order-edit' && orderNo ? `订单号 ${orderNo} · ` : ''}
+          可按团名分组录入，同一团下可包含多种房型；团备注对该团下全部房间生效。姓名和证件号码为必填项；性别、年龄、票价、价格类型根据证件自动识别，不可手动修改。
+        </span>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -725,6 +830,15 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                   </div>
                 </div>
 
+                <div className="rounded-lg border border-blue-100 bg-white px-3 py-2">
+                  <input
+                    className="h-8 w-full rounded border border-gray-200 px-3 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400"
+                    placeholder="团备注，如：靠窗优先、含儿童需婴儿床"
+                    value={team.remark}
+                    onChange={(e) => updateTeamRemark(team.id, e.target.value)}
+                  />
+                </div>
+
                 {rooms.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-gray-300 bg-white py-8 text-center text-xs text-gray-400">
                     该团暂无房间，点击「新增房型」开始录入
@@ -756,6 +870,18 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
+                  <select
+                    value={room.segmentId || bookingSegmentOptions[0].id}
+                    onChange={(e) => updateRoomSegment(room.id, e.target.value)}
+                    className="h-8 min-w-[140px] rounded border border-gray-300 bg-white px-2 text-xs text-gray-600 outline-none focus:border-blue-500"
+                    title="航段"
+                  >
+                    {bookingSegmentOptions.map((segment) => (
+                      <option key={segment.id} value={segment.id}>
+                        {segment.startPort} → {segment.endPort}
+                      </option>
+                    ))}
+                  </select>
                   <span className="text-xs text-gray-500">{room.guests.length} 人</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -776,17 +902,8 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                 </div>
               </div>
 
-              <div className="border-b border-gray-100 bg-white px-4 py-2">
-                <input
-                  className="h-8 w-full rounded border border-gray-200 px-3 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400"
-                  placeholder="房间备注，如：靠窗优先、含儿童需婴儿床"
-                  value={room.remark}
-                  onChange={(e) => updateRoomRemark(room.id, e.target.value)}
-                />
-              </div>
-
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] text-left text-sm whitespace-nowrap">
+                <table className="w-full min-w-[1180px] text-left text-sm whitespace-nowrap">
                   <thead className="border-b border-gray-100 bg-white text-gray-600">
                     <tr>
                       <th className="w-10 px-3 py-3 text-center">序</th>
@@ -794,6 +911,10 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                       <th className="w-28 px-3 py-3">姓名 <span className="text-red-500">*</span></th>
                       <th className="w-24 px-3 py-3">证件类型</th>
                       <th className="w-32 px-3 py-3">证件号码 <span className="text-red-500">*</span></th>
+                      <th className="w-16 px-3 py-3 text-gray-400">性别</th>
+                      <th className="w-16 px-3 py-3 text-gray-400">年龄</th>
+                      <th className="w-24 px-3 py-3 text-right text-gray-400">票价</th>
+                      <th className="w-20 px-3 py-3 text-gray-400">价格类型</th>
                       <th className="w-28 px-3 py-3">手机号</th>
                       <th className="w-32 px-3 py-3">组合产品</th>
                       <th className="w-12 px-3 py-3 text-center">操作</th>
@@ -803,6 +924,7 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                     {room.guests.map((guest, guestIndex) => {
                       const rowNo = getRowOffset(room.id) + guestIndex + 1
                       const comboKey = `${room.id}-${guest.id}`
+                      const priceInfo = guestPriceMap.get(`${room.id}-${guest.id}`)
                       return (
                         <tr key={guest.id} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-center text-gray-500">{rowNo}</td>
@@ -843,6 +965,30 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                               value={guest.idNum}
                               onChange={(e) => updateGuestField(room.id, guest.id, 'idNum', e.target.value)}
                             />
+                          </td>
+                          <td className="px-3 py-2">
+                            <ReadOnlyCell>{guest.gender || '-'}</ReadOnlyCell>
+                          </td>
+                          <td className="px-3 py-2">
+                            <ReadOnlyCell>{guest.age ? `${guest.age}岁` : '-'}</ReadOnlyCell>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <ReadOnlyCell className="justify-end tabular-nums font-medium text-gray-900">
+                              {formatCurrency(priceInfo?.ticketPrice ?? 0)}
+                            </ReadOnlyCell>
+                          </td>
+                          <td className="px-3 py-2">
+                            <ReadOnlyCell>
+                              <span
+                                className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                  priceInfo?.priceType === 'regional'
+                                    ? 'bg-purple-50 text-purple-700'
+                                    : 'bg-blue-50 text-blue-700'
+                                }`}
+                              >
+                                {priceInfo?.priceTypeLabel ?? '口岸价'}
+                              </span>
+                            </ReadOnlyCell>
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -902,15 +1048,28 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                       {roomPrice.lines.map((line) => (
-                        <span key={line.desc} className="text-xs text-gray-500">
+                        <span key={`${line.desc}-${line.priceTypeLabel}`} className="text-xs text-gray-500">
                           {line.desc}
-                          <span className="ml-1 tabular-nums font-medium text-gray-700">¥{line.price.toLocaleString()}</span>
+                          <span
+                            className={`ml-1 rounded px-1 py-0.5 text-[10px] ${
+                                line.priceTypeLabel === '区域价'
+                                ? 'bg-purple-50 text-purple-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}
+                          >
+                            {line.priceTypeLabel}
+                          </span>
+                          <span className="ml-1 tabular-nums font-medium text-gray-700">
+                            {line.price > 0 ? formatCurrency(line.price) : '-'}
+                          </span>
                         </span>
                       ))}
                     </div>
                     <div className="shrink-0 text-sm text-gray-700">
                       房间总价
-                      <span className="ml-2 text-base font-semibold tabular-nums text-red-500">¥{roomPrice.total.toLocaleString()}</span>
+                      <span className="ml-2 text-base font-semibold tabular-nums text-red-500">
+                        {roomPrice.total > 0 ? formatCurrency(roomPrice.total) : '-'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -957,10 +1116,22 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-gray-900">{guest.name}</div>
+                        <div className="mt-0.5 truncate text-[10px] text-gray-400">{guest.roomLabel}</div>
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.guestType}</span>
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.ageGroup}</span>
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.gender}</span>
+                          {guest.age && (
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{guest.age}岁</span>
+                          )}
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] ${
+                              guest.priceTypeLabel === '区域价'
+                                ? 'bg-purple-50 text-purple-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}
+                          >
+                            {guest.priceTypeLabel}
+                          </span>
                         </div>
                       </div>
                       <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${guest.source === 'ocr' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -969,7 +1140,12 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                     </div>
                     <div className="mt-2 space-y-1 text-xs text-gray-600">
                       <div className="truncate font-mono">{guest.idNum}</div>
-                      <div>{guest.phone || '-'}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{guest.phone || '-'}</span>
+                        <span className="shrink-0 font-medium tabular-nums text-gray-900">
+                          {formatCurrency(guest.ticketPrice)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1034,6 +1210,18 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
                 <option key={team.id} value={team.id}>{team.name}</option>
               ))}
             </select>
+            <label className="mb-2 block text-sm text-gray-600">航段</label>
+            <select
+              value={newRoomSegmentId}
+              onChange={(e) => setNewRoomSegmentId(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            >
+              {bookingSegmentOptions.map((segment) => (
+                <option key={segment.id} value={segment.id}>
+                  {segment.startPort} → {segment.endPort}
+                </option>
+              ))}
+            </select>
             <label className="mb-2 block text-sm text-gray-600">房型</label>
             <select
               value={newRoomType}
@@ -1046,6 +1234,7 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
             </select>
             <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
               将新增房间 <strong className="text-gray-900">{nextRoomSeq}</strong>，
+              航段 <strong className="text-gray-900">{getSegmentLabel(newRoomSegmentId)}</strong>，
               默认添加 <strong className="text-gray-900">{defaultGuestCount(newRoomType)}</strong> 位游客
             </div>
             <div className="mt-5 flex justify-end gap-3">
@@ -1058,12 +1247,17 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
 
       <div className="mt-8 flex items-center justify-between border-t border-gray-100 pt-6">
         <button className="rounded-md border border-gray-300 px-6 py-2 text-gray-700 transition-colors hover:bg-gray-50" onClick={onPrev}>
-          ← 上一步：占舱
+          {mode === 'order-edit' ? '← 返回订单列表' : '← 上一步：占舱'}
         </button>
-        <div className="flex gap-3">
-          <button className="rounded-md bg-orange-500 px-6 py-2 font-medium text-white shadow-sm transition-colors hover:bg-orange-600" onClick={() => onNext({ touristList, teams, roomGroups })}>
-            未实名下单
+        {mode === 'order-edit' ? (
+          <button
+            className={`rounded-md px-6 py-2 font-medium shadow-sm transition-colors ${canProceed ? 'bg-blue-600 text-white hover:bg-blue-700' : 'cursor-not-allowed bg-gray-200 text-gray-400'}`}
+            disabled={!canProceed}
+            onClick={() => onNext({ touristList, teams, roomGroups })}
+          >
+            提交信息
           </button>
+        ) : (
           <button
             className={`rounded-md px-6 py-2 font-medium shadow-sm transition-colors ${canProceed ? 'bg-blue-600 text-white hover:bg-blue-700' : 'cursor-not-allowed bg-gray-200 text-gray-400'}`}
             disabled={!canProceed}
@@ -1071,7 +1265,7 @@ export default function Step3TouristInfo({ roomData, onNext, onPrev }: { roomDat
           >
             下一步：订单确认 →
           </button>
-        </div>
+        )}
       </div>
     </div>
   )

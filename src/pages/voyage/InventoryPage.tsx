@@ -7,6 +7,7 @@ import type { Product, ProductSegment, Voyage, VoyageInventory } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import InventoryConfigDialog, { type InventoryConfigContext } from '@/components/voyage/InventoryConfigDialog'
+import { createRouteSegmentOptions } from '@/components/voyage/VoyageTipManagementPanel'
 import { SalesControlWorkspace } from '@/pages/voyage/SalesControlPage'
 
 type ViewMode = 'voyage' | 'channel'
@@ -332,6 +333,7 @@ export default function InventoryPage() {
   const [voyageStatusFilter, setVoyageStatusFilter] = useState('all')
   const [selectedVoyageId, setSelectedVoyageId] = useState(initialVoyageId)
   const [viewMode, setViewMode] = useState<ViewMode>('voyage')
+  const [selectedRouteSegment, setSelectedRouteSegment] = useState('all')
   const [activeSegmentKey, setActiveSegmentKey] = useState('whole')
   const [editState, setEditState] = useState<EditState | null>(null)
   const [channelSupplierState, setChannelSupplierState] = useState<ChannelSupplierInventoryState | null>(null)
@@ -382,6 +384,13 @@ export default function InventoryPage() {
   const selectedProduct = useMemo(() => getProduct(selectedVoyage), [selectedVoyage])
   const selectedTemplate = useMemo(() => getTemplate(selectedVoyage), [selectedVoyage])
   const segmentTabs = useMemo(() => createSegmentTabs(selectedProduct), [selectedProduct])
+  const routeSegmentOptions = useMemo(() => createRouteSegmentOptions(selectedProduct), [selectedProduct])
+
+  useEffect(() => {
+    if (!routeSegmentOptions.some(item => item.key === selectedRouteSegment)) {
+      setSelectedRouteSegment('all')
+    }
+  }, [routeSegmentOptions, selectedRouteSegment])
 
   useEffect(() => {
     if (!segmentTabs.some(item => item.key === activeSegmentKey)) {
@@ -711,10 +720,22 @@ export default function InventoryPage() {
               </div>
 
               {viewMode !== 'channel' && (
-                <RouteInventoryLineBoard product={selectedProduct} rows={selectedInventoryRows} />
+                <RouteInventoryLineBoard
+                  product={selectedProduct}
+                  rows={selectedInventoryRows}
+                  selectedRouteSegment={selectedRouteSegment}
+                  onRouteSegmentChange={setSelectedRouteSegment}
+                />
               )}
 
-              {viewMode === 'voyage' && <SalesControlWorkspace embedded />}
+              {viewMode === 'voyage' && (
+                <SalesControlWorkspace
+                  embedded
+                  voyage={selectedVoyage}
+                  selectedSegmentKey={selectedRouteSegment}
+                  segmentOptions={routeSegmentOptions}
+                />
+              )}
               {viewMode === 'channel' && (
                 <>
                   <RouteInventoryLineBoard
@@ -895,16 +916,22 @@ function RouteInventoryLineBoard({
   channelRows,
   title = '库存线路视图',
   lineLabel = 'OD 线',
+  selectedRouteSegment: controlledRouteSegment,
+  onRouteSegmentChange,
 }: {
   product?: Product
   rows?: VoyageInventory[]
   channelRows?: ChannelInventoryRow[]
   title?: string
   lineLabel?: string
+  selectedRouteSegment?: string
+  onRouteSegmentChange?: (segmentKey: string) => void
 }) {
   const mode: RouteLineMode = 'release'
   const [modalSegmentIndex, setModalSegmentIndex] = useState<number | null>(null)
-  const [selectedRouteSegment, setSelectedRouteSegment] = useState('all')
+  const [internalRouteSegment, setInternalRouteSegment] = useState('all')
+  const selectedRouteSegment = controlledRouteSegment ?? internalRouteSegment
+  const setSelectedRouteSegment = onRouteSegmentChange ?? setInternalRouteSegment
 
   const segments = product?.segments || []
   const stops = useMemo(() => {
@@ -1015,7 +1042,10 @@ function RouteInventoryLineBoard({
                     className={`h-4 cursor-pointer overflow-hidden border transition-all flex ${
                       highlighted ? 'translate-y-[-2px] border-gray-900 ring-1 ring-gray-900' : 'border-gray-300 hover:border-gray-500'
                     }`}
-                    onClick={() => setModalSegmentIndex(index)}
+                    onClick={() => {
+                      setModalSegmentIndex(index)
+                      setSelectedRouteSegment(segmentOptionKey)
+                    }}
                     title={`点击查看 ${stops[index]} → ${stops[index + 1]} 明细`}
                   >
                     {soldPct > 0 && <div className="h-full" style={{ width: `${soldPct}%`, background: '#16a34a' }} />}
@@ -1317,7 +1347,7 @@ function VoyageInventoryTable({ rows, onEdit }: { rows: InventoryBoardRow[]; onE
         <table className="w-full">
           <thead>
             <tr className="border-b bg-gray-50">
-              {['序号', '船舱类型', '库存数量', '投放数量', '已售数', '库存未售数', '投放未售数', '库存状态', '预警等级', '操作'].map(title => (
+              {['序号', '房型类型', '库存数量', '投放数量', '已售数', '库存未售数', '投放未售数', '库存状态', '预警等级', '操作'].map(title => (
                 <th key={title} className="px-4 py-3 text-left text-xs font-medium text-gray-600 whitespace-nowrap">{title}</th>
               ))}
             </tr>

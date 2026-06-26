@@ -31,6 +31,8 @@ interface DepositRule {
   deadlineType: DepositDeadlineType
   deadlineDays: number
   deadlineTimeUnit: TimeUnit
+  enableOverdueDeduction: boolean
+  overdueDeductionPercent: number
   status: DepositStatus
   updatedBy: string
   updatedAt: string
@@ -55,6 +57,8 @@ const emptyForm: DepositRuleForm = {
   deadlineType: 'afterBooking',
   deadlineDays: 7,
   deadlineTimeUnit: 'day',
+  enableOverdueDeduction: false,
+  overdueDeductionPercent: 5,
   status: 'effective',
 }
 
@@ -71,9 +75,9 @@ function createDepositRule(form: DepositRuleForm): DepositRule {
 }
 
 const initialRules: DepositRule[] = [
-  createDepositRule({ ...emptyForm, name: '内宾巫山定金', depositAmount: 300, bookingDaysFrom: 30, bookingDaysTo: 21, deadlineType: 'afterBooking', deadlineDays: 7 }),
-  createDepositRule({ ...emptyForm, name: '外宾日本旺季定金', depositAmount: 500, bookingDaysFrom: 45, bookingDaysTo: 30, deadlineType: 'beforeSail', deadlineDays: 20 }),
-  createDepositRule({ ...emptyForm, name: '内宾奉节免定金', collectDeposit: false, depositAmount: 0, bookingDaysFrom: 60, bookingDaysTo: 30, deadlineType: 'afterBooking', deadlineDays: 0 }),
+  createDepositRule({ ...emptyForm, name: '内宾巫山定金', depositAmount: 300, bookingDaysFrom: 30, bookingDaysTo: 21, deadlineType: 'afterBooking', deadlineDays: 7, enableOverdueDeduction: true, overdueDeductionPercent: 5 }),
+  createDepositRule({ ...emptyForm, name: '外宾日本旺季定金', depositAmount: 500, bookingDaysFrom: 45, bookingDaysTo: 30, deadlineType: 'beforeSail', deadlineDays: 20, enableOverdueDeduction: true, overdueDeductionPercent: 8 }),
+  createDepositRule({ ...emptyForm, name: '内宾奉节免定金', collectDeposit: false, depositAmount: 0, bookingDaysFrom: 60, bookingDaysTo: 30, deadlineType: 'afterBooking', deadlineDays: 0, enableOverdueDeduction: false, overdueDeductionPercent: 0 }),
 ]
 
 const statusOptions: { value: DepositStatus; label: string }[] = [
@@ -101,6 +105,11 @@ function formatDepositAmount(rule: DepositRule) {
 function formatDeadline(rule: DepositRule) {
   const unitLabel = getTimeUnitLabel(rule.deadlineTimeUnit)
   return rule.deadlineType === 'beforeSail' ? `开航前 ${rule.deadlineDays}${unitLabel}` : `预定后 ${rule.deadlineDays}${unitLabel}`
+}
+
+function formatOverdueDeduction(rule: DepositRule) {
+  if (!rule.collectDeposit || !rule.enableOverdueDeduction) return '未启用'
+  return `逾期按未付定金 ${rule.overdueDeductionPercent}% 扣减`
 }
 
 export default function DepositRulePage() {
@@ -179,6 +188,7 @@ export default function DepositRulePage() {
     { key: 'sailingPeriod', title: '船期', render: (r: DepositRule) => `${formatDate(r.sailingStart)} 至 ${formatDate(r.sailingEnd)}` },
     { key: 'bookingPeriod', title: '预订期间(距开航)', render: (r: DepositRule) => `${r.bookingDaysFrom}${getTimeUnitLabel(r.bookingTimeUnit)} - ${r.bookingDaysTo}${getTimeUnitLabel(r.bookingTimeUnit)}` },
     { key: 'deadline', title: '定金期限', render: (r: DepositRule) => formatDeadline(r) },
+    { key: 'overdueDeduction', title: '逾期扣减', render: (r: DepositRule) => <span className="text-xs text-gray-600">{formatOverdueDeduction(r)}</span> },
     { key: 'approvalStatus', title: '审批状态', render: (r: DepositRule) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'status', title: '状态', render: (r: DepositRule) => <StatusBadge status={r.status} /> },
     { key: 'updatedAt', title: '修改时间', render: (r: DepositRule) => formatDateTime(r.updatedAt) },
@@ -194,7 +204,7 @@ export default function DepositRulePage() {
 
   return (
     <div>
-      <PageHeader title="定金规则管理" description="维护定金规则名称、船期、预订期间与定金支付期限" />
+      <PageHeader title="定金规则管理" description="维护定金收取、支付期限及逾期扣减规则（按未付定金百分比）" />
       <SearchPanel onSearch={() => setPage(1)} onReset={() => { setKeyword(''); setStatusFilter('all'); setPage(1) }}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="定金规则名称" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">状态</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
@@ -217,7 +227,13 @@ export default function DepositRulePage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">是否收取定金</label>
-                <select value={form.collectDeposit ? 'yes' : 'no'} onChange={(e) => setForm({ ...form, collectDeposit: e.target.value === 'yes', depositAmount: e.target.value === 'yes' ? form.depositAmount : 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <select value={form.collectDeposit ? 'yes' : 'no'} onChange={(e) => setForm({
+                  ...form,
+                  collectDeposit: e.target.value === 'yes',
+                  depositAmount: e.target.value === 'yes' ? form.depositAmount : 0,
+                  enableOverdueDeduction: e.target.value === 'yes' ? form.enableOverdueDeduction : false,
+                  overdueDeductionPercent: e.target.value === 'yes' ? form.overdueDeductionPercent : 0,
+                })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                   <option value="yes">是</option>
                   <option value="no">否</option>
                 </select>
@@ -271,6 +287,52 @@ export default function DepositRulePage() {
           </div>
 
           <div>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">逾期扣减规则</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">是否启用逾期扣减</label>
+                <select
+                  value={form.enableOverdueDeduction && form.collectDeposit ? 'yes' : 'no'}
+                  disabled={!form.collectDeposit}
+                  onChange={(e) => setForm({
+                    ...form,
+                    enableOverdueDeduction: e.target.value === 'yes',
+                    overdueDeductionPercent: e.target.value === 'yes' ? (form.overdueDeductionPercent || 5) : 0,
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50"
+                >
+                  <option value="yes">是</option>
+                  <option value="no">否</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">逾期扣减比例</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    disabled={!form.collectDeposit || !form.enableOverdueDeduction}
+                    value={form.enableOverdueDeduction ? form.overdueDeductionPercent : ''}
+                    onChange={(e) => setForm({ ...form, overdueDeductionPercent: Number(e.target.value) })}
+                    placeholder="未启用"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50"
+                  />
+                  <span className="shrink-0 text-sm text-gray-600">%（未付定金）</span>
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {form.collectDeposit && form.enableOverdueDeduction
+                ? `超过定金期限后，按未付定金金额的 ${form.overdueDeductionPercent}% 计扣减。`
+                : form.collectDeposit
+                  ? '未启用逾期扣减；超过定金期限仅触发提醒。'
+                  : '当前规则不收取定金，无需配置逾期扣减。'}
+            </p>
+          </div>
+
+          <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">期限与状态</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -306,7 +368,7 @@ export default function DepositRulePage() {
       <DetailDrawer open={detailOpen} title="定金规则详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
           <DetailCard title="基本信息"><DetailRow label="规则名称" value={detail.name} /><DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} /><DetailRow label="是否收取定金" value={detail.collectDeposit ? '是' : '否'} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
-          <DetailCard title="定金规则"><DetailRow label="维度" value={detail.dimension} /><DetailRow label="收取定金" value={detail.collectDeposit ? `${detail.depositAmount}${getDepositUnit(detail.dimension)}` : '不收取'} /><DetailRow label="船期" value={`${formatDate(detail.sailingStart)} 至 ${formatDate(detail.sailingEnd)}`} /><DetailRow label="预订期间" value={`${detail.bookingDaysFrom}${getTimeUnitLabel(detail.bookingTimeUnit)} - ${detail.bookingDaysTo}${getTimeUnitLabel(detail.bookingTimeUnit)}`} /><DetailRow label="定金期限" value={formatDeadline(detail)} /></DetailCard>
+          <DetailCard title="定金规则"><DetailRow label="维度" value={detail.dimension} /><DetailRow label="收取定金" value={detail.collectDeposit ? `${detail.depositAmount}${getDepositUnit(detail.dimension)}` : '不收取'} /><DetailRow label="船期" value={`${formatDate(detail.sailingStart)} 至 ${formatDate(detail.sailingEnd)}`} /><DetailRow label="预订期间" value={`${detail.bookingDaysFrom}${getTimeUnitLabel(detail.bookingTimeUnit)} - ${detail.bookingDaysTo}${getTimeUnitLabel(detail.bookingTimeUnit)}`} /><DetailRow label="定金期限" value={formatDeadline(detail)} /><DetailRow label="逾期扣减" value={formatOverdueDeduction(detail)} /></DetailCard>
           <DetailCard title="适用范围"><DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} /></DetailCard>
           <DetailCard title="操作信息"><DetailRow label="修改人" value={detail.updatedBy} /><DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} /><DetailRow label="创建时间" value={formatDateTime(detail.createdAt)} /></DetailCard>
         </>)}

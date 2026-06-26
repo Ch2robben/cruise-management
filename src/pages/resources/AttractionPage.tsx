@@ -27,7 +27,6 @@ const emptyForm: AttractionForm = {
   category: '自然景观',
   visitDuration: '全年',
   suggestedDurationMin: 120,
-  minStopoverMin: 180,
   portDistanceKm: 0,
   transferDurationMin: 30,
   openSeason: '全年',
@@ -134,7 +133,6 @@ export default function AttractionPage() {
       category: record.category || '自然景观',
       visitDuration: record.visitDuration || '全年',
       suggestedDurationMin: record.suggestedDurationMin || 120,
-      minStopoverMin: record.minStopoverMin || 180,
       portDistanceKm: record.portDistanceKm || 0,
       transferDurationMin: record.transferDurationMin || 0,
       openSeason: record.openSeason || '全年',
@@ -217,7 +215,6 @@ export default function AttractionPage() {
         <div className="space-y-1 text-xs">
           <p>游览：<span className="font-medium text-gray-900">{formatDuration(record.suggestedDurationMin)}</span></p>
           <p>接驳：<span className="font-medium text-gray-900">{formatDuration(record.transferDurationMin)}</span></p>
-          <p>最小停靠：<span className="font-medium text-gray-900">{formatDuration(record.minStopoverMin)}</span></p>
         </div>
       ),
     },
@@ -408,10 +405,6 @@ export default function AttractionPage() {
                 <label className="mb-1 block text-sm text-gray-700">建议游览(分钟)</label>
                 <input type="number" value={form.suggestedDurationMin} onChange={(event) => setForm({ ...form, suggestedDurationMin: Number(event.target.value) })} className={inputClass} />
               </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">最小停靠窗口(分钟)</label>
-                <input type="number" value={form.minStopoverMin} onChange={(event) => setForm({ ...form, minStopoverMin: Number(event.target.value) })} className={inputClass} />
-              </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-sm text-gray-700">适配客群</label>
                 <input value={form.suitableGroups} onChange={(event) => setForm({ ...form, suitableGroups: event.target.value })} className={inputClass} />
@@ -458,7 +451,6 @@ export default function AttractionPage() {
               <DetailRow label="码头距离" value={detail.portDistanceKm || detail.portDistanceKm === 0 ? `${detail.portDistanceKm} km` : '-'} />
               <DetailRow label="单程接驳" value={formatDuration(detail.transferDurationMin)} />
               <DetailRow label="建议游览" value={formatDuration(detail.suggestedDurationMin)} />
-              <DetailRow label="最小停靠窗口" value={formatDuration(detail.minStopoverMin)} />
               <DetailRow label="游览强度" value={detail.difficulty || '-'} />
               <DetailRow label="适配客群" value={detail.suitableGroups || '-'} />
               <DetailRow label="是否需预约" value={detail.bookingRequired ? '是' : '否'} />

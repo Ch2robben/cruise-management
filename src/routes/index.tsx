@@ -19,6 +19,7 @@ import FacilityPage from '@/pages/resources/FacilityPage'
 import RoomPage from '@/pages/resources/RoomPage'
 import CabinPage from '@/pages/resources/CabinPage'
 import InventoryPage from '@/pages/voyage/InventoryPage'
+import InventoryAllocationPage from '@/pages/voyage/InventoryAllocationPage'
 import PriceManagementPage from '@/pages/voyage/PriceManagementPage'
 import TemplateInventoryPage from '@/pages/voyage/TemplateInventoryPage'
 import TemplatePricePage from '@/pages/voyage/TemplatePricePage'
@@ -35,8 +36,10 @@ import CharterOrderPage from '@/pages/service/CharterOrderPage'
 import ComplaintTicketPage from '@/pages/service/ComplaintTicketPage'
 import CustomerProfilePage from '@/pages/customer/CustomerProfilePage'
 import ReconciliationPage from '@/pages/finance/ReconciliationPage'
+import SupplementaryPaymentPage from '@/pages/finance/SupplementaryPaymentPage'
 import DataReportPage from '@/pages/report/DataReportPage'
 import OrderListPage from '@/pages/order/OrderListPage'
+import VoyagePassengerRoomPage from '@/pages/order/VoyagePassengerRoomPage'
 import HolidayPage from '@/pages/basic/HolidayPage'
 import IdTypePage from '@/pages/basic/IdTypePage'
 import AgeGroupPage from '@/pages/basic/AgeGroupPage'
@@ -44,16 +47,21 @@ import ApprovalFlowPage from '@/pages/system/ApprovalFlowPage'
 
 import DealerHomePage from '@/pages/dealer/DealerHomePage'
 import CruiseBookingPage from '@/pages/dealer/booking/CruiseBookingPage'
+import SpecialPriceBookingPage from '@/pages/dealer/booking/SpecialPriceBookingPage'
 import BoatBookingPage from '@/pages/dealer/booking/BoatBookingPage'
 import FlightQueryPage from '@/pages/dealer/booking/FlightQueryPage'
 import ComboSalesPage from '@/pages/dealer/booking/ComboSalesPage'
 import DealerCruiseOrderPage from '@/pages/dealer/order/DealerCruiseOrderPage'
+import DealerOrderTouristPage from '@/pages/dealer/order/DealerOrderTouristPage'
+import DealerSpecialPriceApplicationPage from '@/pages/dealer/order/DealerSpecialPriceApplicationPage'
+import DealerCruiseSalesStatsPage from '@/pages/dealer/stats/DealerCruiseSalesStatsPage'
 
 import DepositRulePage from '@/pages/rule/DepositRulePage'
 import PaymentRulePage from '@/pages/rule/PaymentRulePage'
 import PenaltyRulePage from '@/pages/rule/PenaltyRulePage'
 import PenaltyHandlingDictPage from '@/pages/rule/PenaltyHandlingDictPage'
 import DiscountRulePage from '@/pages/rule/DiscountRulePage'
+import RebateTargetIndicatorPage from '@/pages/rule/RebateTargetIndicatorPage'
 import TipConfigPage from '@/pages/rule/TipConfigPage'
 import OrderValidityRulePage from '@/pages/rule/OrderValidityRulePage'
 import WarningRulePage from '@/pages/rule/WarningRulePage'
@@ -63,6 +71,7 @@ import ShipAuthPage from '@/pages/rule/ShipAuthPage'
 import CloseRulePage from '@/pages/rule/CloseRulePage'
 import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
 import RebateRulePage from '@/pages/rule/RebateRulePage'
+import PriceTypeRulePage from '@/pages/rule/PriceTypeRulePage'
 
 export const router = createBrowserRouter([
   {
@@ -94,12 +103,14 @@ export const router = createBrowserRouter([
       { path: '/voyage/templates', element: <TemplatePage /> },
       { path: '/voyage/templates/:id/price', element: <TemplatePricePage /> },
       { path: '/voyage/inventory', element: <InventoryPage /> },
+      { path: '/voyage/inventory-allocation', element: <InventoryAllocationPage /> },
       { path: '/voyage/pricing-rules', element: <PricingRulePage /> },
       { path: '/voyage/price-management', element: <PriceManagementPage /> },
       { path: '/voyage/sales-control', element: <SalesControlPage /> },
       { path: '/voyage/template-inventory', element: <TemplateInventoryPage /> },
       { path: '/voyage/pricing', element: <PricingPage /> },
       { path: '/orders/list', element: <OrderListPage /> },
+      { path: '/orders/voyage-passenger-rooms', element: <VoyagePassengerRoomPage /> },
       { path: '/distribution/dealers', element: <DealerPage /> },
       { path: '/distribution/dealer-approvals', element: <DealerPage /> },
       { path: '/distribution/dealer-rules', element: <DealerPage /> },
@@ -109,6 +120,7 @@ export const router = createBrowserRouter([
       { path: '/service/complaints', element: <ComplaintTicketPage /> },
       { path: '/customer/profiles', element: <CustomerProfilePage /> },
       { path: '/finance/reconciliations', element: <ReconciliationPage /> },
+      { path: '/finance/supplementary-payments', element: <SupplementaryPaymentPage /> },
       { path: '/report/data-reports', element: <DataReportPage /> },
       { path: '/resources/tickets', element: <TicketPage /> },
       { path: '/resources/facilities', element: <FacilityPage /> },
@@ -128,6 +140,7 @@ export const router = createBrowserRouter([
       { path: '/rule/penalty-handling', element: <PenaltyHandlingDictPage /> },
       { path: '/rule/dealer-cooperation', element: <DealerPage /> },
       { path: '/rule/discount', element: <DiscountRulePage /> },
+      { path: '/rule/price-type', element: <PriceTypeRulePage /> },
       { path: '/rule/tip', element: <TipConfigPage /> },
       { path: '/rule/order-validity', element: <OrderValidityRulePage /> },
       { path: '/rule/warning', element: <WarningRulePage /> },
@@ -137,6 +150,7 @@ export const router = createBrowserRouter([
       { path: '/rule/close', element: <CloseRulePage /> },
       { path: '/rule/performance', element: <PerformanceRulePage /> },
       { path: '/rule/rebate', element: <RebateRulePage /> },
+      { path: '/rule/rebate-targets', element: <RebateTargetIndicatorPage /> },
     ],
   },
   {
@@ -148,10 +162,14 @@ export const router = createBrowserRouter([
     children: [
       { path: '/dealer/home', element: <DealerHomePage /> },
       { path: '/dealer/booking/cruise', element: <CruiseBookingPage /> },
+      { path: '/dealer/booking/special-price', element: <SpecialPriceBookingPage /> },
       { path: '/dealer/booking/boat', element: <BoatBookingPage /> },
       { path: '/dealer/booking/flight', element: <FlightQueryPage /> },
       { path: '/dealer/booking/combo-sales', element: <ComboSalesPage /> },
       { path: '/dealer/orders/cruise', element: <DealerCruiseOrderPage /> },
+      { path: '/dealer/orders/special-price', element: <DealerSpecialPriceApplicationPage /> },
+      { path: '/dealer/orders/cruise/tourists', element: <DealerOrderTouristPage /> },
+      { path: '/dealer/stats/cruise-sales', element: <DealerCruiseSalesStatsPage /> },
     ],
   },
 ], {

@@ -24,6 +24,45 @@ export interface OrderTransaction {
   status: string
   receipt: string
   arrivalTime: string
+  /** 关联补款单号，有值时表示来自补款单确认 */
+  paymentNo?: string
+}
+
+export type SupplementaryPaymentType = '定金' | '船款' | '尾款' | '改价补差' | '罚金' | '其他'
+export type SupplementaryPaymentStatus = '待支付' | '处理中' | '已到账' | '已驳回' | '已撤销'
+export type SupplementaryPaymentChannel = '银行转账' | '线下现金' | '预存余额' | '授信额度' | '通联在线'
+
+export interface SupplementaryPaymentOrder {
+  id: string
+  paymentNo: string
+  orderId: string
+  orderNo: string
+  dealer: string
+  groupName: string
+  paymentType: SupplementaryPaymentType
+  amount: number
+  channel: SupplementaryPaymentChannel
+  status: SupplementaryPaymentStatus
+  dueDate: string
+  remark: string
+  notifyDealer: boolean
+  createdBy: string
+  createdAt: string
+  serialNo?: string
+  receipt?: string
+  arrivalTime?: string
+  confirmedBy?: string
+  confirmedAt?: string
+}
+
+export interface CreateSupplementaryPaymentForm {
+  orderId: string
+  paymentType: SupplementaryPaymentType
+  amount: number
+  channel: SupplementaryPaymentChannel
+  dueDate: string
+  remark: string
+  notifyDealer: boolean
 }
 
 export interface OrderResource {
@@ -114,11 +153,35 @@ export interface CruiseOrder {
   roomLines?: OrderRoomLine[]
   /** 一单多团时的团列表；未传时由房间行或 groupName 推导 */
   teams?: OrderTeam[]
+  /** 改价后的收费明细；未设置时由各金额字段推导 */
+  feeItems?: OrderFeeItem[]
 }
+
+/** 订单收费项目（改价 / 费用明细） */
+export interface OrderFeeItem {
+  id: string
+  name: string
+  coefficient: string
+  unitPrice: number
+  amount: number
+  /** 内置项不可删除，仅可改金额 */
+  locked?: boolean
+}
+
+export const ADDABLE_FEE_PRESETS = [
+  '升舱费',
+  '陪同款',
+  '服务费',
+  '岸上观光',
+  '酒水套餐',
+  '罚金',
+  '其他',
+] as const
 
 export interface OrderTeam {
   id: string
   name: string
+  remark?: string
   roomCount: number
   guestCount: number
 }
@@ -140,16 +203,90 @@ export interface OrderRoomGuest {
   transferRequired: string
 }
 
+export type RoomAssignmentStatus = '待排房' | '已排房'
+export type RoomInventoryStatus = 'normal' | 'oversold_pending' | 'auto_upgraded' | 'swapped'
+
 /** 旅行社 ToB 订单：一行 = 一间房（房型 + 房间序号 + 多名入住人） */
 export interface OrderRoomLine {
   id: string
   roomSeq: number
+  /** 展示用主房型，默认等同 soldRoomType */
   roomType: string
   occupancyMode: string
   remark?: string
   teamId?: string
   teamName?: string
+  teamRemark?: string
   guests: OrderRoomGuest[]
+  /** 下单楼层/房型（结算依据） */
+  soldFloor?: string
+  soldRoomType?: string
+  soldPrice?: number
+  /** 占用楼层/房型（库存调配结果） */
+  allocatedFloor?: string
+  allocatedRoomType?: string
+  inventoryStatus?: RoomInventoryStatus
+  upgradeFee?: number
+  /** 排房结果 */
+  assignedRoomNo?: string
+  assignedFloor?: string
+  assignedRoomType?: string
+  roomAssignmentStatus?: RoomAssignmentStatus
+}
+
+export interface RoomFulfillmentView {
+  soldFloor: string
+  soldRoomType: string
+  soldPrice: number
+  allocatedFloor: string
+  allocatedRoomType: string
+  assignedRoomNo?: string
+  assignedFloor?: string
+  assignedRoomType?: string
+  inventoryStatus: RoomInventoryStatus
+  upgradeFee: number
+  roomAssignmentStatus: RoomAssignmentStatus
+  allocationDiffers: boolean
+}
+
+export function getRoomFulfillment(line: OrderRoomLine, fallbackPrice = 0): RoomFulfillmentView {
+  const soldRoomType = line.soldRoomType ?? line.roomType
+  const soldFloor = line.soldFloor ?? '-'
+  const allocatedRoomType = line.allocatedRoomType ?? soldRoomType
+  const allocatedFloor = line.allocatedFloor ?? soldFloor
+  return {
+    soldFloor,
+    soldRoomType,
+    soldPrice: line.soldPrice ?? fallbackPrice,
+    allocatedFloor,
+    allocatedRoomType,
+    assignedRoomNo: line.assignedRoomNo,
+    assignedFloor: line.assignedFloor,
+    assignedRoomType: line.assignedRoomType,
+    inventoryStatus: line.inventoryStatus ?? 'normal',
+    upgradeFee: line.upgradeFee ?? 0,
+    roomAssignmentStatus: line.roomAssignmentStatus ?? '待排房',
+    allocationDiffers: soldFloor !== allocatedFloor || soldRoomType !== allocatedRoomType,
+  }
+}
+
+function withDefaultFulfillment(
+  line: OrderRoomLine,
+  soldFloor = '2F',
+  unitPrice = 0,
+): OrderRoomLine {
+  const soldRoomType = line.soldRoomType ?? line.roomType
+  return {
+    ...line,
+    soldRoomType,
+    soldFloor: line.soldFloor ?? soldFloor,
+    soldPrice: line.soldPrice ?? unitPrice,
+    allocatedRoomType: line.allocatedRoomType ?? soldRoomType,
+    allocatedFloor: line.allocatedFloor ?? line.soldFloor ?? soldFloor,
+    inventoryStatus: line.inventoryStatus ?? 'normal',
+    upgradeFee: line.upgradeFee ?? 0,
+    roomAssignmentStatus: line.roomAssignmentStatus ?? '待排房',
+  }
 }
 
 function mockGuest(
@@ -185,14 +322,14 @@ function buildStandardRoomLine(order: CruiseOrder, roomSeq: number, guestCount: 
   const guests = Array.from({ length: guestCount }, (_, i) =>
     mockGuest(order, lineId, i + 1, order.ageGroup, order.occupancyType, perGuest, order.priceCoefficient),
   )
-  return {
+  return withDefaultFulfillment({
     id: lineId,
     roomSeq,
     roomType: '标准间',
     occupancyMode: '正常入住',
     remark,
     guests,
-  }
+  }, '2F', perGuest)
 }
 
 function buildWholeRoomLine(
@@ -203,48 +340,95 @@ function buildWholeRoomLine(
   guestCount: number,
   unitPrice: number,
   remark = '',
+  teamId?: string,
+  teamName?: string,
 ): OrderRoomLine {
   const lineId = `${order.id}-r${roomSeq}`
   const guests = Array.from({ length: guestCount }, (_, i) =>
     mockGuest(order, lineId, i + 1, '成人', occupancyMode === '单间' ? '单间' : '正常', unitPrice, 1),
   )
-  return {
+  return withDefaultFulfillment({
     id: lineId,
     roomSeq,
     roomType,
     occupancyMode,
     remark,
+    teamId,
+    teamName,
     guests,
+  }, roomType === '行政房' ? '5F' : '2F', unitPrice)
+}
+
+function assignTeamsToRoomLines(order: CruiseOrder, lines: OrderRoomLine[]): OrderRoomLine[] {
+  if (order.teams?.length) {
+    const assigned: OrderRoomLine[] = []
+    let lineIndex = 0
+    for (const team of order.teams) {
+      for (let i = 0; i < team.roomCount && lineIndex < lines.length; i += 1) {
+        assigned.push({
+          ...lines[lineIndex],
+          teamId: team.id,
+          teamName: team.name,
+          teamRemark: team.remark,
+        })
+        lineIndex += 1
+      }
+    }
+    while (lineIndex < lines.length) {
+      const fallbackTeam = order.teams[order.teams.length - 1]
+      assigned.push({
+        ...lines[lineIndex],
+        teamId: fallbackTeam.id,
+        teamName: fallbackTeam.name,
+        teamRemark: fallbackTeam.remark,
+      })
+      lineIndex += 1
+    }
+    return assigned
   }
+
+  const defaultTeamName = order.groupName || '默认团'
+  return lines.map((line) => ({
+    ...line,
+    teamId: line.teamId || 'default',
+    teamName: line.teamName || defaultTeamName,
+    teamRemark: line.teamRemark || order.remark || '',
+  }))
 }
 
 export function buildOrderRoomLines(order: CruiseOrder): OrderRoomLine[] {
-  if (order.roomLines?.length) return order.roomLines
+  if (order.roomLines?.length) {
+    return assignTeamsToRoomLines(
+      order,
+      order.roomLines.map((line) => withDefaultFulfillment(line, line.soldFloor ?? '2F', line.soldPrice ?? order.unitPrice)),
+    )
+  }
+
+  let lines: OrderRoomLine[]
 
   if (order.totalPeople === 10 && order.salesType === '团队') {
-    return [
+    lines = [
       ...Array.from({ length: 4 }, (_, i) => buildStandardRoomLine(order, i + 1, 2)),
       buildWholeRoomLine(order, 5, '家庭房', '正常入住', 2, order.unitPrice * 1.2, '需安排相邻房间'),
     ]
-  }
-
-  if (order.totalPeople >= 16) {
-    const lines: OrderRoomLine[] = []
+  } else if (order.totalPeople >= 16) {
+    lines = []
     let seq = 1
     for (let i = 0; i < 6; i++) {
       lines.push(buildStandardRoomLine(order, seq++, 2))
     }
     lines.push(buildWholeRoomLine(order, seq, order.roomType || '行政房', '单间', 2, order.unitPrice, '靠窗床位'))
     lines.push(buildWholeRoomLine(order, seq + 1, order.roomType || '行政房', '单间', 2, order.unitPrice))
-    return lines
+  } else {
+    const guestCount = Math.max(order.totalPeople, 1)
+    if (order.roomType === '标准间' && guestCount <= 2) {
+      lines = [buildStandardRoomLine(order, 1, guestCount, order.remark ? '客户特殊要求见订单备注' : '')]
+    } else {
+      lines = [buildWholeRoomLine(order, 1, order.roomType, order.occupancyType === '正常' ? '正常入住' : order.occupancyType, guestCount, order.unitPrice)]
+    }
   }
 
-  const guestCount = Math.max(order.totalPeople, 1)
-  if (order.roomType === '标准间' && guestCount <= 2) {
-    return [buildStandardRoomLine(order, 1, guestCount, order.remark ? '客户特殊要求见订单备注' : '')]
-  }
-
-  return [buildWholeRoomLine(order, 1, order.roomType, order.occupancyType === '正常' ? '正常入住' : order.occupancyType, guestCount, order.unitPrice)]
+  return assignTeamsToRoomLines(order, lines)
 }
 
 export function summarizeRoomLines(lines: OrderRoomLine[]) {
@@ -275,6 +459,7 @@ export function buildOrderTeams(order: CruiseOrder): OrderTeam[] {
     teamMap.set(teamId, {
       id: teamId,
       name: teamName,
+      remark: line.teamRemark || '',
       roomCount: 1,
       guestCount: line.guests.length,
     })
@@ -287,6 +472,7 @@ export function buildOrderTeams(order: CruiseOrder): OrderTeam[] {
     return [{
       id: 'default',
       name: order.groupName,
+      remark: order.remark || '',
       roomCount: summary.roomCount,
       guestCount: summary.totalPeople,
     }]
@@ -301,6 +487,43 @@ export function formatGroupNameSummary(teams: OrderTeam[]): string {
   return `${teams[0].name} 等${teams.length}个团`
 }
 
+export function matchOrderGroupName(order: CruiseOrder, keyword: string): boolean {
+  if (!keyword) return true
+  const teams = buildOrderTeams(order)
+  if (teams.some((team) => team.name.includes(keyword))) return true
+  return order.groupName.includes(keyword)
+}
+
+
+export type OrderLogAction = '补单' | '支付' | '补差' | '补盖' | '编辑' | '其他'
+
+export interface OrderLogSnapshot {
+  totalPeople: number
+  adult: number
+  child: number
+  infant: number
+  companion: number
+  receivableTicket: number
+  smallFee: number
+  localFee: number
+  combinedProduct: number
+  totalAmount: number
+}
+
+export interface OrderLogEntry {
+  id: string
+  orderId: string
+  orderNo: string
+  action: OrderLogAction
+  operator: string
+  operatedAt: string
+  /** 操作内容摘要 */
+  content: string
+  snapshot: OrderLogSnapshot
+  /** 关联订单历史版本，用于「订单快照-查看」 */
+  versionId?: string
+  remark?: string
+}
 
 export type OrderChangeType = '创建' | '改签' | '改价' | '改名单' | '分单' | '取消' | '恢复'
 
@@ -413,7 +636,39 @@ export function calcArrivalDate(sailDate: string, voyageDays: number) {
   return date.toISOString().slice(0, 10)
 }
 
-export function buildOrderTransactions(order: CruiseOrder): OrderTransaction[] {
+export function buildOrderTransactions(
+  order: CruiseOrder,
+  supplementaryPayments: SupplementaryPaymentOrder[] = [],
+): OrderTransaction[] {
+  const confirmedPayments = supplementaryPayments.filter((item) => item.status === '已到账')
+
+  if (confirmedPayments.length > 0) {
+    const rows: OrderTransaction[] = confirmedPayments.map((payment) => ({
+      serialNo: payment.serialNo || `TX-${payment.paymentNo}`,
+      channel: payment.channel,
+      type: payment.paymentType,
+      amount: payment.amount,
+      time: payment.confirmedAt || payment.createdAt,
+      status: '已到账',
+      receipt: payment.receipt || '-',
+      arrivalTime: payment.arrivalTime || '-',
+      paymentNo: payment.paymentNo,
+    }))
+    if (order.arrears > 0) {
+      rows.push({
+        serialNo: `TX-${order.orderNo}-pending`,
+        channel: order.orderChannel || order.dealer || '线下汇款',
+        type: '尾款',
+        amount: order.arrears,
+        time: '-',
+        status: '待支付',
+        receipt: '-',
+        arrivalTime: '-',
+      })
+    }
+    return rows
+  }
+
   const rows: OrderTransaction[] = []
   if (order.depositAmount > 0 || order.depositDate) {
     rows.push({
@@ -451,6 +706,7 @@ export function buildOrderTransactions(order: CruiseOrder): OrderTransaction[] {
       arrivalTime: '-',
     })
   }
+
   if (rows.length === 0) {
     rows.push({
       serialNo: `TX-${order.orderNo}-00`,
@@ -464,6 +720,13 @@ export function buildOrderTransactions(order: CruiseOrder): OrderTransaction[] {
     })
   }
   return rows
+}
+
+export function suggestSupplementaryPaymentType(order: CruiseOrder): SupplementaryPaymentType {
+  if (order.arrears <= 0) return '其他'
+  if (order.paidAmount === 0 && order.depositAmount > 0) return '定金'
+  if (order.paidAmount > 0 && order.paidAmount < order.totalAmount) return '尾款'
+  return '船款'
 }
 
 export function buildOrderResources(order: CruiseOrder): OrderResource[] {
@@ -540,4 +803,78 @@ export function enrichOrder(order: CruiseOrder): CruiseOrder {
     bookerIdType: order.bookerIdType || '身份证',
     bookerIdNumber: order.bookerIdNumber || '-',
   }
+}
+
+export function buildOrderFeeItems(order: CruiseOrder): OrderFeeItem[] {
+  if (order.feeItems?.length) {
+    return order.feeItems.map((item) => ({ ...item }))
+  }
+  return [
+    {
+      id: 'fee-ticket',
+      name: '应收船款',
+      coefficient: '-',
+      unitPrice: order.unitPrice,
+      amount: order.receivableTicket,
+      locked: true,
+    },
+    {
+      id: 'fee-tip',
+      name: '小费',
+      coefficient: '-',
+      unitPrice: order.tipUnitPrice ?? 0,
+      amount: order.smallFee,
+      locked: true,
+    },
+    {
+      id: 'fee-local',
+      name: '地接费',
+      coefficient: '-',
+      unitPrice: 0,
+      amount: order.localFee,
+      locked: true,
+    },
+    {
+      id: 'fee-combo',
+      name: '组合产品',
+      coefficient: '-',
+      unitPrice: 0,
+      amount: order.combinedProduct,
+      locked: true,
+    },
+  ]
+}
+
+export function calcFeeItemsTotal(feeItems: OrderFeeItem[]) {
+  return feeItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+}
+
+export function syncOrderFromFeeItems(
+  order: CruiseOrder,
+  feeItems: OrderFeeItem[],
+  extras: { unitPrice?: number; reason?: string } = {},
+): Partial<CruiseOrder> {
+  const amountByName = (names: string[]) => (
+    feeItems.filter((item) => names.includes(item.name)).reduce((sum, item) => sum + item.amount, 0)
+  )
+  const totalAmount = calcFeeItemsTotal(feeItems)
+  const paidAmount = order.paidAmount
+  const patch: Partial<CruiseOrder> = {
+    feeItems,
+    receivableTicket: amountByName(['应收船款']),
+    smallFee: amountByName(['小费']),
+    localFee: amountByName(['地接费']),
+    combinedProduct: amountByName(['组合产品']),
+    totalAmount,
+    arrears: Math.max(totalAmount - paidAmount, 0),
+  }
+  if (extras.unitPrice != null) {
+    patch.unitPrice = extras.unitPrice
+  }
+  if (extras.reason) {
+    patch.remark = order.remark
+      ? `${order.remark}\n[改价] ${extras.reason}`
+      : `[改价] ${extras.reason}`
+  }
+  return patch
 }
