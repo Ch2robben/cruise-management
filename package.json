@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:gitee": "tsc -b && vite build --base /cruise-project/",
+    "deploy:gitee": "bash deploy.sh",
+    "deploy:tencent": "bash deploy-tencent.sh",
     "preview": "vite preview"
   },
   "dependencies": {

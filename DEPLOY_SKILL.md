@@ -1,6 +1,7 @@
-# Skill: 游轮管理系统部署
+# Skill: 游轮管理系统阿里云 ECS 部署
 
-> 本文档是一份 AI Agent Skill，供任何模型读取后执行完整的部署/更新流程。
+> 本文档供 AI Agent 执行阿里云 ECS 部署（主站）。
+> **国内访问备用方案**见 `TENCENT_DEPLOY_SKILL.md`（腾讯云静态托管；Gitee Pages 已下线）。
 
 ## 环境信息（已配置完毕，勿修改）
 

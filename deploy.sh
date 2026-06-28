@@ -1,24 +1,37 @@
 #!/usr/bin/env sh
+# Gitee Pages 一键部署（国内访问友好）
+# 详见 GITEE_DEPLOY_SKILL.md
 
-# 发生错误时终止
 set -e
 
-# 构建项目
-npm run build
+GITEE_REPO="git@gitee.com:huang-chuhua123/cruise-project.git"
+GITEE_BASE="/cruise-project/"
+PAGES_URL="https://huang-chuhua123.gitee.io/cruise-project/"
 
-# 进入构建输出文件夹
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+echo "[1/4] 类型检查..."
+npx tsc -b
+
+echo "[2/4] 构建（base=${GITEE_BASE}）..."
+npx vite build --base "$GITEE_BASE"
+
+echo "[3/4] 准备 Pages 产物..."
 cd dist
-
-# 创建 .nojekyll 以绕过 Jekyll 处理（Gitee Pages 有时需要）
+cp index.html 404.html
 echo > .nojekyll
 
-# 初始化 git 仓库并提交
 rm -rf .git
-git init
+git init -q
 git add -A
-git commit -m 'deploy'
+git commit -q -m "deploy $(date '+%Y-%m-%d %H:%M:%S')"
 
-# 推送到 Gitee 仓库的 gh-pages 分支
-git push -f git@gitee.com:huang-chuhua123/cruise-project.git master:gh-pages
+echo "[4/4] 推送到 Gitee gh-pages..."
+git push -f "$GITEE_REPO" HEAD:gh-pages
 
-cd -
+cd "$ROOT"
+echo ""
+echo "=== Gitee Pages 部署完成 ✅ ==="
+echo "访问地址: ${PAGES_URL}"
+echo "若页面未更新，请到 Gitee 仓库 → 服务 → Gitee Pages → 点击「更新」"
