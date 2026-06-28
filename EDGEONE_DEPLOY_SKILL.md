@@ -28,9 +28,31 @@ cd /Users/huangchuhua/AI项目/cruise-management
 git add -A && git commit -m "描述更新" && git push origin feature/collaboration-baseline-20260608
 ```
 
-### Step 2：等待 EdgeOne 自动构建
+### Step 2：触发 EdgeOne 重新部署
 
-推送后 Makers 会自动触发部署，或在控制台手动「重新部署」。
+**Git 导入项目（当前方式）**——推送代码后需在控制台手动点「重新部署」，或确认已开启自动部署：
+
+1. 打开 [EdgeOne Makers 控制台](https://console.cloud.tencent.com/edgeone/pages)
+2. 进入项目 `cruise-management`
+3. **项目设置 → 构建部署配置**，确认：
+
+| 配置项 | 正确值 |
+|--------|--------|
+| 生产分支 | `master` |
+| 框架预设 | Vite |
+| 构建命令 | `npm run build:edgeone` |
+| 输出目录 | `dist` |
+| 根目录 | `/` |
+
+4. 点击 **「重新部署」**（或「部署」→ 生产环境）
+5. 等待构建日志显示成功（约 2～5 分钟）
+
+**CLI 直传（需 API Token）**：
+
+```bash
+# 控制台 → 账户设置 → API Token，写入 .deploy/edgeone.env
+bash deploy-edgeone.sh
+```
 
 ### Step 3：验证
 
