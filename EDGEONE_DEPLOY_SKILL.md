@@ -51,7 +51,7 @@ curl -sI https://cruise-management-dpmoj5pp6jvd.edgeone.dev/assets/index-*.js | 
 
 ```json
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build:edgeone",
   "outputDirectory": "dist"
 }
 ```
@@ -63,7 +63,7 @@ curl -sI https://cruise-management-dpmoj5pp6jvd.edgeone.dev/assets/index-*.js | 
 | 项 | 正确值 | 错误值 |
 |----|--------|--------|
 | 框架预设 | Vite | — |
-| 构建命令 | `npm run build` | 含 `--base /cruise-management/` |
+| 构建命令 | `npm run build:edgeone` | 含 `--base /cruise-management/` |
 | 输出目录 | `dist` | `build` 或空 |
 | 根目录 | `/` | — |
 
