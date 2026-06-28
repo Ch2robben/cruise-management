@@ -11,7 +11,7 @@ import { NATIONALITY_OPTIONS } from '@/utils/constants'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
 import type { Status } from '@/types'
 
-export type PriceTypeRuleKind = 'port' | 'regional'
+export type PricePolicyTypeKind = 'port' | 'regional'
 export type PortMatchMode = 'default' | 'departure_port'
 export type RegionalMatchType = 'id_card_prefix' | 'nationality'
 
@@ -25,12 +25,12 @@ export interface RegionalMatchRule {
   nationalities: string[]
 }
 
-export interface PriceTypeRule {
+export interface PricePolicyType {
   id: string
   code: string
   name: string
   dealer: string
-  priceType: PriceTypeRuleKind
+  policyType: PricePolicyTypeKind
   priority: number
   effectiveStart: string
   effectiveEnd: string
@@ -45,7 +45,7 @@ export interface PriceTypeRule {
   createdAt: string
 }
 
-type PriceTypeRuleForm = Omit<PriceTypeRule, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>
+type PricePolicyTypeForm = Omit<PricePolicyType, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>
 
 const dealerOptions = [
   '重庆海外旅业集团',
@@ -57,7 +57,7 @@ const dealerOptions = [
 
 const departurePortOptions = ['重庆', '宜昌', '武汉', '南京', '上海', '岳阳']
 
-const priceTypeOptions: { value: PriceTypeRuleKind; label: string }[] = [
+const policyTypeOptions: { value: PricePolicyTypeKind; label: string }[] = [
   { value: 'port', label: '口岸价' },
   { value: 'regional', label: '区域价' },
 ]
@@ -80,11 +80,11 @@ const emptyRegionalMatchRule = (matchType: RegionalMatchType = 'id_card_prefix')
   nationalities: [],
 })
 
-const emptyForm: PriceTypeRuleForm = {
-  code: 'PTYPE-NEW',
+const emptyForm: PricePolicyTypeForm = {
+  code: 'PPOL-NEW',
   name: '',
   dealer: dealerOptions[0],
-  priceType: 'port',
+  policyType: 'port',
   priority: 10,
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
@@ -95,7 +95,7 @@ const emptyForm: PriceTypeRuleForm = {
   remark: '',
 }
 
-function createRule(form: PriceTypeRuleForm): PriceTypeRule {
+function createPolicyType(form: PricePolicyTypeForm): PricePolicyType {
   const now = new Date().toISOString()
   return {
     ...form,
@@ -106,8 +106,8 @@ function createRule(form: PriceTypeRuleForm): PriceTypeRule {
   }
 }
 
-function getPriceTypeLabel(type: PriceTypeRuleKind) {
-  return priceTypeOptions.find((item) => item.value === type)?.label || type
+function getPolicyTypeLabel(type: PricePolicyTypeKind) {
+  return policyTypeOptions.find((item) => item.value === type)?.label || type
 }
 
 function getPortMatchModeLabel(mode: PortMatchMode) {
@@ -132,8 +132,8 @@ function formatRegionalMatchRules(rules: RegionalMatchRule[]) {
   return `${formatRegionalMatchRule(rules[0])} 等${rules.length}条`
 }
 
-function formatEffectiveRule(rule: PriceTypeRule) {
-  if (rule.priceType === 'port') {
+function formatEffectiveRule(rule: PricePolicyType) {
+  if (rule.policyType === 'port') {
     if (rule.portMatchMode === 'departure_port' && rule.departurePorts.length > 0) {
       return `出发港：${rule.departurePorts.join('、')}`
     }
@@ -161,35 +161,35 @@ function normalizeRegionalMatchRules(rules: RegionalMatchRule[]) {
     ))
 }
 
-const initialRules: PriceTypeRule[] = [
-  createRule({
+const initialRecords: PricePolicyType[] = [
+  createPolicyType({
     ...emptyForm,
-    code: 'PTYPE-PORT-001',
+    code: 'PPOL-PORT-001',
     name: '长航重庆出发默认口岸价',
     dealer: '重庆海外旅业集团',
-    priceType: 'port',
+    policyType: 'port',
     portMatchMode: 'departure_port',
     departurePorts: ['重庆'],
     priority: 10,
     remark: '重庆出发航次统一按口岸价计价。',
   }),
-  createRule({
+  createPolicyType({
     ...emptyForm,
-    code: 'PTYPE-PORT-002',
+    code: 'PPOL-PORT-002',
     name: '宜昌交运宜昌港口岸价',
     dealer: '宜昌交运旅行社',
-    priceType: 'port',
+    policyType: 'port',
     portMatchMode: 'departure_port',
     departurePorts: ['宜昌'],
     priority: 20,
     remark: '宜昌港出发适用口岸价。',
   }),
-  createRule({
+  createPolicyType({
     ...emptyForm,
-    code: 'PTYPE-REG-001',
+    code: 'PPOL-REG-001',
     name: '巫山区域结算价',
     dealer: '重庆海外旅业集团',
-    priceType: 'regional',
+    policyType: 'regional',
     regionalMatchRules: [
       { id: 'r1', matchType: 'id_card_prefix', prefix: '500100', label: '重庆市辖区', nationalities: [] },
       { id: 'r2', matchType: 'id_card_prefix', prefix: '500229', label: '巫山县', nationalities: [] },
@@ -197,12 +197,12 @@ const initialRules: PriceTypeRule[] = [
     priority: 15,
     remark: '重庆辖区及巫山籍游客适用区域价。',
   }),
-  createRule({
+  createPolicyType({
     ...emptyForm,
-    code: 'PTYPE-REG-002',
+    code: 'PPOL-REG-002',
     name: '宜昌城区区域价',
     dealer: '宜昌交运旅行社',
-    priceType: 'regional',
+    policyType: 'regional',
     regionalMatchRules: [
       { id: 'r3', matchType: 'id_card_prefix', prefix: '420500', label: '宜昌市', nationalities: [] },
       { id: 'r4', matchType: 'id_card_prefix', prefix: '420503', label: '伍家岗区', nationalities: [] },
@@ -210,24 +210,24 @@ const initialRules: PriceTypeRule[] = [
     priority: 25,
     remark: '宜昌市及伍家岗区籍游客适用区域价。',
   }),
-  createRule({
+  createPolicyType({
     ...emptyForm,
-    code: 'PTYPE-REG-003',
+    code: 'PPOL-REG-003',
     name: '湖北省区域价',
     dealer: '武汉长江国旅',
-    priceType: 'regional',
+    policyType: 'regional',
     regionalMatchRules: [
       { id: 'r5', matchType: 'id_card_prefix', prefix: '42', label: '湖北省', nationalities: [] },
     ],
     priority: 12,
     remark: '身份证号码前2位为42的游客适用区域价。',
   }),
-  createRule({
+  createPolicyType({
     ...emptyForm,
-    code: 'PTYPE-REG-004',
+    code: 'PPOL-REG-004',
     name: '日韩外宾区域价',
     dealer: '上海锦江游轮分销中心',
-    priceType: 'regional',
+    policyType: 'regional',
     regionalMatchRules: [
       { id: 'r6', matchType: 'nationality', prefix: '', label: '', nationalities: ['日本', '韩国'] },
     ],
@@ -236,20 +236,20 @@ const initialRules: PriceTypeRule[] = [
   }),
 ]
 
-export default function PriceTypeRulePage() {
-  const [records, setRecords] = useState<PriceTypeRule[]>(initialRules)
+export default function PricePolicyTypePage() {
+  const [records, setRecords] = useState<PricePolicyType[]>(initialRecords)
   const [keyword, setKeyword] = useState('')
   const [dealerFilter, setDealerFilter] = useState('all')
-  const [priceTypeFilter, setPriceTypeFilter] = useState('all')
+  const [policyTypeFilter, setPolicyTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<PriceTypeRuleForm>(emptyForm)
+  const [form, setForm] = useState<PricePolicyTypeForm>(emptyForm)
 
   const [detailOpen, setDetailOpen] = useState(false)
-  const [detail, setDetail] = useState<PriceTypeRule | null>(null)
+  const [detail, setDetail] = useState<PricePolicyType | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
 
@@ -269,11 +269,11 @@ export default function PriceTypeRulePage() {
         ]),
       ].some((value) => value.toLowerCase().includes(kw))
       const matchedDealer = dealerFilter === 'all' || item.dealer === dealerFilter
-      const matchedPriceType = priceTypeFilter === 'all' || item.priceType === priceTypeFilter
+      const matchedPolicyType = policyTypeFilter === 'all' || item.policyType === policyTypeFilter
       const matchedStatus = statusFilter === 'all' || item.status === statusFilter
-      return matchedKeyword && matchedDealer && matchedPriceType && matchedStatus
+      return matchedKeyword && matchedDealer && matchedPolicyType && matchedStatus
     })
-  }, [records, keyword, dealerFilter, priceTypeFilter, statusFilter])
+  }, [records, keyword, dealerFilter, policyTypeFilter, statusFilter])
 
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
@@ -284,13 +284,13 @@ export default function PriceTypeRulePage() {
     setFormOpen(true)
   }
 
-  const openEdit = (record: PriceTypeRule) => {
+  const openEdit = (record: PricePolicyType) => {
     setEditingId(record.id)
     setForm({
       code: record.code,
       name: record.name,
       dealer: record.dealer,
-      priceType: record.priceType,
+      policyType: record.policyType,
       priority: record.priority,
       effectiveStart: record.effectiveStart,
       effectiveEnd: record.effectiveEnd,
@@ -305,21 +305,21 @@ export default function PriceTypeRulePage() {
     setFormOpen(true)
   }
 
-  const openDetail = (record: PriceTypeRule) => {
+  const openDetail = (record: PricePolicyType) => {
     setDetail(record)
     setDetailOpen(true)
   }
 
   const handleSubmit = () => {
     if (!form.name.trim()) {
-      window.alert('请填写规则名称')
+      window.alert('请填写政策类型名称')
       return
     }
-    if (form.priceType === 'port' && form.portMatchMode === 'departure_port' && form.departurePorts.length === 0) {
+    if (form.policyType === 'port' && form.portMatchMode === 'departure_port' && form.departurePorts.length === 0) {
       window.alert('口岸价按出发港匹配时，请至少选择一个出发港')
       return
     }
-    if (form.priceType === 'regional') {
+    if (form.policyType === 'regional') {
       const rules = normalizeRegionalMatchRules(form.regionalMatchRules)
       if (rules.length === 0) {
         window.alert('请至少配置一条区域价匹配条件（身份证区划码或国籍）')
@@ -350,7 +350,7 @@ export default function PriceTypeRulePage() {
 
     const payload = {
       ...form,
-      regionalMatchRules: form.priceType === 'regional' ? normalizeRegionalMatchRules(form.regionalMatchRules) : [],
+      regionalMatchRules: form.policyType === 'regional' ? normalizeRegionalMatchRules(form.regionalMatchRules) : [],
     }
 
     if (editingId) {
@@ -365,7 +365,7 @@ export default function PriceTypeRulePage() {
           : item
       )))
     } else {
-      setRecords((prev) => [createRule(payload), ...prev])
+      setRecords((prev) => [createPolicyType(payload), ...prev])
     }
     setFormOpen(false)
     setPage(1)
@@ -425,8 +425,8 @@ export default function PriceTypeRulePage() {
   return (
     <div>
       <PageHeader
-        title="价格类型规则"
-        description="按经销商配置口岸价与区域价；区域价可按身份证区划码或入住人国籍匹配。"
+        title="价格政策类型"
+        description="按经销商配置口岸价与区域价政策类型；区域价可按身份证区划码或入住人国籍匹配。"
       >
         <button
           type="button"
@@ -434,7 +434,7 @@ export default function PriceTypeRulePage() {
           className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800"
         >
           <Plus className="h-4 w-4" />
-          新增规则
+          新增政策类型
         </button>
       </PageHeader>
 
@@ -443,7 +443,7 @@ export default function PriceTypeRulePage() {
         onReset={() => {
           setKeyword('')
           setDealerFilter('all')
-          setPriceTypeFilter('all')
+          setPolicyTypeFilter('all')
           setStatusFilter('all')
           setPage(1)
         }}
@@ -454,7 +454,7 @@ export default function PriceTypeRulePage() {
             <input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="规则编码 / 名称 / 经销商"
+              placeholder="政策类型编码 / 名称 / 经销商"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -466,10 +466,10 @@ export default function PriceTypeRulePage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-gray-700">价格类型</span>
-            <select value={priceTypeFilter} onChange={(event) => setPriceTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <span className="mb-1 block text-gray-700">价格政策类型</span>
+            <select value={policyTypeFilter} onChange={(event) => setPolicyTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
               <option value="all">全部</option>
-              {priceTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {policyTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <label className="block text-sm">
@@ -483,21 +483,21 @@ export default function PriceTypeRulePage() {
         </div>
       </SearchPanel>
 
-      <DataTable<PriceTypeRule>
+      <DataTable<PricePolicyType>
         dataSource={pagedRecords}
         rowKey="id"
         pagination={{ current: page, pageSize, total: filteredRecords.length, onChange: setPage }}
         columns={[
-          { key: 'code', title: '规则编码', width: '130px' },
-          { key: 'name', title: '规则名称', width: '180px' },
+          { key: 'code', title: '政策类型编码', width: '130px' },
+          { key: 'name', title: '政策类型名称', width: '180px' },
           { key: 'dealer', title: '经销商', width: '180px' },
           {
-            key: 'priceType',
-            title: '价格类型',
-            width: '90px',
+            key: 'policyType',
+            title: '价格政策类型',
+            width: '110px',
             render: (record) => (
-              <span className={`rounded px-2 py-0.5 text-xs ${record.priceType === 'port' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
-                {getPriceTypeLabel(record.priceType)}
+              <span className={`rounded px-2 py-0.5 text-xs ${record.policyType === 'port' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
+                {getPolicyTypeLabel(record.policyType)}
               </span>
             ),
           },
@@ -543,15 +543,15 @@ export default function PriceTypeRulePage() {
 
       <FormDialog
         open={formOpen}
-        title={editingId ? '编辑价格类型规则' : '新增价格类型规则'}
+        title={editingId ? '编辑价格政策类型' : '新增价格政策类型'}
         width="max-w-3xl"
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       >
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="规则编码" value={form.code} onChange={(code) => setForm({ ...form, code })} />
-            <Field label="规则名称" value={form.name} onChange={(name) => setForm({ ...form, name })} required />
+            <Field label="政策类型编码" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+            <Field label="政策类型名称" value={form.name} onChange={(name) => setForm({ ...form, name })} required />
             <label className="block text-sm">
               <span className="mb-1 block text-gray-700">经销商 <span className="text-red-500">*</span></span>
               <select value={form.dealer} onChange={(event) => setForm({ ...form, dealer: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
@@ -559,22 +559,22 @@ export default function PriceTypeRulePage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-gray-700">价格类型 <span className="text-red-500">*</span></span>
+              <span className="mb-1 block text-gray-700">价格政策类型 <span className="text-red-500">*</span></span>
               <select
-                value={form.priceType}
+                value={form.policyType}
                 onChange={(event) => {
-                  const priceType = event.target.value as PriceTypeRuleKind
+                  const policyType = event.target.value as PricePolicyTypeKind
                   setForm({
                     ...form,
-                    priceType,
-                    regionalMatchRules: priceType === 'regional' && form.regionalMatchRules.length === 0
+                    policyType,
+                    regionalMatchRules: policyType === 'regional' && form.regionalMatchRules.length === 0
                       ? [emptyRegionalMatchRule()]
                       : form.regionalMatchRules,
                   })
                 }}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               >
-                {priceTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                {policyTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
             <Field label="优先级" value={String(form.priority)} onChange={(value) => setForm({ ...form, priority: Number(value) || 0 })} />
@@ -589,7 +589,7 @@ export default function PriceTypeRulePage() {
             <Field label="生效结束" value={form.effectiveEnd} onChange={(effectiveEnd) => setForm({ ...form, effectiveEnd })} type="date" />
           </div>
 
-          {form.priceType === 'port' ? (
+          {form.policyType === 'port' ? (
             <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4 space-y-4">
               <h4 className="text-sm font-semibold text-gray-800">口岸价生效规则</h4>
               <p className="text-xs text-gray-500">配置该经销商在何种条件下使用口岸价（P）计价。</p>
@@ -753,20 +753,20 @@ export default function PriceTypeRulePage() {
         </div>
       </FormDialog>
 
-      <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} title="价格类型规则详情" width="max-w-xl">
+      <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} title="价格政策类型详情" width="max-w-xl">
         {detail && (
           <>
             <DetailCard title="基本信息">
-              <DetailRow label="规则编码" value={detail.code} />
-              <DetailRow label="规则名称" value={detail.name} />
+              <DetailRow label="政策类型编码" value={detail.code} />
+              <DetailRow label="政策类型名称" value={detail.name} />
               <DetailRow label="经销商" value={detail.dealer} />
-              <DetailRow label="价格类型" value={getPriceTypeLabel(detail.priceType)} />
+              <DetailRow label="价格政策类型" value={getPolicyTypeLabel(detail.policyType)} />
               <DetailRow label="优先级" value={String(detail.priority)} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
               <DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} ~ ${formatDate(detail.effectiveEnd)}`} />
             </DetailCard>
-            <DetailCard title={detail.priceType === 'port' ? '口岸价生效规则' : '区域价生效规则'}>
-              {detail.priceType === 'port' ? (
+            <DetailCard title={detail.policyType === 'port' ? '口岸价生效规则' : '区域价生效规则'}>
+              {detail.policyType === 'port' ? (
                 <>
                   <DetailRow label="匹配方式" value={getPortMatchModeLabel(detail.portMatchMode)} />
                   <DetailRow label="出发港" value={detail.departurePorts.length > 0 ? detail.departurePorts.join('、') : '不限'} />
@@ -796,8 +796,8 @@ export default function PriceTypeRulePage() {
 
       <ConfirmDialog
         open={confirmOpen}
-        title="删除规则"
-        message="确定删除该价格类型规则？删除后不影响已生成订单的计价快照。"
+        title="删除政策类型"
+        message="确定删除该价格政策类型？删除后不影响已生成订单的计价快照。"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={handleDelete}
       />

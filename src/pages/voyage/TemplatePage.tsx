@@ -210,9 +210,6 @@ export default function TemplatePage() {
   }
 
 
-  const openPriceRule = (template: VoyageTemplate) => {
-    navigate(`/voyage/templates/${template.id}/price`)
-  }
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -315,7 +312,7 @@ export default function TemplatePage() {
     { key: 'code', title: '模板编码', render: (r: VoyageTemplate) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '名称', dataIndex: 'name' as keyof VoyageTemplate },
     { key: 'inventoryManage', title: '库存管理', width: '120px', render: (r: VoyageTemplate) => (
-      <button onClick={() => navigate(`/voyage/template-inventory?templateId=${r.id}`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"><Warehouse className="w-3 h-3" />库存管理</button>
+      <button onClick={() => navigate(`/voyage/inventory-templates?templateId=${r.id}`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"><Warehouse className="w-3 h-3" />库存管理</button>
     ) },
     { key: 'productName', title: '关联产品', dataIndex: 'productName' as keyof VoyageTemplate },
     { key: 'shipName', title: '适用游轮', dataIndex: 'shipName' as keyof VoyageTemplate },
@@ -328,10 +325,9 @@ export default function TemplatePage() {
     { key: 'status', title: '状态', render: (r: VoyageTemplate) => <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[r.status]}`}>{statusLabels[r.status]}</span> },
     { key: 'updatedBy', title: '修改人', dataIndex: 'updatedBy' as keyof VoyageTemplate },
     { key: 'updatedAt', title: '修改时间', render: (r: VoyageTemplate) => formatDateTime(r.updatedAt) },
-    { key: 'actions', title: '操作', width: '320px', render: (r: VoyageTemplate) => (
+    { key: 'actions', title: '操作', width: '260px', render: (r: VoyageTemplate) => (
       <div className="flex items-center gap-1">
 
-        <button onClick={() => openPriceRule(r)} className="px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded">定价管理</button>
         <button onClick={() => openSupplierBook(r)} className="px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 rounded">分销商库存</button>
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">编辑</button>

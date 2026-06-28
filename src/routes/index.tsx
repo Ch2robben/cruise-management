@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import MainLayout from '@/layouts/MainLayout'
 import DealerLayout from '@/layouts/DealerLayout'
@@ -18,11 +18,13 @@ import TicketPage from '@/pages/resources/TicketPage'
 import FacilityPage from '@/pages/resources/FacilityPage'
 import RoomPage from '@/pages/resources/RoomPage'
 import CabinPage from '@/pages/resources/CabinPage'
+import SellRoomTypeConfigPage from '@/pages/resources/SellRoomTypeConfigPage'
 import InventoryPage from '@/pages/voyage/InventoryPage'
 import InventoryAllocationPage from '@/pages/voyage/InventoryAllocationPage'
 import PriceManagementPage from '@/pages/voyage/PriceManagementPage'
-import TemplateInventoryPage from '@/pages/voyage/TemplateInventoryPage'
 import TemplatePricePage from '@/pages/voyage/TemplatePricePage'
+import VoyageInventoryTemplatePage from '@/pages/voyage/VoyageInventoryTemplatePage'
+import VoyagePriceTemplatePage from '@/pages/voyage/VoyagePriceTemplatePage'
 import PricingPage from '@/pages/voyage/PricingPage'
 import PricingRulePage from '@/pages/voyage/PricingRulePage'
 import SalesControlPage from '@/pages/voyage/SalesControlPage'
@@ -71,7 +73,23 @@ import ShipAuthPage from '@/pages/rule/ShipAuthPage'
 import CloseRulePage from '@/pages/rule/CloseRulePage'
 import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
 import RebateRulePage from '@/pages/rule/RebateRulePage'
-import PriceTypeRulePage from '@/pages/rule/PriceTypeRulePage'
+import PricePolicyTypePage from '@/pages/rule/PriceTypeRulePage'
+
+function LegacyTemplatePriceRedirect() {
+  const { id } = useParams()
+  return <Navigate to={id ? `/voyage/price-templates/${id}` : '/voyage/price-templates'} replace />
+}
+
+function InventoryTemplateDetailRedirect() {
+  const { id } = useParams()
+  return <Navigate to={id ? `/voyage/inventory-templates?templateId=${id}` : '/voyage/inventory-templates'} replace />
+}
+
+function LegacyTemplateInventoryRedirect() {
+  const [searchParams] = useSearchParams()
+  const templateId = searchParams.get('templateId')
+  return <Navigate to={templateId ? `/voyage/inventory-templates?templateId=${templateId}` : '/voyage/inventory-templates'} replace />
+}
 
 export const router = createBrowserRouter([
   {
@@ -101,13 +119,17 @@ export const router = createBrowserRouter([
       { path: '/resources/ships', element: <ShipPage /> },
       { path: '/voyage/list', element: <VoyagePage /> },
       { path: '/voyage/templates', element: <TemplatePage /> },
-      { path: '/voyage/templates/:id/price', element: <TemplatePricePage /> },
+      { path: '/voyage/templates/:id/price', element: <LegacyTemplatePriceRedirect /> },
+      { path: '/voyage/price-templates', element: <VoyagePriceTemplatePage /> },
+      { path: '/voyage/price-templates/:id', element: <TemplatePricePage /> },
+      { path: '/voyage/inventory-templates', element: <VoyageInventoryTemplatePage /> },
+      { path: '/voyage/inventory-templates/:id', element: <InventoryTemplateDetailRedirect /> },
       { path: '/voyage/inventory', element: <InventoryPage /> },
       { path: '/voyage/inventory-allocation', element: <InventoryAllocationPage /> },
       { path: '/voyage/pricing-rules', element: <PricingRulePage /> },
       { path: '/voyage/price-management', element: <PriceManagementPage /> },
       { path: '/voyage/sales-control', element: <SalesControlPage /> },
-      { path: '/voyage/template-inventory', element: <TemplateInventoryPage /> },
+      { path: '/voyage/template-inventory', element: <LegacyTemplateInventoryRedirect /> },
       { path: '/voyage/pricing', element: <PricingPage /> },
       { path: '/orders/list', element: <OrderListPage /> },
       { path: '/orders/voyage-passenger-rooms', element: <VoyagePassengerRoomPage /> },
@@ -126,6 +148,7 @@ export const router = createBrowserRouter([
       { path: '/resources/facilities', element: <FacilityPage /> },
       { path: '/resources/rooms', element: <RoomPage /> },
       { path: '/resources/cabins', element: <CabinPage /> },
+      { path: '/resources/sell-room-type-configs', element: <SellRoomTypeConfigPage /> },
       { path: '/basic/holidays', element: <HolidayPage /> },
       { path: '/basic/id-types', element: <IdTypePage /> },
       { path: '/basic/age-groups', element: <AgeGroupPage /> },
@@ -140,7 +163,7 @@ export const router = createBrowserRouter([
       { path: '/rule/penalty-handling', element: <PenaltyHandlingDictPage /> },
       { path: '/rule/dealer-cooperation', element: <DealerPage /> },
       { path: '/rule/discount', element: <DiscountRulePage /> },
-      { path: '/rule/price-type', element: <PriceTypeRulePage /> },
+      { path: '/rule/price-type', element: <PricePolicyTypePage /> },
       { path: '/rule/tip', element: <TipConfigPage /> },
       { path: '/rule/order-validity', element: <OrderValidityRulePage /> },
       { path: '/rule/warning', element: <WarningRulePage /> },

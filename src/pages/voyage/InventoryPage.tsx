@@ -7,6 +7,7 @@ import type { Product, ProductSegment, Voyage, VoyageInventory } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import InventoryConfigDialog, { type InventoryConfigContext } from '@/components/voyage/InventoryConfigDialog'
+import VoyageChannelDealerInventoryPanel from '@/components/voyage/VoyageChannelDealerInventoryPanel'
 import { createRouteSegmentOptions } from '@/components/voyage/VoyageTipManagementPanel'
 import { SalesControlWorkspace } from '@/pages/voyage/SalesControlPage'
 
@@ -336,8 +337,6 @@ export default function InventoryPage() {
   const [selectedRouteSegment, setSelectedRouteSegment] = useState('all')
   const [activeSegmentKey, setActiveSegmentKey] = useState('whole')
   const [editState, setEditState] = useState<EditState | null>(null)
-  const [channelSupplierState, setChannelSupplierState] = useState<ChannelSupplierInventoryState | null>(null)
-  const [channelInventoryOverrides, setChannelInventoryOverrides] = useState<Record<string, number>>({})
   const [checkedVoyageIds, setCheckedVoyageIds] = useState<Set<string>>(new Set())
   const [inventoryConfigContext, setInventoryConfigContext] = useState<InventoryConfigContext | null>(null)
 
@@ -409,13 +408,6 @@ export default function InventoryPage() {
     return selectedInventoryRows.map((row, index) => scaleRowBySegment(row, activeSegment, segmentTabs.findIndex(item => item.key === activeSegment.key) + index))
   }, [activeSegment, segmentTabs, selectedInventoryRows])
 
-  const rawChannelRows = useMemo(() => buildChannelRows(selectedVoyage), [selectedVoyage])
-  const channelRows = useMemo(() => {
-    return rawChannelRows.map(row => (
-      channelInventoryOverrides[row.id] === undefined ? row : { ...row, available: channelInventoryOverrides[row.id] }
-    ))
-  }, [channelInventoryOverrides, rawChannelRows])
-
   const routeFilterLabel = useMemo(() => {
     if (routeFilters.length === 0) return '全部航线'
     if (routeFilters.length === 1) return routes.find(route => route.id === routeFilters[0])?.name || '已选 1 条航线'
@@ -461,80 +453,6 @@ export default function InventoryPage() {
     await fetchInventories()
   }
 
-  const openChannelSupplierInventory = (row: ChannelInventoryRow) => {
-    const segments = createChannelSupplierSegments(selectedProduct)
-    const cabins = createChannelSupplierCabins(selectedInventoryRows)
-    setChannelSupplierState({
-      row,
-      group: 'all',
-      supplierId: row.id,
-      segments,
-      cabins,
-      matrix: createChannelSupplierMatrix(row, segments, cabins),
-    })
-  }
-
-  const changeChannelSupplierGroup = (group: ChannelSupplierFilter) => {
-    setChannelSupplierState(prev => {
-      if (!prev) return prev
-      const options = filterChannelRowsBySupplierGroup(channelRows, group)
-      const nextRow = options.find(row => row.id === prev.supplierId) || options[0] || prev.row
-      return {
-        ...prev,
-        row: nextRow,
-        group,
-        supplierId: nextRow.id,
-        matrix: createChannelSupplierMatrix(nextRow, prev.segments, prev.cabins),
-      }
-    })
-  }
-
-  const changeChannelSupplier = (supplierId: string) => {
-    setChannelSupplierState(prev => {
-      if (!prev) return prev
-      const nextRow = channelRows.find(row => row.id === supplierId) || prev.row
-      return {
-        ...prev,
-        row: nextRow,
-        supplierId: nextRow.id,
-        matrix: createChannelSupplierMatrix(nextRow, prev.segments, prev.cabins),
-      }
-    })
-  }
-
-  const updateChannelSupplierAvailable = (segmentKey: string, cabin: string, value: number) => {
-    setChannelSupplierState(prev => {
-      if (!prev) return prev
-      const currentSegment = prev.matrix[segmentKey] || {}
-      const currentCell = currentSegment[cabin] || { sold: 0, available: 0 }
-      return {
-        ...prev,
-        matrix: {
-          ...prev.matrix,
-          [segmentKey]: {
-            ...currentSegment,
-            [cabin]: {
-              ...currentCell,
-              available: Math.max(0, value),
-            },
-          },
-        },
-      }
-    })
-  }
-
-  const saveChannelSupplierInventory = () => {
-    if (!channelSupplierState) return
-    const wholeSegmentKey = channelSupplierState.segments[0]?.key
-    const sourceSegment = channelSupplierState.matrix[wholeSegmentKey] || channelSupplierState.matrix[channelSupplierState.segments[1]?.key] || {}
-    const nextAvailable = Object.values(sourceSegment).reduce((sum, cell) => sum + cell.available, 0)
-    setChannelInventoryOverrides(prev => ({
-      ...prev,
-      [channelSupplierState.row.id]: nextAvailable,
-    }))
-    setChannelSupplierState(null)
-  }
-
   const toggleVoyageChecked = (voyageId: string) => {
     setCheckedVoyageIds((prev) => {
       const next = new Set(prev)
@@ -559,7 +477,6 @@ export default function InventoryPage() {
   }
 
   const pageTitle = selectedVoyage ? `航次库存看板 · ${selectedVoyage.voyageNo}` : '航次库存看板'
-  const channelSupplierOptions = channelSupplierState ? filterChannelRowsBySupplierGroup(channelRows, channelSupplierState.group) : []
 
   return (
     <div>
@@ -719,14 +636,15 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              {viewMode !== 'channel' && (
+              {viewMode === 'voyage' || viewMode === 'channel' ? (
                 <RouteInventoryLineBoard
                   product={selectedProduct}
                   rows={selectedInventoryRows}
+                  title={viewMode === 'channel' ? '渠道库存线路视图' : '库存线路视图'}
                   selectedRouteSegment={selectedRouteSegment}
                   onRouteSegmentChange={setSelectedRouteSegment}
                 />
-              )}
+              ) : null}
 
               {viewMode === 'voyage' && (
                 <SalesControlWorkspace
@@ -737,15 +655,7 @@ export default function InventoryPage() {
                 />
               )}
               {viewMode === 'channel' && (
-                <>
-                  <RouteInventoryLineBoard
-                    product={selectedProduct}
-                    channelRows={channelRows}
-                    title="渠道库存线路视图"
-                    lineLabel="渠道"
-                  />
-                  <ChannelInventoryTable rows={channelRows} onRowClick={openChannelSupplierInventory} />
-                </>
+                <VoyageChannelDealerInventoryPanel voyage={selectedVoyage} />
               )}
             </>
           ) : null}
@@ -757,107 +667,6 @@ export default function InventoryPage() {
           context={inventoryConfigContext}
           onClose={() => setInventoryConfigContext(null)}
         />
-      )}
-
-      {channelSupplierState && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setChannelSupplierState(null)} />
-          <div className="relative flex max-h-[86vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">分销商-库存</h3>
-                <p className="mt-1 text-xs text-gray-500">按分销商、航段和房型调整可售库存；已售数仅展示不可编辑。</p>
-              </div>
-              <button onClick={() => setChannelSupplierState(null)} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
-            </div>
-
-            <div className="border-b bg-gray-50 px-5 py-4">
-              <div className="grid grid-cols-[180px_minmax(0,320px)_1fr] gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-500">组团分类</label>
-                  <select
-                    value={channelSupplierState.group}
-                    onChange={(event) => changeChannelSupplierGroup(event.target.value as ChannelSupplierFilter)}
-                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700"
-                  >
-                    {(['all', 'ota', 'distributor', 'group', 'mini_program'] as ChannelSupplierFilter[]).map(type => (
-                      <option key={type} value={type}>{channelSupplierFilterLabels[type]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-500">分销商</label>
-                  <select
-                    value={channelSupplierState.supplierId}
-                    onChange={(event) => changeChannelSupplier(event.target.value)}
-                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700"
-                  >
-                    {channelSupplierOptions.length === 0 ? (
-                      <option value={channelSupplierState.supplierId}>{channelSupplierState.row.channelName}</option>
-                    ) : channelSupplierOptions.map(row => (
-                      <option key={row.id} value={row.id}>{row.channelName}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500">
-                    当前分销商：<span className="font-medium text-gray-900">{channelSupplierState.row.channelName}</span>
-                    <span className="mx-2 text-gray-300">/</span>
-                    编码：<span className="font-mono text-gray-700">{channelSupplierState.row.channelCode}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto p-5">
-              <table className="w-full min-w-[860px] border-separate border-spacing-0 overflow-hidden rounded-lg border border-gray-200">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="sticky left-0 z-10 w-52 border-b border-r border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600">航段（含子航段）</th>
-                    {channelSupplierState.cabins.map(cabin => (
-                      <th key={cabin} className="border-b border-gray-200 px-4 py-3 text-left text-xs font-semibold text-gray-600">{cabin}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {channelSupplierState.segments.map(segment => (
-                    <tr key={segment.key} className="border-b last:border-b-0">
-                      <td className="sticky left-0 z-10 border-r border-t border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-900">{segment.label}</td>
-                      {channelSupplierState.cabins.map(cabin => {
-                        const cell = channelSupplierState.matrix[segment.key]?.[cabin] || { sold: 0, available: 0 }
-                        return (
-                          <td key={`${segment.key}-${cabin}`} className="border-t border-gray-200 px-4 py-3 align-top">
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between rounded-md bg-gray-50 px-2 py-1.5 text-xs text-gray-500">
-                                <span>已售</span>
-                                <span className="font-semibold text-gray-900">{cell.sold}</span>
-                              </div>
-                              <label className="block">
-                                <span className="mb-1 block text-xs text-gray-500">可售库存</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={cell.available}
-                                  onChange={(event) => updateChannelSupplierAvailable(segment.key, cabin, Number(event.target.value) || 0)}
-                                  className="h-9 w-full rounded-lg border border-gray-300 px-2 text-sm font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                              </label>
-                            </div>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end gap-3 border-t px-5 py-4">
-              <button onClick={() => setChannelSupplierState(null)} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-              <button onClick={saveChannelSupplierInventory} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">保存</button>
-            </div>
-          </div>
-        </div>
       )}
 
       {editState && (

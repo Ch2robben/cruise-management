@@ -165,11 +165,6 @@ export default function ProductPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ type: string; id: string }>({ type: '', id: '' })
 
-  // 定价弹窗
-  const [pricingOpen, setPricingOpen] = useState(false)
-  const [pricingProduct, setPricingProduct] = useState<Product | null>(null)
-  const [pricingRows, setPricingRows] = useState<PricingRow[]>([])
-
   // 图片预览弹窗
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
@@ -467,37 +462,6 @@ export default function ProductPage() {
 
   const configuredTicketRows = flattenRoomTickets(ticketDraft.roomTickets)
 
-  // ========== 定价逻辑 ==========
-  const openPricing = (record: Product) => {
-    setPricingProduct(record)
-    setPricingRows(record.pricing.map((r) => ({ ...r })))
-    setPricingOpen(true)
-  }
-
-  const updatePricingRow = (index: number, field: 'costPrice' | 'basePrice', value: number) => {
-    setPricingRows((prev) => {
-      const next = [...prev]
-      next[index] = { ...next[index], [field]: value }
-      return next
-    })
-  }
-
-  const savePricing = async () => {
-    if (!pricingProduct) return
-    await productApi.updatePricing(pricingProduct.id, pricingRows)
-    setPricingOpen(false)
-    setPricingProduct(null)
-    fetchData(data.page)
-  }
-
-  // ========== 毛利率计算 ==========
-  const calcProfitMargin = (pricing: PricingRow[]) => {
-    if (pricing.length === 0) return 0
-    const totalCost = pricing.reduce((s, r) => s + r.costPrice, 0)
-    const totalBase = pricing.reduce((s, r) => s + r.basePrice, 0)
-    return totalBase > 0 ? (((totalBase - totalCost) / totalBase) * 100).toFixed(1) : '0.0'
-  }
-
   // ========== 图标/图片处理 ==========
   const getIconPreview = (icon: string) => {
     if (!icon) return null
@@ -546,12 +510,11 @@ export default function ProductPage() {
     { key: 'status', title: '状态', parent: (r: Product) => <StatusBadge status={r.status} />, child: (s: ProductSegment) => <StatusBadge status={s.status} /> },
     { key: 'updatedBy', title: '操作人', parent: (r: Product) => r.updatedBy, child: (_s: ProductSegment, p: Product) => p.updatedBy },
     { key: 'updatedAt', title: '操作时间', parent: (r: Product) => formatDateTime(r.updatedAt), child: (_s: ProductSegment, p: Product) => formatDateTime(p.updatedAt) },
-    { key: 'actions', title: '操作', width: '320px', parent: (r: Product) => (
+    { key: 'actions', title: '操作', width: '280px', parent: (r: Product) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">编辑</button>
         <button onClick={() => openTicketManagement(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">票类管理</button>
-        <button onClick={() => openPricing(r)} className="px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded">定价</button>
         <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
           {r.status === 'enabled' ? '禁用' : '启用'}
         </button>
@@ -862,15 +825,6 @@ export default function ProductPage() {
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
               <DetailRow label="产品介绍" value={detail.description || '-'} />
             </DetailCard>
-            <DetailCard title="毛利率">
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-gray-900">{calcProfitMargin(detail.pricing)}%</span>
-                <span className="text-xs text-gray-500">
-                  （总成本 ¥{detail.pricing.reduce((s, r) => s + r.costPrice, 0).toLocaleString()} /
-                  总基准价 ¥{detail.pricing.reduce((s, r) => s + r.basePrice, 0).toLocaleString()}）
-                </span>
-              </div>
-            </DetailCard>
             <DetailCard title={`航段明细（${detail.segments.length}个航段）`}>
               <table className="w-full text-sm">
                 <thead><tr className="border-b border-gray-200">
@@ -901,90 +855,6 @@ export default function ProductPage() {
           </>
         )}
       </DetailDrawer>
-
-      {/* 定价配置弹窗 */}
-      {pricingOpen && pricingProduct && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setPricingOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-              <h3 className="text-base font-semibold text-gray-900">
-                基准价配置 - {pricingProduct.name}
-                <span className="ml-2 text-xs font-normal text-gray-500">
-                  ({pricingProduct.segments.length}航段 × {ships.find((s) => s.id === pricingProduct.shipId)?.cabinTypes.length || 0}舱房类型 = {pricingRows.length}行)
-                </span>
-              </h3>
-              <button onClick={() => setPricingOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">起止港</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">舱房类型</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">成本价(¥)</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">基准价(¥)</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">毛利率</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {(() => {
-                    // 按 segmentKey 分组，计算 rowSpan 用于合并起止港单元格
-                    const rows: { row: PricingRow; idx: number; isFirst: boolean; rowSpan: number }[] = []
-                    let i = 0
-                    while (i < pricingRows.length) {
-                      const key = pricingRows[i].segmentKey
-                      let j = i
-                      while (j < pricingRows.length && pricingRows[j].segmentKey === key) j++
-                      const span = j - i
-                      for (let k = i; k < j; k++) {
-                        rows.push({ row: pricingRows[k], idx: k, isFirst: k === i, rowSpan: span })
-                      }
-                      i = j
-                    }
-                    return rows.map(({ row, idx, isFirst, rowSpan }) => {
-                      const margin = row.basePrice > 0 ? ((row.basePrice - row.costPrice) / row.basePrice * 100).toFixed(1) : '0.0'
-                      return (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          {isFirst && (
-                            <td className="px-3 py-2 text-gray-700 border-r border-gray-100" rowSpan={rowSpan}>
-                              {row.startPort} - {row.endPort}
-                            </td>
-                          )}
-                          <td className="px-3 py-2 text-gray-700">{row.cabinType}</td>
-                          <td className="px-3 py-2">
-                            <input type="number" value={row.costPrice}
-                              onChange={(e) => updatePricingRow(idx, 'costPrice', Number(e.target.value))}
-                              className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input type="number" value={row.basePrice}
-                              onChange={(e) => updatePricingRow(idx, 'basePrice', Number(e.target.value))}
-                              className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <span className={`text-xs font-medium ${Number(margin) >= 30 ? 'text-green-600' : Number(margin) >= 15 ? 'text-yellow-600' : 'text-red-500'}`}>
-                              {margin}%
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  })()}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
-              <button onClick={() => setPricingOpen(false)}
-                className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">取消</button>
-              <button onClick={savePricing}
-                className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">保存定价</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 票类管理弹窗 */}
       {ticketOpen && ticketProduct && (

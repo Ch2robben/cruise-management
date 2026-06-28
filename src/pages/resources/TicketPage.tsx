@@ -155,7 +155,10 @@ export default function TicketPage() {
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">游客及入住类型</h4>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">游客及入住类型</h4>
+                <p className="mt-1 text-xs text-gray-400">每添加 1 个类型，价格系数公式中对应增加 1 个 P 变量（P1、P2…）</p>
+              </div>
               {!editingId && (
                 <button
                   type="button"
