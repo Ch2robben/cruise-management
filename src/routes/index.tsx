@@ -6,7 +6,6 @@ import ProtectedRoute from './ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
 import PortPage from '@/pages/resources/PortPage'
-import PortDistancePage from '@/pages/resources/PortDistancePage'
 import AttractionPage from '@/pages/resources/AttractionPage'
 import RoutePage from '@/pages/resources/RoutePage'
 import ItineraryManagementPage from '@/pages/resources/ItineraryManagementPage'
@@ -25,6 +24,7 @@ import PriceManagementPage from '@/pages/voyage/PriceManagementPage'
 import TemplatePricePage from '@/pages/voyage/TemplatePricePage'
 import VoyageInventoryTemplatePage from '@/pages/voyage/VoyageInventoryTemplatePage'
 import VoyagePriceTemplatePage from '@/pages/voyage/VoyagePriceTemplatePage'
+import CalendarBoardPage from '@/pages/voyage/CalendarBoardPage'
 import PricingPage from '@/pages/voyage/PricingPage'
 import PricingRulePage from '@/pages/voyage/PricingRulePage'
 import SalesControlPage from '@/pages/voyage/SalesControlPage'
@@ -37,6 +37,7 @@ import CabinHoldPage from '@/pages/distribution/CabinHoldPage'
 import CharterOrderPage from '@/pages/service/CharterOrderPage'
 import ComplaintTicketPage from '@/pages/service/ComplaintTicketPage'
 import CustomerProfilePage from '@/pages/customer/CustomerProfilePage'
+import UserManagementPage from '@/pages/customer/UserManagementPage'
 import ReconciliationPage from '@/pages/finance/ReconciliationPage'
 import SupplementaryPaymentPage from '@/pages/finance/SupplementaryPaymentPage'
 import DataReportPage from '@/pages/report/DataReportPage'
@@ -45,6 +46,7 @@ import VoyagePassengerRoomPage from '@/pages/order/VoyagePassengerRoomPage'
 import HolidayPage from '@/pages/basic/HolidayPage'
 import IdTypePage from '@/pages/basic/IdTypePage'
 import AgeGroupPage from '@/pages/basic/AgeGroupPage'
+import HierarchicalDictionaryPage from '@/pages/basic/HierarchicalDictionaryPage'
 import ApprovalFlowPage from '@/pages/system/ApprovalFlowPage'
 
 import DealerHomePage from '@/pages/dealer/DealerHomePage'
@@ -111,7 +113,6 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/resources/ports', element: <PortPage /> },
-      { path: '/resources/port-distances', element: <PortDistancePage /> },
       { path: '/resources/attractions', element: <AttractionPage /> },
       { path: '/resources/routes', element: <RoutePage /> },
       { path: '/resources/itineraries', element: <ItineraryManagementPage /> },
@@ -124,6 +125,7 @@ export const router = createBrowserRouter([
       { path: '/voyage/price-templates/:id', element: <TemplatePricePage /> },
       { path: '/voyage/inventory-templates', element: <VoyageInventoryTemplatePage /> },
       { path: '/voyage/inventory-templates/:id', element: <InventoryTemplateDetailRedirect /> },
+      { path: '/voyage/calendar-board', element: <CalendarBoardPage /> },
       { path: '/voyage/inventory', element: <InventoryPage /> },
       { path: '/voyage/inventory-allocation', element: <InventoryAllocationPage /> },
       { path: '/voyage/pricing-rules', element: <PricingRulePage /> },
@@ -141,6 +143,7 @@ export const router = createBrowserRouter([
       { path: '/service/charter-orders', element: <CharterOrderPage /> },
       { path: '/service/complaints', element: <ComplaintTicketPage /> },
       { path: '/customer/profiles', element: <CustomerProfilePage /> },
+      { path: '/user-management', element: <UserManagementPage /> },
       { path: '/finance/reconciliations', element: <ReconciliationPage /> },
       { path: '/finance/supplementary-payments', element: <SupplementaryPaymentPage /> },
       { path: '/report/data-reports', element: <DataReportPage /> },
@@ -152,6 +155,8 @@ export const router = createBrowserRouter([
       { path: '/basic/holidays', element: <HolidayPage /> },
       { path: '/basic/id-types', element: <IdTypePage /> },
       { path: '/basic/age-groups', element: <AgeGroupPage /> },
+      { path: '/basic/hierarchical-dictionaries', element: <HierarchicalDictionaryPage /> },
+      { path: '/basic/activity-categories', element: <HierarchicalDictionaryPage /> },
       { path: '/system/users', element: <UserPage /> },
       { path: '/system/roles', element: <RolePage /> },
       { path: '/system/menus', element: <MenuPage /> },

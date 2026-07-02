@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { templateApi } from '@/mock/api'
-import { products, ships } from '@/mock/data'
+import { products, ships, voyages } from '@/mock/data'
+import TemplateLinkedVoyagesCell from '@/components/voyage/TemplateLinkedVoyagesCell'
+import { groupVoyagesByTemplateId } from '@/utils/templateLinkedVoyages'
 import {
   hasConfiguredTemplateInventory,
   summarizeTemplateInventory,
@@ -14,6 +16,7 @@ import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
 import TemplateInventoryConfigDialog from '@/components/voyage/TemplateInventoryConfigDialog'
+import TemplateLinkVoyageDialog from '@/components/voyage/TemplateLinkVoyageDialog'
 
 const statusLabels: Record<string, string> = { draft: '草稿', enabled: '已启用', disabled: '已停用' }
 const statusColors: Record<string, string> = {
@@ -38,6 +41,7 @@ export default function VoyageInventoryTemplatePage() {
     statusFilter: 'all',
   })
   const [configTemplateId, setConfigTemplateId] = useState<string | null>(null)
+  const [linkTemplateId, setLinkTemplateId] = useState<string | null>(null)
 
   const fetchData = useCallback(
     async (page = 1) => {
@@ -76,6 +80,8 @@ export default function VoyageInventoryTemplatePage() {
   const getTemplateDirection = (template: VoyageTemplate) =>
     directionLabels[products.find((item) => item.id === template.productId)?.routeType || ''] || '-'
 
+  const linkedVoyagesByTemplate = useMemo(() => groupVoyagesByTemplateId(voyages), [data])
+
   const columns = [
     {
       key: 'index',
@@ -97,6 +103,14 @@ export default function VoyageInventoryTemplatePage() {
       title: '航行类型',
       width: '100px',
       render: (record: VoyageTemplate) => getTemplateDirection(record),
+    },
+    {
+      key: 'linkedVoyages',
+      title: '生效航次',
+      width: '200px',
+      render: (record: VoyageTemplate) => (
+        <TemplateLinkedVoyagesCell voyages={linkedVoyagesByTemplate.get(record.id) || []} />
+      ),
     },
     {
       key: 'inventorySummary',
@@ -143,14 +157,22 @@ export default function VoyageInventoryTemplatePage() {
     {
       key: 'actions',
       title: '操作',
-      width: '120px',
+      width: '200px',
       render: (record: VoyageTemplate) => (
-        <button
-          onClick={() => openConfig(record.id)}
-          className="text-sm text-blue-600 hover:text-blue-700"
-        >
-          配置库存
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => openConfig(record.id)}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            配置库存
+          </button>
+          <button
+            onClick={() => setLinkTemplateId(record.id)}
+            className="text-sm text-gray-600 hover:text-gray-900"
+          >
+            关联航次
+          </button>
+        </div>
       ),
     },
   ]
@@ -230,6 +252,13 @@ export default function VoyageInventoryTemplatePage() {
         open={Boolean(configTemplateId)}
         templateId={configTemplateId}
         onClose={closeConfig}
+        onSaved={() => fetchData(data.page)}
+      />
+
+      <TemplateLinkVoyageDialog
+        open={Boolean(linkTemplateId)}
+        templateId={linkTemplateId}
+        onClose={() => setLinkTemplateId(null)}
         onSaved={() => fetchData(data.page)}
       />
     </div>

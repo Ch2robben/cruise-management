@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Trash2 } from 'lucide-react'
+import { MinusCircle, Plus, PlusCircle } from 'lucide-react'
 import { routeApi, portApi } from '@/mock/api'
 import type { Route, RouteStop, PaginatedResult, SearchParams, Port } from '@/types'
 import { formatDateTime, generateId } from '@/utils/format'
@@ -11,6 +11,7 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import { applySailTimesToStops, formatSailTimeMinutes } from '@/utils/routeSailTime'
 
 interface StopForm {
   key: string
@@ -76,9 +77,9 @@ export default function RoutePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<RouteFormData>(emptyForm)
   const [formLoading, setFormLoading] = useState(false)
-  const [formWidth, setFormWidth] = useState('max-w-4xl')
   const [nextGeneration, setNextGeneration] = useState<'product' | null>(null)
   const [nextProductName, setNextProductName] = useState('')
+  const [nextItineraryPlanId, setNextItineraryPlanId] = useState('')
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<Route | null>(null)
@@ -108,11 +109,29 @@ export default function RoutePage() {
   const handleSearch = () => fetchData(1)
   const handleReset = () => { setKeyword(''); setTypeFilter('all'); setPortFilter('all'); setDateFrom(''); setDateTo('') }
 
+  const withSailTimes = useCallback((stops: StopForm[], type: RouteFormData['type']) => {
+    if (portList.length === 0) return stops
+    return applySailTimesToStops(stops, type, portList)
+  }, [portList])
+
+  const patchForm = useCallback((next: RouteFormData) => ({
+    ...next,
+    stops: withSailTimes(next.stops, next.type),
+  }), [withSailTimes])
+
   // 航线规划表单操作
   const stopsFromRoute = (r: Route): StopForm[] =>
     r.stops.map((s) => ({ key: s.id, portId: s.portId, portName: s.portName, day: s.day, pierName: s.pierName, sailTime: s.sailTime, distance: s.distance, type: s.type, embarkDisembark: s.embarkDisembark ?? (s.type === 'start' || s.type === 'end') }))
 
-  const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, stops: [emptyStop('start'), emptyStop('end')] }); setFormOpen(true) }
+  const openCreate = () => {
+    setEditingId(null)
+    setForm({
+      ...emptyForm,
+      code: `RTE-${Date.now().toString().slice(-8)}`,
+      stops: [emptyStop('start'), emptyStop('end')],
+    })
+    setFormOpen(true)
+  }
 
   useEffect(() => {
     if (searchParams.get('create') !== '1' || generationHandledRef.current) return
@@ -121,6 +140,7 @@ export default function RoutePage() {
     const name = searchParams.get('name') || ''
     const next = searchParams.get('next') === 'product' ? 'product' : null
     const productName = searchParams.get('productName') || name
+    const itineraryPlanId = searchParams.get('itineraryPlanId') || ''
     let payload: ItineraryGenerationPayload | null = null
 
     try {
@@ -141,22 +161,32 @@ export default function RoutePage() {
       : [emptyStop('start'), emptyStop('end')]
 
     setEditingId(null)
-    setForm({
+    setForm(patchForm({
       ...emptyForm,
       code: `RTE-${Date.now().toString().slice(-8)}`,
       name: payload?.name || name,
       stops: generatedStops,
       remark: payload ? '由行程管理生成。' : '',
-    })
+    }))
     setNextGeneration(next)
     setNextProductName(productName)
+    setNextItineraryPlanId(itineraryPlanId)
     setFormOpen(true)
     setSearchParams({}, { replace: true })
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, patchForm])
+
+  useEffect(() => {
+    if (!formOpen || portList.length === 0) return
+    setForm((prev) => {
+      const nextStops = withSailTimes(prev.stops, prev.type)
+      const unchanged = nextStops.every((stop, index) => stop.sailTime === prev.stops[index]?.sailTime)
+      return unchanged ? prev : { ...prev, stops: nextStops }
+    })
+  }, [formOpen, portList, withSailTimes])
 
   const openEdit = (r: Route) => {
     setEditingId(r.id)
-    setForm({ code: r.code, name: r.name, type: r.type, stops: stopsFromRoute(r), image: r.image, remark: r.remark })
+    setForm(patchForm({ code: r.code, name: r.name, type: r.type, stops: stopsFromRoute(r), image: r.image, remark: r.remark }))
     setFormOpen(true)
   }
 
@@ -166,34 +196,38 @@ export default function RoutePage() {
     setDetailOpen(true)
   }
 
-  // 动态表格 - 添加停靠港：在止港前面插入一个途中港
-  const addStop = () => {
+  // 动态表格 - 添加停靠港：在指定节点后插入一个途中港
+  const addStopAfter = (key?: string) => {
     const newStops = [...form.stops]
-    // 在倒数第一个（止港）之前插入
-    newStops.splice(newStops.length - 1, 0, emptyStop('middle'))
-    setForm({ ...form, stops: newStops })
+    if (!key) {
+      newStops.splice(newStops.length - 1, 0, emptyStop('middle'))
+    } else {
+      const currentIndex = newStops.findIndex((item) => item.key === key)
+      const insertIndex = currentIndex >= 0 ? Math.min(currentIndex + 1, newStops.length - 1) : newStops.length - 1
+      newStops.splice(insertIndex, 0, emptyStop('middle'))
+    }
+    setForm(patchForm({ ...form, stops: newStops }))
   }
 
   // 删除停靠港
   const removeStop = (key: string) => {
     if (form.stops.length <= 2) return
-    setForm({ ...form, stops: form.stops.filter((s) => s.key !== key) })
+    setForm(patchForm({ ...form, stops: form.stops.filter((s) => s.key !== key) }))
   }
 
   // 更新停靠港字段
   const updateStop = (key: string, field: keyof StopForm, value: unknown) => {
-    setForm({
-      ...form,
-      stops: form.stops.map((s) => {
-        if (s.key !== key) return s
-        const updated = { ...s, [field]: value }
-        if (field === 'portId') {
-          const port = portList.find((p) => p.id === value)
-          updated.portName = port?.name || ''
-        }
-        return updated
-      }),
+    const nextStops = form.stops.map((s) => {
+      if (s.key !== key) return s
+      const updated = { ...s, [field]: value }
+      if (field === 'portId') {
+        const port = portList.find((p) => p.id === value)
+        updated.portName = port?.name || ''
+      }
+      return updated
     })
+    const shouldRecalc = field === 'portId' || field === 'portName'
+    setForm(shouldRecalc ? patchForm({ ...form, stops: nextStops }) : { ...form, stops: nextStops })
   }
 
   const computeDuration = (stops: StopForm[]) => {
@@ -201,6 +235,23 @@ export default function RoutePage() {
     const endDay = stops[stops.length - 1]?.day || 0
     const totalDays = endDay - startDay
     return `${totalDays}天${totalDays - 1}晚`
+  }
+
+  const totalMileage = useMemo(
+    () => form.stops.reduce((sum, stop) => sum + (Number(stop.distance) || 0), 0),
+    [form.stops],
+  )
+
+  const stopTypeLabel = (type: StopForm['type']) => {
+    if (type === 'start') return '起'
+    if (type === 'end') return '终'
+    return '途'
+  }
+
+  const stopTypeTitle = (type: StopForm['type'], index: number) => {
+    if (type === 'start') return '起始码头'
+    if (type === 'end') return '结束码头'
+    return `经停点 ${index}`
   }
 
   const handleSubmit = async () => {
@@ -240,7 +291,9 @@ export default function RoutePage() {
       const params = new URLSearchParams({ create: '1' })
       if (nextProductName.trim()) params.set('name', nextProductName.trim())
       if (createdRoute?.id) params.set('routeId', createdRoute.id)
+      if (nextItineraryPlanId) params.set('itineraryPlanId', nextItineraryPlanId)
       setNextGeneration(null)
+      setNextItineraryPlanId('')
       navigate(`/resources/products?${params.toString()}`)
       return
     }
@@ -345,151 +398,225 @@ export default function RoutePage() {
         }}
       />
 
-      {/* 新增/编辑弹窗 - 含动态表格 */}
       <FormDialog
         open={formOpen}
         title={editingId ? '编辑航线' : '新增航线'}
-        width="max-w-5xl"
+        width="max-w-6xl"
         loading={formLoading}
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       >
         <div className="space-y-6">
-          {/* 基本信息 */}
-          <div>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">基本信息</h4>
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">航线编码 <span className="text-red-500">*</span></label>
-                <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">航线名称 <span className="text-red-500">*</span></label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">类型 <span className="text-red-500">*</span></label>
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'upstream' | 'downstream' })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
-                  <option value="downstream">下水</option>
-                  <option value="upstream">上水</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">航程总长</label>
-                <input value={computeDuration(form.stops)} disabled className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">航线名称</label>
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="请输入内容"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">编码</label>
+              <input
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                placeholder="请输入编码"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">航线标识</label>
+              <input
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                placeholder="请输入航线标识"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+              <p className="mt-1 text-xs text-gray-400">航线标识填写后可作为航线唯一识别编码使用。</p>
+            </div>
+            <div className="lg:col-span-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">类别</label>
+              <div className="flex flex-wrap gap-5 text-sm text-gray-700">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={form.type === 'downstream'}
+                    onChange={() => setForm(patchForm({ ...form, type: 'downstream' }))}
+                    className="h-4 w-4"
+                  />
+                  旅游航线
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={form.type === 'upstream'}
+                    onChange={() => setForm(patchForm({ ...form, type: 'upstream' }))}
+                    className="h-4 w-4"
+                  />
+                  交通航线
+                </label>
               </div>
             </div>
           </div>
 
-          {/* 航线规划 - 动态表格 */}
+          <div className="flex flex-wrap gap-6 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            <span>航程总长：<span className="font-medium text-gray-900">{totalMileage}</span> 海里</span>
+            <span>航行时长：<span className="font-medium text-gray-900">{computeDuration(form.stops)}</span></span>
+            <span>停靠节点：<span className="font-medium text-gray-900">{form.stops.length}</span> 个</span>
+          </div>
+
           <div>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">航线规划</h4>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">起止港</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">港口名称</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-20">第N天</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">停靠码头</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-28">预计航行时间</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-28">上段航距(nmi)</th>
-                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 w-16">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {form.stops.map((stop, idx) => {
-                    const isStart = stop.type === 'start'
-                    const isEnd = stop.type === 'end'
-                    return (
-                      <tr key={stop.key} className="hover:bg-gray-50">
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                            isStart ? 'bg-blue-100 text-blue-700' : isEnd ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {isStart ? '起港' : isEnd ? '止港' : '途中'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={stop.portId}
-                            onChange={(e) => updateStop(stop.key, 'portId', e.target.value)}
-                            disabled={isStart || isEnd ? false : false}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                          >
-                            <option value="">选择港口</option>
-                            {portList.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            value={stop.day}
-                            onChange={(e) => updateStop(stop.key, 'day', Number(e.target.value))}
-                            disabled={isStart}
-                            className={`w-full px-2 py-1.5 border rounded text-sm text-center ${isStart ? 'border-gray-200 bg-gray-50 text-gray-400' : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent'}`}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            value={stop.pierName}
-                            onChange={(e) => updateStop(stop.key, 'pierName', e.target.value)}
-                            placeholder="码头名称"
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="time"
-                            value={stop.sailTime}
-                            onChange={(e) => updateStop(stop.key, 'sailTime', e.target.value)}
-                            disabled={isStart}
-                            className={`w-full px-2 py-1.5 border rounded text-sm ${isStart ? 'border-gray-200 bg-gray-50 text-gray-400' : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent'}`}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              value={stop.distance}
-                              onChange={(e) => updateStop(stop.key, 'distance', Number(e.target.value))}
-                              disabled={isStart}
-                              className={`w-full px-2 py-1.5 border rounded text-sm ${isStart ? 'border-gray-200 bg-gray-50 text-gray-400' : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent'}`}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-center">
+            <h4 className="mb-1 text-base font-semibold text-gray-900">路径规划</h4>
+            <p className="mb-4 text-sm text-gray-500">按起点、经停点、终点顺序维护航线节点。</p>
+
+            <div className="space-y-4">
+              {form.stops.map((stop, idx) => {
+                const isStart = stop.type === 'start'
+                const isEnd = stop.type === 'end'
+                return (
+                  <div key={stop.key} className="flex gap-4">
+                    <div className="flex w-14 flex-col items-center">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${
+                        isStart ? 'bg-blue-50 text-blue-700' : isEnd ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {stopTypeLabel(stop.type)}
+                      </div>
+                      {idx < form.stops.length - 1 && <div className="mt-1 h-full min-h-[56px] w-px bg-blue-200" />}
+                    </div>
+
+                    <div className="flex-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <h5 className="text-sm font-semibold text-gray-900">{stopTypeTitle(stop.type, idx)}</h5>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {isStart ? '配置起航港口与首段信息。' : isEnd ? '配置终点港口。' : '配置经停港口与上一段航程信息。'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
                           {!isEnd && (
-                            <button onClick={() => addStop()} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="增加">
-                              <Plus className="w-4 h-4" />
+                            <button
+                              type="button"
+                              onClick={() => addStopAfter(stop.key)}
+                              className="rounded-full p-1 text-gray-400 hover:bg-blue-50 hover:text-blue-600"
+                              title="在后面添加节点"
+                            >
+                              <PlusCircle className="h-5 w-5" />
                             </button>
                           )}
                           {!isStart && !isEnd && (
-                            <button onClick={() => removeStop(stop.key)} className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded ml-0.5" title="删除">
-                              <Trash2 className="w-4 h-4" />
+                            <button
+                              type="button"
+                              onClick={() => removeStop(stop.key)}
+                              className="rounded-full p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                              title="删除节点"
+                            >
+                              <MinusCircle className="h-5 w-5" />
                             </button>
                           )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                        <div className="lg:col-span-6">
+                          <label className="mb-1 block text-xs text-gray-500">选择码头</label>
+                          <select
+                            value={stop.portId}
+                            onChange={(e) => updateStop(stop.key, 'portId', e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+                          >
+                            <option value="">请选择码头</option>
+                            {portList.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="lg:col-span-6">
+                          <label className="mb-1 block text-xs text-gray-500">停靠码头/厅</label>
+                          <input
+                            value={stop.pierName}
+                            onChange={(e) => updateStop(stop.key, 'pierName', e.target.value)}
+                            placeholder="请输入码头或厅"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-500">第N天</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={stop.day}
+                            onChange={(e) => updateStop(stop.key, 'day', Number(e.target.value))}
+                            disabled={isStart}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                              isStart
+                                ? 'border-gray-200 bg-gray-50 text-gray-400'
+                                : 'border-gray-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900'
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-500">预计航行时间</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={stop.sailTime}
+                              readOnly
+                              placeholder={isStart ? '—' : '自动汇总'}
+                              className={`w-full rounded-lg border px-3 py-2 pr-12 text-sm ${
+                                isStart
+                                  ? 'border-gray-200 bg-gray-50 text-gray-400'
+                                  : 'border-gray-200 bg-gray-50 text-gray-700'
+                              }`}
+                            />
+                            {!isStart && (
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">分钟</span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs text-gray-500">{isStart ? '航距(nmi)' : '上段航距(nmi)'}</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={stop.distance}
+                            onChange={(e) => updateStop(stop.key, 'distance', Number(e.target.value))}
+                            disabled={isStart}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                              isStart
+                                ? 'border-gray-200 bg-gray-50 text-gray-400'
+                                : 'border-gray-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
-          {/* 航线介绍 */}
-          <div>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">航线介绍</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">图片</label>
-                <input value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="图片URL（可选）" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">备注</label>
-                <input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} placeholder="航线备注说明" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-              </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">航线图片</label>
+              <input
+                value={form.image}
+                onChange={(e) => setForm({ ...form, image: e.target.value })}
+                placeholder="图片 URL（可选）"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">备注</label>
+              <input
+                value={form.remark}
+                onChange={(e) => setForm({ ...form, remark: e.target.value })}
+                placeholder="航线备注说明"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
             </div>
           </div>
         </div>
@@ -523,7 +650,7 @@ export default function RoutePage() {
                     <tr key={s.id} className="border-b border-gray-50">
                       <td className="py-1.5">{s.portName || '-'}</td>
                       <td className="py-1.5">{s.type === 'start' ? '起航' : `第${s.day}天`}</td>
-                      <td className="py-1.5">{s.sailTime || '-'}</td>
+                      <td className="py-1.5">{formatSailTimeMinutes(s.sailTime)}</td>
                       <td className="py-1.5 font-mono">{s.distance}</td>
                     </tr>
                   ))}

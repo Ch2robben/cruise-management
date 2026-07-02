@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { bookingSegmentOptions, voyageList } from '@/mock/data'
+import { voyageList } from '@/mock/data'
 import { ChevronDown } from 'lucide-react'
 
 const depPorts = ['重庆', '宜昌', '武汉', '南京', '上海']
@@ -8,28 +8,15 @@ const cabinTypes = ['标准间', '豪华套房', '总统套房']
 
 type VoyageItem = (typeof voyageList)[number]
 type VoyageCabin = VoyageItem['cabins'][number]
-type BookingSegment = (typeof bookingSegmentOptions)[number]
 
 function formatRoomStock(count: number) {
   if (count <= 0) return '售罄'
   return count > 20 ? '充足' : `${count}间`
 }
 
-function voyageKey(voyage: VoyageItem) {
-  return `${voyage.date}-${voyage.ship}`
-}
-
-/** 按航段折算可售库存（demo：全航段用舱位余量，分段按天数比例） */
-function getSegmentRoomStock(cabin: VoyageCabin, segment: BookingSegment) {
+function getVoyageRoomStock(cabin: VoyageCabin) {
   if (cabin.status === '售罄') return 0
-  const roomCount = cabin.totalRooms > 45 ? 99 : Math.max(1, Math.ceil(cabin.remainBeds / Math.max(cabin.maxGuests, 1)))
-  if (segment.isWhole) return roomCount
-  const scale = Math.min(1, segment.days / 4)
-  return Math.max(1, Math.floor(roomCount * scale))
-}
-
-function getVoyageSegments(_voyage: VoyageItem) {
-  return bookingSegmentOptions
+  return cabin.totalRooms > 45 ? 99 : Math.max(1, Math.ceil(cabin.remainBeds / Math.max(cabin.maxGuests, 1)))
 }
 
 export default function Step1RouteSelection({ onNext }: { onNext: () => void }) {
@@ -38,8 +25,7 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
     arrPort: '',
     dateFrom: '',
     dateTo: '',
-    priceMin: '',
-    priceMax: '',
+    ship: '',
     cabinType: [] as string[],
   })
 
@@ -53,8 +39,13 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
   }
 
   const resetFilters = () => {
-    setSearchParams({ depPort: '', arrPort: '', dateFrom: '', dateTo: '', priceMin: '', priceMax: '', cabinType: [] })
+    setSearchParams({ depPort: '', arrPort: '', dateFrom: '', dateTo: '', ship: '', cabinType: [] })
   }
+
+  const shipOptions = useMemo(
+    () => Array.from(new Set(voyageList.map((voyage) => voyage.ship))),
+    [],
+  )
 
   const filteredVoyages = useMemo(() => {
     let list = [...voyageList]
@@ -62,10 +53,7 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
     if (searchParams.arrPort) list = list.filter((v) => v.route.endsWith(searchParams.arrPort))
     if (searchParams.dateFrom) list = list.filter((v) => v.date >= searchParams.dateFrom)
     if (searchParams.dateTo) list = list.filter((v) => v.date <= searchParams.dateTo)
-
-    const pMin = Number(searchParams.priceMin) || 0
-    const pMax = Number(searchParams.priceMax) || Infinity
-    list = list.filter((v) => Number(v.price) >= pMin && Number(v.price) <= pMax)
+    if (searchParams.ship) list = list.filter((v) => v.ship === searchParams.ship)
 
     if (searchParams.cabinType.length) {
       list = list.filter((v) => v.cabin && v.cabin.some((c: string) => searchParams.cabinType.includes(c)))
@@ -139,24 +127,19 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">价格区间</span>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                placeholder="最低价"
-                className="h-9 w-24 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
-                value={searchParams.priceMin}
-                onChange={(e) => setSearchParams({ ...searchParams, priceMin: e.target.value })}
-              />
-              <span className="text-sm text-gray-400">—</span>
-              <input
-                type="number"
-                placeholder="最高价"
-                className="h-9 w-24 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
-                value={searchParams.priceMax}
-                onChange={(e) => setSearchParams({ ...searchParams, priceMax: e.target.value })}
-              />
-            </div>
+            <span className="text-xs text-gray-500">船舶</span>
+            <select
+              className="h-9 w-44 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+              value={searchParams.ship}
+              onChange={(e) => setSearchParams({ ...searchParams, ship: e.target.value })}
+            >
+              <option value="">全部船舶</option>
+              {shipOptions.map((ship) => (
+                <option key={ship} value={ship}>
+                  {ship}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="relative flex flex-col gap-1">
@@ -216,7 +199,7 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-white">
-                  {['开航日期', '游轮', '航段', ...roomTypes, '操作'].map((col) => (
+                  {['开航日期', '游轮', ...roomTypes, '操作'].map((col) => (
                     <th
                       key={col}
                       className={`px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap ${
@@ -230,31 +213,18 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredVoyages.map((voyage) => {
-                  const segments = getVoyageSegments(voyage)
-                  return segments.map((segment, segmentIndex) => (
-                    <tr key={`${voyageKey(voyage)}-${segment.id}`} className="hover:bg-gray-50">
-                      {segmentIndex === 0 && (
-                        <>
-                          <td rowSpan={segments.length} className="px-4 py-3 align-top font-medium text-gray-900 whitespace-nowrap">
-                            {voyage.date}
-                          </td>
-                          <td rowSpan={segments.length} className="px-4 py-3 align-top text-gray-900 whitespace-nowrap">
-                            <div>{voyage.ship}</div>
-                            <div className="mt-0.5 text-xs text-gray-400">{voyage.route} · {voyage.days}</div>
-                          </td>
-                        </>
-                      )}
-                      <td className="px-4 py-3 text-gray-800 whitespace-nowrap">
-                        {segment.startPort} → {segment.endPort}
-                        {segment.isWhole && (
-                          <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-normal text-blue-600">
-                            全航段
-                          </span>
-                        )}
+                  return (
+                    <tr key={`${voyage.date}-${voyage.ship}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 align-top font-medium text-gray-900 whitespace-nowrap">
+                        {voyage.date}
+                      </td>
+                      <td className="px-4 py-3 align-top text-gray-900 whitespace-nowrap">
+                        <div>{voyage.ship}</div>
+                        <div className="mt-0.5 text-xs text-gray-400">{voyage.route} · {voyage.days}</div>
                       </td>
                       {roomTypes.map((roomType) => {
                         const cabin = voyage.cabins.find((item) => item.type === roomType)
-                        const stock = cabin ? getSegmentRoomStock(cabin, segment) : 0
+                        const stock = cabin ? getVoyageRoomStock(cabin) : 0
                         return (
                           <td
                             key={roomType}
@@ -266,19 +236,17 @@ export default function Step1RouteSelection({ onNext }: { onNext: () => void }) 
                           </td>
                         )
                       })}
-                      {segmentIndex === 0 && (
-                        <td rowSpan={segments.length} className="w-24 p-2 align-middle">
-                          <button
-                            type="button"
-                            onClick={() => onNext()}
-                            className="flex h-full min-h-[88px] w-full items-center justify-center rounded-lg border border-blue-300 bg-blue-50 px-3 text-base font-medium text-blue-700 shadow-sm transition hover:border-blue-500 hover:bg-blue-100"
-                          >
-                            选择
-                          </button>
-                        </td>
-                      )}
+                      <td className="w-24 p-2 align-middle">
+                        <button
+                          type="button"
+                          onClick={() => onNext()}
+                          className="flex h-full min-h-[88px] w-full items-center justify-center rounded-lg border border-blue-300 bg-blue-50 px-3 text-base font-medium text-blue-700 shadow-sm transition hover:border-blue-500 hover:bg-blue-100"
+                        >
+                          选择
+                        </button>
+                      </td>
                     </tr>
-                  ))
+                  )
                 })}
               </tbody>
             </table>

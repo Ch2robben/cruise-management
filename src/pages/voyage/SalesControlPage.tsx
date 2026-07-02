@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
-import { groupItineraryRows, itineraryActivityColumns } from '@/components/voyage/ItineraryEditor'
+import { groupItineraryRows, itineraryActivityColumns, formatItineraryDayLabel } from '@/components/voyage/ItineraryEditor'
 import VoyageTipManagementPanel, { type RouteSegmentOption } from '@/components/voyage/VoyageTipManagementPanel'
 import VoyagePriceGradientPanel from '@/components/voyage/VoyagePriceGradientPanel'
 import { templateApi } from '@/mock/api'
-import { voyageInventories, voyageTemplates, voyages } from '@/mock/data'
+import { voyageInventories, voyageTemplates, voyages, products } from '@/mock/data'
 import {
   aggregatePhysicalCapacity,
   aggregatePublicStock,
@@ -15,6 +15,7 @@ import {
   type TemplateInventoryRules,
 } from '@/mock/templateInventoryRules'
 import type { TemplateItinerary, Voyage, VoyageTemplate } from '@/types'
+import { resolveTemplateItinerary } from '@/utils/productVoyageConfig'
 
 type ControlTab = 'inventory' | 'sales' | 'itinerary' | 'warning' | 'tip' | 'gradient'
 type PolicyType = 'all' | 'ota' | 'dealer' | 'group' | 'port' | 'regional'
@@ -137,6 +138,7 @@ const currentVoyage = voyages[0]
 const currentVoyageTemplate = voyageTemplates.find(template => (
   template.id === currentVoyage?.templateId || template.productId === currentVoyage?.productId
 ))
+const currentProduct = products.find((product) => product.id === currentVoyage?.productId)
 
 /** 是否已从模板剥离：voyage 上有自己的 itinerary 数组 */
 const voyageHasOwnItinerary = Array.isArray(currentVoyage?.itinerary)
@@ -144,7 +146,7 @@ const voyageHasOwnItinerary = Array.isArray(currentVoyage?.itinerary)
 const resolvedItinerary: TemplateItinerary[] =
   voyageHasOwnItinerary
     ? (currentVoyage.itinerary as TemplateItinerary[])
-    : (currentVoyageTemplate?.itinerary ?? [])
+    : (currentVoyageTemplate ? resolveTemplateItinerary(currentVoyageTemplate, currentProduct) : [])
 
 const initialPolicyRows: PolicyRow[] = [
   { id: 'p-ota-1', name: '携程阶梯控售政策', type: 'ota', allowSales: 58, maxSales: 80, sold: 21 },
@@ -1257,7 +1259,7 @@ function VoyageItineraryTab({
           <table className="w-full border-separate border-spacing-0 text-xs text-slate-700">
             <thead>
               <tr className="bg-slate-50 text-slate-500">
-                {['停靠港', '天数', '抵港', '离港', ...itineraryActivityColumns.map(c => c.title)].map(header => (
+                {['停靠港', '行程日', '抵港时间', '启航时间', ...itineraryActivityColumns.map(c => c.title)].map(header => (
                   <th
                     key={header}
                     className="whitespace-nowrap border-b border-slate-200 px-3 py-2 text-left font-medium"
@@ -1282,7 +1284,7 @@ function VoyageItineraryTab({
                         rowSpan={span}
                         className="border-b border-r border-slate-100 bg-slate-50/60 px-3 py-2 text-center align-middle text-slate-600"
                       >
-                        {row.day || '-'}
+                        {formatItineraryDayLabel(row.day)}
                       </td>
                       <td
                         rowSpan={span}

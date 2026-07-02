@@ -1,4 +1,6 @@
-import type { Port, PortDistance, Attraction, Route, RouteStop, User, Role, Menu, Dictionary, DashboardData, Ship, Product, ProductSegment, PricingRow, Holiday, IdType, AgeGroup, ApprovalFlow } from '@/types'
+import type { Port, PortDistance, Attraction, Route, RouteStop, User, Role, Menu, Dictionary, HierarchicalDictItem, DashboardData, Ship, Product, ProductSegment, PricingRow, Holiday, IdType, AgeGroup, ApprovalFlow } from '@/types'
+import { applyYangtzeMileageToPorts, buildYangtzePortDistances, applyPortMetaToAttractions } from '@/mock/yangtzeRiverMileage'
+import { enrichProductWithTemplateConfig } from '@/utils/productVoyageConfig'
 import type {
   Dealer,
   DealerChannelType,
@@ -45,12 +47,12 @@ import type {
 } from '@/types'
 
 // ===================== 码头数据 =====================
-export const ports: Port[] = [
+const basePorts: Port[] = [
   { id: 'p01', name: '重庆弹子石码头', nameEn: 'Danzishi Pier', code: 'CQ-DZS', city: '重庆', province: '重庆', address: '重庆市南岸区弹子石片区', longitude: 106.595, latitude: 29.576, pierType: '旅游码头', berthCount: 3, maxShipLength: 130, maxDraft: 3.8, dockingWindow: '07:00-22:00', supportedShipTypes: '内河游轮、观光船', services: '候船区、游客集散、旅游巴士接驳、停车场', transferInfo: '距重庆北站约35分钟车程，距解放碑约20分钟车程', remark: '重庆主城区补充登离船码头。', sort: 1, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-15 09:30:00',  createdAt: '2025-01-10 08:00:00' },
   { id: 'p02', name: '涪陵白鹤梁码头', nameEn: 'Baiheliang Pier', code: 'FL-BHL', city: '涪陵', province: '重庆', address: '重庆市涪陵区滨江路', longitude: 107.394, latitude: 29.703, pierType: '旅游码头', berthCount: 2, maxShipLength: 130, maxDraft: 3.8, dockingWindow: '07:00-22:00', supportedShipTypes: '内河游轮', services: '候船区、旅游咨询、团队上下客点', transferInfo: '距涪陵北站约25分钟车程', remark: '适合白鹤梁、816工程等岸上游览衔接。', sort: 2, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-14 14:20:00',  createdAt: '2025-01-10 08:00:00' },
   { id: 'p03', name: '丰都名山码头', nameEn: 'Fengdu Mingshan Pier', code: 'FD-MS', city: '丰都', province: '重庆', address: '重庆市丰都县名山街道滨江段', longitude: 107.733, latitude: 29.869, pierType: '旅游码头', berthCount: 3, maxShipLength: 140, maxDraft: 4, dockingWindow: '06:30-22:30', supportedShipTypes: '内河游轮、观光船', services: '候船厅、游客集散、景区接驳、行李临存', transferInfo: '距丰都鬼城景区车程约15分钟', remark: '经典三峡航线常用中停码头。', sort: 3, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-13 11:00:00',  createdAt: '2025-01-10 08:00:00' },
   { id: 'p04', name: '忠县石宝寨码头', nameEn: 'Shibaozhai Pier', code: 'ZX-SBZ', city: '忠县', province: '重庆', address: '重庆市忠县石宝镇', longitude: 108.215, latitude: 30.321, pierType: '临时停靠点', berthCount: 1, maxShipLength: 110, maxDraft: 3.2, dockingWindow: '08:00-18:00', supportedShipTypes: '中小型内河游轮', services: '简易候船区、景区接驳', transferInfo: '步行或短驳至石宝寨景区', remark: '受水位影响较明显，需运营确认。', sort: 4, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-12 16:45:00',  createdAt: '2025-01-12 09:00:00' },
-  { id: 'p05', name: '万州港旅游码头', nameEn: 'Wanzhou Tourist Pier', code: 'WZ-LY', city: '万州', province: '重庆', address: '重庆市万州区北滨大道', longitude: 108.401, latitude: 30.807, pierType: '综合码头', berthCount: 4, maxShipLength: 150, maxDraft: 4.5, dockingWindow: '全天', supportedShipTypes: '内河游轮、客运船', services: '候船厅、停车场、餐饮、行李托运、补给服务', transferInfo: '距万州北站约20分钟车程', remark: '可作为补给与客源集散节点。', sort: 5, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-11 10:30:00',  createdAt: '2025-01-12 09:00:00' },
+  { id: 'p05', name: '万州港旅游码头', nameEn: 'Wanzhou Tourist Pier', code: 'WZ-LY', city: '万州', province: '重庆', address: '重庆市万州区北滨大道', longitude: 108.401, latitude: 30.807, pierType: '综合码头', berthCount: 4, maxShipLength: 150, maxDraft: 4.5, dockingWindow: '全天', supportedShipTypes: '内河游轮、客运船', services: '候船厅、停车场、餐饮、行李托运、补给服务', transferInfo: '距万州北站约20分钟车程', remark: '可作为补给与客源集散节点。', sort: 5, prevPierUpstreamMin: 420, nextPierDownstreamMin: 360, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-11 10:30:00',  createdAt: '2025-01-12 09:00:00' },
   { id: 'p06', name: '云阳张飞庙码头', nameEn: 'Zhangfei Temple Pier', code: 'YY-ZFM', city: '云阳', province: '重庆', address: '重庆市云阳县滨江新区', longitude: 108.697, latitude: 30.947, pierType: '旅游码头', berthCount: 2, maxShipLength: 130, maxDraft: 3.8, dockingWindow: '07:00-21:00', supportedShipTypes: '内河游轮', services: '候船区、景区短驳、团队集合点', transferInfo: '至张飞庙景区车程约10分钟', remark: '适合半日岸上游览。', sort: 6, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-10 08:15:00',  createdAt: '2025-01-15 10:00:00' },
   { id: 'p07', name: '奉节宝塔坪码头', nameEn: 'Baotaping Pier', code: 'FJ-BTP', city: '奉节', province: '重庆', address: '重庆市奉节县宝塔坪片区', longitude: 109.464, latitude: 31.019, pierType: '旅游码头', berthCount: 3, maxShipLength: 145, maxDraft: 4.2, dockingWindow: '06:00-23:00', supportedShipTypes: '内河游轮、涉外游轮', services: '候船厅、安检、景区接驳、行李托运', transferInfo: '至白帝城景区车程约20分钟', remark: '白帝城、小三峡衔接常用码头。', sort: 7, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-09 13:00:00',  createdAt: '2025-01-15 10:00:00' },
   { id: 'p08', name: '巫山神女溪码头', nameEn: 'Shennv Stream Pier', code: 'WS-SNX', city: '巫山', province: '重庆', address: '重庆市巫山县长江南岸', longitude: 109.878, latitude: 31.074, pierType: '旅游码头', berthCount: 2, maxShipLength: 120, maxDraft: 3.5, dockingWindow: '07:00-19:00', supportedShipTypes: '内河游轮、换乘小船', services: '换乘区、景区售检票、团队集合区', transferInfo: '可换乘神女溪游船', remark: '通常用于换乘游览，需确认换乘时长。', sort: 8, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-08 15:30:00',  createdAt: '2025-01-18 08:30:00' },
@@ -68,19 +70,10 @@ export const ports: Port[] = [
   { id: 'p20', name: '上海十六铺码头', nameEn: 'Shiliupu Pier', code: 'SH-SLP', city: '上海', province: '上海', address: '上海市黄浦区中山东二路', longitude: 121.499, latitude: 31.231, pierType: '旅游码头', berthCount: 4, maxShipLength: 130, maxDraft: 3.8, dockingWindow: '全天', supportedShipTypes: '内河游轮、黄浦江游船', services: '候船厅、安检、游客集散、餐饮、停车', transferInfo: '距上海站约25分钟车程，距浦东机场约50分钟车程', remark: '长江入海口和上海城市游衔接节点。', sort: 20, piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-26 10:30:00',  createdAt: '2025-02-08 08:00:00' },
 ]
 
-// ===================== 码头距离数据 =====================
-export const portDistances: PortDistance[] = [
-  { id: 'pd01', fromPortId: 'p10', fromPortName: '重庆朝天门码头', toPortId: 'p02', toPortName: '涪陵白鹤梁码头', distanceKm: 118, speedKmH: 18, direction: 'downstream', remark: '重庆至涪陵常用首段航程。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-18 09:00:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd02', fromPortId: 'p02', fromPortName: '涪陵白鹤梁码头', toPortId: 'p03', toPortName: '丰都名山码头', distanceKm: 72, speedKmH: 18, direction: 'downstream', remark: '可衔接白鹤梁与丰都岸上游览。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-18 09:20:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd03', fromPortId: 'p03', fromPortName: '丰都名山码头', toPortId: 'p04', toPortName: '忠县石宝寨码头', distanceKm: 86, speedKmH: 17, direction: 'downstream', remark: '受水位和临停安排影响，航速可按航次调整。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-17 14:00:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd04', fromPortId: 'p04', fromPortName: '忠县石宝寨码头', toPortId: 'p05', toPortName: '万州港旅游码头', distanceKm: 98, speedKmH: 18, direction: 'downstream', remark: '忠县至万州补给和中停常用航段。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-17 15:30:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd05', fromPortId: 'p05', fromPortName: '万州港旅游码头', toPortId: 'p07', toPortName: '奉节宝塔坪码头', distanceKm: 156, speedKmH: 19, direction: 'downstream', remark: '可作为夜航航段参考。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-16 10:15:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd06', fromPortId: 'p07', fromPortName: '奉节宝塔坪码头', toPortId: 'p08', toPortName: '巫山神女溪码头', distanceKm: 62, speedKmH: 16, direction: 'downstream', remark: '峡区航段，原型中用于展示低航速参数。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-16 11:00:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd07', fromPortId: 'p08', fromPortName: '巫山神女溪码头', toPortId: 'p09', toPortName: '巴东游客码头', distanceKm: 76, speedKmH: 16, direction: 'downstream', remark: '换乘游览前后可参考该段航行时间。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-15 16:20:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd08', fromPortId: 'p09', fromPortName: '巴东游客码头', toPortId: 'p15', toPortName: '宜昌三峡游客中心码头', distanceKm: 132, speedKmH: 17, direction: 'downstream', remark: '到达宜昌前主要航段。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-15 17:00:00', createdAt: '2026-03-01 08:00:00' },
-  { id: 'pd09', fromPortId: 'p15', fromPortName: '宜昌三峡游客中心码头', toPortId: 'p13', toPortName: '荆州旅游码头', distanceKm: 214, speedKmH: 20, direction: 'downstream', remark: '宜昌至荆州中游航段。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-14 09:40:00', createdAt: '2026-03-02 08:00:00' },
-  { id: 'pd10', fromPortId: 'p13', fromPortName: '荆州旅游码头', toPortId: 'p11', toPortName: '武汉港23号码头', distanceKm: 238, speedKmH: 21, direction: 'downstream', remark: '适合中游长线产品展示。', status: 'disabled', updatedBy: '系统管理员', updatedAt: '2026-04-13 13:00:00', createdAt: '2026-03-02 08:00:00' },
-]
+export const ports: Port[] = applyYangtzeMileageToPorts(basePorts)
+
+// ===================== 码头距离数据（来源：重庆-上海里程表） =====================
+export const portDistances: PortDistance[] = buildYangtzePortDistances(ports)
 
 
 // ===================== 码头数据 =====================
@@ -129,7 +122,7 @@ export const piers: import('@/types').Pier[] = [
 ]
 
 // ===================== 景点数据 =====================
-export const attractions: Attraction[] = [
+const baseAttractions: Attraction[] = [
   { id: 'a01', name: '洪崖洞民俗风貌区', nameEn: 'Hongya Cave', portId: 'p10', portName: '重庆朝天门码头', city: '重庆', province: '重庆', address: '重庆市渝中区嘉陵江滨江路', longitude: 106.583, latitude: 29.563, category: '城市观光', visitDuration: '全年', suggestedDurationMin: 120, portDistanceKm: 2.5, transferDurationMin: 20, openSeason: '全年', openHours: '11:00-23:00', difficulty: '轻松', suitableGroups: '普通游客、夜游团队、亲子客人', bookingRequired: false, ticketPolicy: '开放街区免门票，团队餐和观景位需另行预约。', validationNotes: '夜景产品建议安排在晚间；若航次离港早于21:00，需提示游览体验不完整。', description: '重庆代表性吊脚楼建筑群，适合与朝天门登离船、山城夜景、两江游等产品组合。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-12 09:00:00',  createdAt: '2025-02-10 08:00:00' },
   { id: 'a02', name: '白鹤梁水下博物馆', nameEn: 'Baiheliang Underwater Museum', portId: 'p02', portName: '涪陵白鹤梁码头', city: '涪陵', province: '重庆', address: '重庆市涪陵区滨江大道二段', longitude: 107.391, latitude: 29.709, category: '历史人文', visitDuration: '全年', suggestedDurationMin: 90, portDistanceKm: 3.2, transferDurationMin: 18, openSeason: '全年', openHours: '09:00-17:00', difficulty: '轻松', suitableGroups: '普通游客、研学团队、银发客人', bookingRequired: true, ticketPolicy: '团队票需提前报备人数，讲解服务按批次预约。', validationNotes: '周一闭馆时不可排入行程；需校验靠泊窗口覆盖往返接驳和参观时间。', description: '以长江水文石刻为核心的水下博物馆，是三峡库区文化资源的重要节点。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-11 10:00:00',  createdAt: '2025-02-10 08:00:00' },
   { id: 'a03', name: '丰都名山景区', nameEn: 'Fengdu Mingshan Scenic Area', portId: 'p03', portName: '丰都名山码头', city: '丰都', province: '重庆', address: '重庆市丰都县名山街道', longitude: 107.727, latitude: 29.891, category: '历史人文', visitDuration: '3-11月', suggestedDurationMin: 150, portDistanceKm: 4, transferDurationMin: 20, openSeason: '3-11月', openHours: '08:30-17:30', difficulty: '适中', suitableGroups: '普通游客、文化主题团队', bookingRequired: false, ticketPolicy: '门票按景区团队政策执行，索道费用可选。', validationNotes: '山地台阶较多，银发团队需预留更长游览时间。', description: '丰都经典岸上游览资源，适合与三峡文化、民俗传说主题产品组合。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-10 11:00:00',  createdAt: '2025-02-12 09:00:00' },
@@ -146,7 +139,28 @@ export const attractions: Attraction[] = [
   { id: 'a14', name: '岳阳楼景区', nameEn: 'Yueyang Tower', portId: 'p14', portName: '岳阳城陵矶码头', city: '岳阳', province: '湖南', address: '湖南省岳阳市岳阳楼区洞庭北路', longitude: 113.089, latitude: 29.378, category: '历史人文', visitDuration: '3-11月', suggestedDurationMin: 150, portDistanceKm: 14, transferDurationMin: 35, openSeason: '3-11月', openHours: '07:30-18:00', difficulty: '适中', suitableGroups: '普通游客、文化主题团队', bookingRequired: false, ticketPolicy: '团队票按景区政策执行。', validationNotes: '需考虑城陵矶码头至市区接驳时间。', description: '洞庭湖畔名楼资源，适合岳阳停靠城市观光。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-30 15:30:00',  createdAt: '2025-02-25 08:00:00' },
   { id: 'a15', name: '庐山风景区', nameEn: 'Mount Lu', portId: 'p16', portName: '九江客运码头', city: '九江', province: '江西', address: '江西省九江市庐山市牯岭镇', longitude: 115.974, latitude: 29.556, category: '自然景观', visitDuration: '5-10月', suggestedDurationMin: 360, portDistanceKm: 42, transferDurationMin: 75, openSeason: '5-10月', openHours: '07:30-18:00', difficulty: '较高', suitableGroups: '体力较好客人、自然风光团队', bookingRequired: true, ticketPolicy: '景区交通车和门票需提前确认。', validationNotes: '属于整日岸上游，停靠不足10小时不建议排入。', description: '世界文化景观遗产，适合长停靠或专线产品。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-29 10:45:00',  createdAt: '2025-02-28 09:00:00' },
   { id: 'a16', name: '上海外滩', nameEn: 'The Bund', portId: 'p20', portName: '上海十六铺码头', city: '上海', province: '上海', address: '上海市黄浦区中山东一路', longitude: 121.49, latitude: 31.24, category: '城市观光', visitDuration: '全年', suggestedDurationMin: 120, portDistanceKm: 1, transferDurationMin: 10, openSeason: '全年', openHours: '全天', difficulty: '轻松', suitableGroups: '普通游客、夜游团队、摄影团队', bookingRequired: false, ticketPolicy: '开放街区免门票，观光巴士和讲解服务另计。', validationNotes: '晚间观光体验最佳，需结合离船或夜泊时间安排。', description: '上海核心城市名片，可作为下水航线终点城市观光资源。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-03-28 08:00:00',  createdAt: '2025-02-28 09:00:00' },
+  { id: 'a17', name: '葛洲坝船闸观光', nameEn: 'Gezhouba Dam View', portId: 'p24', portName: '葛洲坝码头', city: '宜昌', province: '湖北', address: '湖北省宜昌市西陵区葛洲坝', category: '工程参观', visitDuration: '全年', suggestedDurationMin: 90, portDistanceKm: 0.5, transferDurationMin: 8, openSeason: '全年', openHours: '08:00-17:30', difficulty: '轻松', suitableGroups: '普通游客、研学团队', bookingRequired: false, ticketPolicy: '观景平台按景区政策。', validationNotes: '可与三峡大坝行程拆分编排。', description: '葛洲坝水利枢纽观景，宜昌上游经典短停项目。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a18', name: '三峡大坝截流纪念园', nameEn: 'Dam Memorial Park', portId: 'p22', portName: '三峡大坝码头', city: '宜昌', province: '湖北', address: '湖北省宜昌市夷陵区三斗坪镇', category: '工程参观', visitDuration: '全年', suggestedDurationMin: 120, portDistanceKm: 1, transferDurationMin: 10, openSeason: '全年', openHours: '08:00-17:30', difficulty: '轻松', suitableGroups: '普通游客', bookingRequired: true, ticketPolicy: '与大坝参观联票或单售。', validationNotes: '停靠茅坪/大坝码头时可组合游览。', description: '三峡工程核心参观点，紧邻大坝码头。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a19', name: '巫山小三峡', nameEn: 'Wushan Little Three Gorges', portId: 'p31', portName: '巫山港码头', city: '巫山', province: '重庆', address: '重庆市巫山县龙门街道', category: '自然景观', visitDuration: '4-10月', suggestedDurationMin: 180, portDistanceKm: 2, transferDurationMin: 15, openSeason: '4-10月', openHours: '08:00-17:00', difficulty: '轻松', suitableGroups: '普通游客、摄影团队', bookingRequired: true, ticketPolicy: '换乘游船需提前预约。', validationNotes: '与神女溪项目二选一或分日安排。', description: '巫山港标准岸上游览项目。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a20', name: '沙市老街', nameEn: 'Shashi Old Street', portId: 'p25', portName: '沙市码头', city: '荆州', province: '湖北', address: '湖北省荆州市沙市区中山路', category: '城市观光', visitDuration: '全年', suggestedDurationMin: 120, portDistanceKm: 3, transferDurationMin: 15, openSeason: '全年', openHours: '09:00-21:00', difficulty: '轻松', suitableGroups: '普通游客', bookingRequired: false, ticketPolicy: '开放街区。', validationNotes: '中游宜昌-武汉段标准停靠点。', description: '沙市码头城市漫步资源。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a21', name: '瘦西湖风景区', nameEn: 'Slender West Lake', portId: 'p27', portName: '扬州旅游码头', city: '扬州', province: '江苏', address: '江苏省扬州市邗江区大虹桥路', category: '自然景观', visitDuration: '3-11月', suggestedDurationMin: 180, portDistanceKm: 8, transferDurationMin: 25, openSeason: '3-11月', openHours: '06:00-18:30', difficulty: '适中', suitableGroups: '普通游客、摄影团队', bookingRequired: false, ticketPolicy: '团队票按景区政策。', validationNotes: '下游段长停靠推荐项目。', description: '扬州园林水系代表景区。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a22', name: '迎江寺', nameEn: 'Yingjiang Temple', portId: 'p19', portName: '安庆旅游码头', city: '安庆', province: '安徽', address: '安徽省安庆市迎江区沿江东路', category: '历史人文', visitDuration: '全年', suggestedDurationMin: 90, portDistanceKm: 2, transferDurationMin: 12, openSeason: '全年', openHours: '08:00-17:00', difficulty: '轻松', suitableGroups: '普通游客', bookingRequired: false, ticketPolicy: '门票按景区政策。', validationNotes: '安庆短停靠标准项目。', description: '安庆城区人文景点。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a23', name: '北外滩滨江步道', nameEn: 'North Bund Riverside', portId: 'p29', portName: '上海北外滩码头', city: '上海', province: '上海', address: '上海市虹口区东大名路', category: '城市观光', visitDuration: '全年', suggestedDurationMin: 90, portDistanceKm: 0.3, transferDurationMin: 5, openSeason: '全年', openHours: '全天', difficulty: '轻松', suitableGroups: '普通游客', bookingRequired: false, ticketPolicy: '免费开放。', validationNotes: '港区短停步行项目。', description: '北外滩码头步行观光。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
+  { id: 'a24', name: '国客中心滨江观光', nameEn: 'Cruise Terminal Bund Tour', portId: 'p30', portName: '国客中心码头', city: '上海', province: '上海', address: '上海市虹口区东大名路500号', category: '城市观光', visitDuration: '全年', suggestedDurationMin: 60, portDistanceKm: 0.2, transferDurationMin: 5, openSeason: '全年', openHours: '全天', difficulty: '轻松', suitableGroups: '普通游客', bookingRequired: false, ticketPolicy: '免费开放。', validationNotes: '重庆-上海全程终点观光。', description: '国客中心码头滨江漫步。', status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
 ]
+
+export const attractions: Attraction[] = applyPortMetaToAttractions(baseAttractions, ports).map((item) => ({
+  ...item,
+  images: item.images || [],
+  attractionService: item.attractionService || ({
+    自然景观: '景区门票',
+    历史人文: '导游讲解',
+    工程参观: '景区门票',
+    城市观光: '步行观光',
+    民俗体验: '文化表演',
+    船岸联游: '换乘游船',
+  } as Record<string, string>)[item.category || ''] || '岸上接驳',
+}))
 
 // ===================== 航线数据 =====================
 const makeStops = (stops: Omit<RouteStop, 'id'>[]): RouteStop[] =>
@@ -157,10 +171,10 @@ export const routes: Route[] = [
     id: 'r01', code: 'CJ-SX-001', name: '重庆-宜昌三峡航线（下水）', type: 'downstream',
     days: 4, nights: 3, ports: '重庆-丰都-奉节-宜昌', duration: '4天3晚',
     stops: makeStops([
-      { portId: 'p10', portName: '重庆港', day: 0, pierId: '', pierName: '', sailTime: '20:00', distance: 0, type: 'start' },
-      { portId: '', portName: '丰都', day: 1, pierId: '', pierName: '丰都码头', sailTime: '12:00', distance: 120, type: 'middle' },
-      { portId: '', portName: '奉节', day: 2, pierId: '', pierName: '奉节码头', sailTime: '14:00', distance: 85, type: 'middle' },
-      { portId: 'p15', portName: '宜昌港', day: 4, pierId: '', pierName: '', sailTime: '', distance: 105, type: 'end' },
+      { portId: 'p10', portName: '重庆朝天门码头', day: 0, pierId: '', pierName: '', sailTime: '', distance: 0, type: 'start' },
+      { portId: 'p03', portName: '丰都名山码头', day: 1, pierId: '', pierName: '丰都码头', sailTime: '590', distance: 120, type: 'middle' },
+      { portId: 'p07', portName: '奉节宝塔坪码头', day: 2, pierId: '', pierName: '奉节码头', sailTime: '1513', distance: 85, type: 'middle' },
+      { portId: 'p15', portName: '宜昌三峡游客中心码头', day: 4, pierId: '', pierName: '', sailTime: '2270', distance: 105, type: 'end' },
     ]),
     image: '', remark: '经典三峡下水航线，途经丰都鬼城、白帝城、三峡大坝',
     status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-15 10:00:00',  createdAt: '2025-03-10 08:00:00',
@@ -169,10 +183,10 @@ export const routes: Route[] = [
     id: 'r02', code: 'CJ-SX-002', name: '宜昌-重庆三峡航线（上水）', type: 'upstream',
     days: 5, nights: 4, ports: '宜昌-奉节-丰都-重庆', duration: '5天4晚',
     stops: makeStops([
-      { portId: 'p15', portName: '宜昌港', day: 0, pierId: '', pierName: '', sailTime: '18:00', distance: 0, type: 'start' },
-      { portId: '', portName: '奉节', day: 2, pierId: '', pierName: '奉节码头', sailTime: '18:00', distance: 160, type: 'middle' },
-      { portId: '', portName: '丰都', day: 3, pierId: '', pierName: '丰都码头', sailTime: '13:00', distance: 85, type: 'middle' },
-      { portId: 'p10', portName: '重庆港', day: 5, pierId: '', pierName: '', sailTime: '', distance: 120, type: 'end' },
+      { portId: 'p15', portName: '宜昌三峡游客中心码头', day: 0, pierId: '', pierName: '', sailTime: '', distance: 0, type: 'start' },
+      { portId: 'p07', portName: '奉节宝塔坪码头', day: 2, pierId: '', pierName: '奉节码头', sailTime: '908', distance: 160, type: 'middle' },
+      { portId: 'p03', portName: '丰都名山码头', day: 3, pierId: '', pierName: '丰都码头', sailTime: '1991', distance: 85, type: 'middle' },
+      { portId: 'p10', portName: '重庆朝天门码头', day: 5, pierId: '', pierName: '', sailTime: '2671', distance: 120, type: 'end' },
     ]),
     image: '', remark: '三峡上水航线，慢游三峡，深度体验巴渝文化',
     status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-04-14 09:00:00',  createdAt: '2025-03-10 08:00:00',
@@ -375,7 +389,7 @@ export const menus: Menu[] = [
   { id: 'm02', name: '数据看板', code: 'dashboard_index', parentId: 'm01', parentName: '首页', route: '/dashboard', type: 'menu', sort: 1, icon: '', permission: 'dashboard:view', status: 'enabled' },
   { id: 'm03', name: '资源', code: 'resources', parentId: null, parentName: '-', route: '/resources', type: 'menu', sort: 2, icon: 'Package', permission: 'resources:view', status: 'enabled' },
   { id: 'm04', name: '码头管理', code: 'port', parentId: 'm03', parentName: '资源', route: '/resources/ports', type: 'menu', sort: 1, icon: '', permission: 'port:view', status: 'enabled' },
-  { id: 'm05', name: '码头距离库', code: 'port_distance', parentId: 'm03', parentName: '资源', route: '/resources/port-distances', type: 'menu', sort: 2, icon: '', permission: 'port-distance:view', status: 'enabled' },
+  { id: 'm05', name: '码头距离库', code: 'port_distance', parentId: 'm03', parentName: '资源', route: '/resources/port-distances', type: 'menu', sort: 2, icon: '', permission: 'port-distance:view', status: 'disabled' },
   { id: 'm06', name: '景点管理', code: 'attraction', parentId: 'm03', parentName: '资源', route: '/resources/attractions', type: 'menu', sort: 3, icon: '', permission: 'attraction:view', status: 'enabled' },
   { id: 'm18', name: '航线管理', code: 'route', parentId: 'm03', parentName: '资源', route: '/resources/routes', type: 'menu', sort: 4, icon: '', permission: 'route:view', status: 'enabled' },
   { id: 'm19', name: '行程管理', code: 'itinerary', parentId: 'm03', parentName: '资源', route: '/resources/itineraries', type: 'menu', sort: 5, icon: '', permission: 'itinerary:view', status: 'enabled' },
@@ -392,7 +406,81 @@ export const menus: Menu[] = [
   { id: 'm17', name: '删除航线', code: 'route_delete', parentId: 'm18', parentName: '航线管理', route: '', type: 'button', sort: 3, icon: '', permission: 'route:delete', status: 'enabled' },
 ]
 
-// ===================== 数据字典 =====================
+// ===================== 分级数据字典 =====================
+const hierarchicalDictDefaults = {
+  status: 'enabled' as const,
+  updatedBy: '系统管理员',
+  updatedAt: '2026-01-15 10:00:00',
+  createdAt: '2026-01-15 10:00:00',
+}
+
+export const hierarchicalDictItems: HierarchicalDictItem[] = [
+  // 活动分类
+  { id: 'ac_l1_01', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_SHORE', nameCn: '岸上活动', nameEn: 'Shore Activities', parentId: null, level: 1, sort: 1, remark: '停靠港期间岸上相关活动', ...hierarchicalDictDefaults },
+  { id: 'ac_l1_02', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_ONBOARD', nameCn: '船上活动', nameEn: 'Onboard Activities', parentId: null, level: 1, sort: 2, remark: '航行期间船上安排', ...hierarchicalDictDefaults },
+  { id: 'ac_l1_03', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_EMBARK', nameCn: '登离船', nameEn: 'Embarkation', parentId: null, level: 1, sort: 3, remark: '登船、离船及港口手续', ...hierarchicalDictDefaults },
+  { id: 'ac_l1_04', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_DINING', nameCn: '餐饮', nameEn: 'Dining', parentId: null, level: 1, sort: 4, remark: '正餐及茶点安排', ...hierarchicalDictDefaults },
+  { id: 'ac_l1_05', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_FREE', nameCn: '自由活动', nameEn: 'Free Time', parentId: null, level: 1, sort: 5, remark: '旅客自行安排时间', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_01', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_SCENIC', nameCn: '景点游览', nameEn: 'Scenic Tour', parentId: 'ac_l1_01', level: 2, sort: 1, remark: '景区、名胜古迹游览', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_02', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_CULTURE', nameCn: '文化体验', nameEn: 'Cultural Experience', parentId: 'ac_l1_01', level: 2, sort: 2, remark: '非遗、民俗等体验活动', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_03', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_CITY', nameCn: '城市观光', nameEn: 'City Sightseeing', parentId: 'ac_l1_01', level: 2, sort: 3, remark: '城市地标、街区观光', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_04', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_SHORE_OTHER', nameCn: '其他岸上活动', nameEn: 'Other Shore Activity', parentId: 'ac_l1_01', level: 2, sort: 4, remark: '', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_11', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_SHOW', nameCn: '文艺表演', nameEn: 'Entertainment Show', parentId: 'ac_l1_02', level: 2, sort: 1, remark: '晚会、歌舞、杂技等', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_12', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_LECTURE', nameCn: '主题演讲', nameEn: 'Theme Lecture', parentId: 'ac_l1_02', level: 2, sort: 2, remark: '航线讲解、文化讲座', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_13', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_TAICHI', nameCn: '太极拳', nameEn: 'Tai Chi', parentId: 'ac_l1_02', level: 2, sort: 3, remark: '晨练、康养课程', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_14', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_FITNESS', nameCn: '健身娱乐', nameEn: 'Fitness & Recreation', parentId: 'ac_l1_02', level: 2, sort: 4, remark: '健身房、棋牌、泳池等', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_15', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_ONBOARD_OTHER', nameCn: '其他船上活动', nameEn: 'Other Onboard Activity', parentId: 'ac_l1_02', level: 2, sort: 5, remark: '', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_21', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_CHECKIN', nameCn: '登船手续', nameEn: 'Check-in', parentId: 'ac_l1_03', level: 2, sort: 1, remark: '办理登船、行李托运', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_22', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_CHECKOUT', nameCn: '离船手续', nameEn: 'Check-out', parentId: 'ac_l1_03', level: 2, sort: 2, remark: '办理离船、行李领取', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_31', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_MEAL', nameCn: '正餐', nameEn: 'Main Meal', parentId: 'ac_l1_04', level: 2, sort: 1, remark: '早餐、午餐、晚餐', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_32', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_TEA', nameCn: '下午茶', nameEn: 'Afternoon Tea', parentId: 'ac_l1_04', level: 2, sort: 2, remark: '', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_33', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_SNACK', nameCn: '夜宵', nameEn: 'Late-night Snack', parentId: 'ac_l1_04', level: 2, sort: 3, remark: '', ...hierarchicalDictDefaults },
+  { id: 'ac_l2_41', dictType: 'ACTIVITY_CATEGORY', code: 'ACT_FREE_SELF', nameCn: '自行安排', nameEn: 'Self-arranged', parentId: 'ac_l1_05', level: 2, sort: 1, remark: '旅客自由活动时段', ...hierarchicalDictDefaults },
+
+  // 礼遇类型
+  { id: 'priv_l1_01', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_ROOM_FACILITY', nameCn: '客房设施及配置', nameEn: 'Room Facilities & Configuration', parentId: null, level: 1, sort: 1, remark: '舱房硬件与基础配置', ...hierarchicalDictDefaults },
+  { id: 'priv_l1_02', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_ROOM_SERVICE', nameCn: '客房服务', nameEn: 'Room Service', parentId: null, level: 1, sort: 2, remark: '舱房相关服务礼遇', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_01', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_BALCONY', nameCn: '独立观景台 / 阳台', nameEn: 'Private Viewing Deck / Balcony', parentId: 'priv_l1_01', level: 2, sort: 1, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_02', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_BASIC_CONFIG', nameCn: '客房基础配置', nameEn: 'Basic Room Configuration', parentId: 'priv_l1_01', level: 2, sort: 2, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_03', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_LIVING_ROOM', nameCn: '会客厅 / 客厅', nameEn: 'Lounge / Living Room', parentId: 'priv_l1_01', level: 2, sort: 3, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_04', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_FRIDGE', nameCn: '客房冰箱', nameEn: 'In-room Refrigerator', parentId: 'priv_l1_01', level: 2, sort: 4, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_05', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_MINIBAR', nameCn: '免费MINI BAR', nameEn: 'Free Mini Bar', parentId: 'priv_l1_01', level: 2, sort: 5, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_06', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_SMART_CTRL', nameCn: '智能客控', nameEn: 'Smart Room Control', parentId: 'priv_l1_01', level: 2, sort: 6, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_11', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_ONLINE_CHECKIN', nameCn: '线上值船 / 行李直送', nameEn: 'Online Check-in / Direct Luggage Delivery', parentId: 'priv_l1_02', level: 2, sort: 1, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_12', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_WELCOME', nameCn: '欢迎礼遇', nameEn: 'Welcome Privileges', parentId: 'priv_l1_02', level: 2, sort: 2, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_13', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_CLEANING_2X', nameCn: '2次客房清洁', nameEn: '2 Daily Room Cleanings', parentId: 'priv_l1_02', level: 2, sort: 3, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_14', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_24H_SERVICE', nameCn: '24小时响应服务', nameEn: '24-hour Response Service', parentId: 'priv_l1_02', level: 2, sort: 4, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_15', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_LAUNDRY', nameCn: '免费自助洗衣', nameEn: 'Free Self-service Laundry', parentId: 'priv_l1_02', level: 2, sort: 5, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_16', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_WIFI_VOD', nameCn: 'Wi-Fi / 客房VOD', nameEn: 'Wi-Fi / In-room VOD', parentId: 'priv_l1_02', level: 2, sort: 6, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_17', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_TOILETRIES', nameCn: '洗浴用品', nameEn: 'Toiletries', parentId: 'priv_l1_02', level: 2, sort: 7, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_18', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_KIDS_TOILETRIES', nameCn: '儿童专属洗浴用品', nameEn: "Children's Exclusive Toiletries", parentId: 'priv_l1_02', level: 2, sort: 8, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_19', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_SUMMER_CARE', nameCn: '暑期托管预约', nameEn: 'Summer Childcare Reservation', parentId: 'priv_l1_02', level: 2, sort: 9, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_20', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_TURNDOWN', nameCn: '夜床服务', nameEn: 'Turndown Service', parentId: 'priv_l1_02', level: 2, sort: 10, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_21', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_DINING', nameCn: '用餐餐厅', nameEn: 'Dining Restaurant', parentId: 'priv_l1_02', level: 2, sort: 11, remark: '', ...hierarchicalDictDefaults },
+  { id: 'priv_l2_22', dictType: 'PRIVILEGE_TYPE', code: 'PRIV_YUWEI360_DINNER', nameCn: '渝味360登船晚餐', nameEn: 'Yuwei 360 Boarding Dinner', parentId: 'priv_l1_02', level: 2, sort: 12, remark: '', ...hierarchicalDictDefaults },
+
+  // 景点服务
+  { id: 'as_l1_01', dictType: 'ATTRACTION_SERVICE', code: 'AS_TRANSPORT', nameCn: '交通接驳', nameEn: 'Transport', parentId: null, level: 1, sort: 1, remark: '码头与景点间交通', ...hierarchicalDictDefaults },
+  { id: 'as_l1_02', dictType: 'ATTRACTION_SERVICE', code: 'AS_TICKET', nameCn: '门票服务', nameEn: 'Ticketing', parentId: null, level: 1, sort: 2, remark: '景区入园相关', ...hierarchicalDictDefaults },
+  { id: 'as_l1_03', dictType: 'ATTRACTION_SERVICE', code: 'AS_GUIDE', nameCn: '讲解服务', nameEn: 'Guiding', parentId: null, level: 1, sort: 3, remark: '导游与讲解', ...hierarchicalDictDefaults },
+  { id: 'as_l1_04', dictType: 'ATTRACTION_SERVICE', code: 'AS_BOAT', nameCn: '船岸游览', nameEn: 'Boat Excursion', parentId: null, level: 1, sort: 4, remark: '换乘船游览', ...hierarchicalDictDefaults },
+  { id: 'as_l1_05', dictType: 'ATTRACTION_SERVICE', code: 'AS_DINING', nameCn: '餐饮体验', nameEn: 'Dining', parentId: null, level: 1, sort: 5, remark: '岸上用餐', ...hierarchicalDictDefaults },
+  { id: 'as_l1_06', dictType: 'ATTRACTION_SERVICE', code: 'AS_CULTURE', nameCn: '文化体验', nameEn: 'Cultural Experience', parentId: null, level: 1, sort: 6, remark: '表演与民俗', ...hierarchicalDictDefaults },
+  { id: 'as_l1_07', dictType: 'ATTRACTION_SERVICE', code: 'AS_SIGHTSEEING', nameCn: '观光体验', nameEn: 'Sightseeing', parentId: null, level: 1, sort: 7, remark: '步行与城市观光', ...hierarchicalDictDefaults },
+  { id: 'as_l1_08', dictType: 'ATTRACTION_SERVICE', code: 'AS_OPTIONAL', nameCn: '自选项目', nameEn: 'Optional', parentId: null, level: 1, sort: 8, remark: '自费或可选项目', ...hierarchicalDictDefaults },
+  { id: 'as_l2_01', dictType: 'ATTRACTION_SERVICE', code: 'AS_SHORE_TRANSFER', nameCn: '岸上接驳', nameEn: 'Shore Transfer', parentId: 'as_l1_01', level: 2, sort: 1, remark: '码头至景点往返交通', ...hierarchicalDictDefaults },
+  { id: 'as_l2_02', dictType: 'ATTRACTION_SERVICE', code: 'AS_SCENIC_TICKET', nameCn: '景区门票', nameEn: 'Scenic Ticket', parentId: 'as_l1_02', level: 2, sort: 1, remark: '景区入园门票', ...hierarchicalDictDefaults },
+  { id: 'as_l2_03', dictType: 'ATTRACTION_SERVICE', code: 'AS_GUIDE_SERVICE', nameCn: '导游讲解', nameEn: 'Guide Service', parentId: 'as_l1_03', level: 2, sort: 1, remark: '随团导游或景区讲解', ...hierarchicalDictDefaults },
+  { id: 'as_l2_04', dictType: 'ATTRACTION_SERVICE', code: 'AS_BOAT_TRANSFER', nameCn: '换乘游船', nameEn: 'Boat Transfer', parentId: 'as_l1_04', level: 2, sort: 1, remark: '换乘小船或游船游览', ...hierarchicalDictDefaults },
+  { id: 'as_l2_05', dictType: 'ATTRACTION_SERVICE', code: 'AS_TEAM_MEAL', nameCn: '团队餐', nameEn: 'Team Meal', parentId: 'as_l1_05', level: 2, sort: 1, remark: '岸上团队用餐', ...hierarchicalDictDefaults },
+  { id: 'as_l2_06', dictType: 'ATTRACTION_SERVICE', code: 'AS_PERFORMANCE', nameCn: '文化表演', nameEn: 'Cultural Performance', parentId: 'as_l1_06', level: 2, sort: 1, remark: '民俗或主题表演', ...hierarchicalDictDefaults },
+  { id: 'as_l2_07', dictType: 'ATTRACTION_SERVICE', code: 'AS_WALKING_TOUR', nameCn: '步行观光', nameEn: 'Walking Tour', parentId: 'as_l1_07', level: 2, sort: 1, remark: '码头或街区步行游览', ...hierarchicalDictDefaults },
+  { id: 'as_l2_08', dictType: 'ATTRACTION_SERVICE', code: 'AS_OPTIONAL_EXP', nameCn: '自费体验', nameEn: 'Optional Experience', parentId: 'as_l1_08', level: 2, sort: 1, remark: '可选自费项目', ...hierarchicalDictDefaults },
+]
+
+/** @deprecated 使用 hierarchicalDictItems */
+export const activityCategories = hierarchicalDictItems.filter((item) => item.dictType === 'ACTIVITY_CATEGORY')
+
 export const dictionaries: Dictionary[] = [
   { id: 'd01', dictCode: 'ROUTE_TYPE', dictName: '航线类型', itemCode: 'upstream', itemName: '上水', sort: 1, status: 'enabled', remark: '逆流而上' },
   { id: 'd02', dictCode: 'ROUTE_TYPE', dictName: '航线类型', itemCode: 'downstream', itemName: '下水', sort: 2, status: 'enabled', remark: '顺流而下' },
@@ -560,13 +648,16 @@ function genPricing(segments: ProductSegment[], cabinTypes: string[]): PricingRo
   return rows
 }
 
-export const products: Product[] = [
+type BaseProduct = Omit<import('@/types').Product, 'deposits' | 'tips' | 'configuredRoomTypes' | 'privileges' | 'presaleDays' | 'cutoffDays' | 'refundPolicy' | 'materialReq'>
+
+const baseProducts: BaseProduct[] = [
   // 重庆-宜昌三峡下水产品
   {
     id: 'prod01', name: '三峡经典下水之旅', routeId: 'r01', routeName: '重庆-宜昌三峡航线（下水）', routeType: 'downstream',
     shipId: 's01', shipName: '长江探索号', shipLevel: '五星级',
     startPort: '重庆港', endPort: '宜昌港', days: 4, nights: 3, mileage: 310, duration: '4天3晚',
     icon: '', images: [], description: '乘坐五星级长江探索号，顺流而下领略三峡壮美风光，途经丰都鬼城、白帝城、三峡大坝等世界级景点。',
+    itineraryPlanId: 'itn01',
     segments: genSegments([
       { name: '重庆港', day: 0, dist: 0 }, { name: '丰都', day: 1, dist: 120 }, { name: '奉节', day: 2, dist: 85 }, { name: '宜昌港', day: 4, dist: 105 },
     ]) as ProductSegment[],
@@ -820,21 +911,21 @@ export const voyages: import('@/types').Voyage[] = [
   {
     id: 'v01', voyageNo: 'CJ20260501-TXS', shipName: '长江探索号', routeName: '重庆-宜昌三峡航线（下水）', productName: '三峡经典下水之旅', days: 4, startDate: '2026-05-15', endDate: '2026-05-18', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 142, availableCabins: 68, shipId: 's01', routeId: 'r01', productId: 'prod01', templateName: '三峡下水准模板', templateId: 'vt01', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],
     itinerary: [
-      { id: 'vit01_1', portName: '重庆港', day: 0, arrivalTime: '', departureTime: '20:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
-      { id: 'vit01_2', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', theme: '景点', startTime: '08:30', endTime: '11:30', description: '游览丰都鬼城', agency: '中青旅', attraction: '丰都鬼城' },
-      { id: 'vit01_3', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', theme: '用餐', startTime: '12:00', endTime: '13:00', description: '船上自助午餐', agency: '', attraction: '' },
-      { id: 'vit01_4', portName: '奉节', day: 2, arrivalTime: '07:00', departureTime: '14:00', theme: '景点', startTime: '08:00', endTime: '12:00', description: '游览白帝城', agency: '春秋旅游', attraction: '' },
-      { id: 'vit01_5', portName: '宜昌港', day: 4, arrivalTime: '09:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'vit01_1', portName: '重庆港', day: 0, arrivalTime: '', departureTime: '20:00', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'vit01_2', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', activityCategory: '景点游览', theme: '丰都鬼城', startTime: '08:30', endTime: '11:30', description: '游览丰都鬼城', agency: '中青旅', attraction: '丰都鬼城' },
+      { id: 'vit01_3', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', activityCategory: '正餐', theme: '船上自助午餐', startTime: '12:00', endTime: '13:00', description: '船上自助午餐', agency: '', attraction: '' },
+      { id: 'vit01_4', portName: '奉节', day: 2, arrivalTime: '07:00', departureTime: '14:00', activityCategory: '景点游览', theme: '白帝城', startTime: '08:00', endTime: '12:00', description: '游览白帝城', agency: '春秋旅游', attraction: '' },
+      { id: 'vit01_5', portName: '宜昌港', day: 4, arrivalTime: '09:00', departureTime: '', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
     ],
     updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-01 08:00:00',
   },
-  { id: 'v02', voyageNo: 'CJ20260502-TXS', shipName: '长江探索号', routeName: '重庆-宜昌三峡航线（下水）', productName: '三峡经典下水之旅', days: 4, startDate: '2026-05-19', endDate: '2026-05-22', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 89, availableCabins: 121, shipId: 's01', routeId: 'r01', productId: 'prod01', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-01 08:00:00' },
+  { id: 'v02', voyageNo: 'CJ20260502-TXS', shipName: '长江探索号', routeName: '重庆-宜昌三峡航线（下水）', productName: '三峡经典下水之旅', days: 4, startDate: '2026-05-19', endDate: '2026-05-22', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 89, availableCabins: 121, shipId: 's01', routeId: 'r01', productId: 'prod01', templateName: '三峡下水准模板', templateId: 'vt01', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'v03', voyageNo: 'CJ20260503-SJ', shipName: '世纪游轮', routeName: '重庆-宜昌三峡航线（下水）', productName: '世纪游轮三峡下水游', days: 4, startDate: '2026-05-16', endDate: '2026-05-19', status: 'ticketing', direction: 'downstream', totalCabins: 230, soldCabins: 195, availableCabins: 35, shipId: 's02', routeId: 'r01', productId: 'prod02', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-02 09:00:00' },
-  { id: 'v04', voyageNo: 'CJ20260504-HJ', shipName: '黄金游轮', routeName: '宜昌-重庆三峡航线（上水）', productName: '三峡深度上水游', days: 5, startDate: '2026-05-14', endDate: '2026-05-18', status: 'ticketing', direction: 'upstream', totalCabins: 165, soldCabins: 110, availableCabins: 55, shipId: 's03', routeId: 'r02', productId: 'prod03', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-02 09:00:00' },
+  { id: 'v04', voyageNo: 'CJ20260504-HJ', shipName: '黄金游轮', routeName: '宜昌-重庆三峡航线（上水）', productName: '三峡深度上水游', days: 5, startDate: '2026-05-14', endDate: '2026-05-18', status: 'ticketing', direction: 'upstream', totalCabins: 165, soldCabins: 110, availableCabins: 55, shipId: 's03', routeId: 'r02', productId: 'prod03', templateName: '三峡上水准模板', templateId: 'vt02', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-02 09:00:00' },
   { id: 'v05', voyageNo: 'CJ20260505-WDL', shipName: '维多利亚号', routeName: '青岛-大连-天津环渤海航线', productName: '环渤海风情游', days: 5, startDate: '2026-05-20', endDate: '2026-05-24', status: 'suspended', direction: 'downstream', totalCabins: 245, soldCabins: 0, availableCabins: 245, shipId: 's04', routeId: 'r03', productId: 'prod04', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-03 10:00:00' },
   { id: 'v06', voyageNo: 'CJ20260506-HT', shipName: '海天号', routeName: '上海-宁波-厦门-深圳东南沿海航线', productName: '东南沿海黄金线', days: 6, startDate: '2026-05-18', endDate: '2026-05-23', status: 'chartered', direction: 'downstream', totalCabins: 155, soldCabins: 0, availableCabins: 0, shipId: 's07', routeId: 'r04', productId: 'prod05', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-03 10:00:00' },
   { id: 'v07', voyageNo: 'CJ20260507-WDL2', shipName: '维多利亚号', routeName: '海口-三亚-北海南海航线', productName: '南国热带逍遥游', days: 4, startDate: '2026-05-25', endDate: '2026-05-28', status: 'ticketing', direction: 'downstream', totalCabins: 245, soldCabins: 78, availableCabins: 167, shipId: 's04', routeId: 'r05', productId: 'prod06', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-04 08:00:00' },
-  { id: 'v08', voyageNo: 'CJ20260508-TXS2', shipName: '长江探索号', routeName: '武汉-九江-南京-上海长江中下游航线', productName: '长江中下游全景游', days: 7, startDate: '2026-06-01', endDate: '2026-06-07', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 156, availableCabins: 54, shipId: 's01', routeId: 'r06', productId: 'prod07', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-04 08:00:00' },
+  { id: 'v08', voyageNo: 'CJ20260508-TXS2', shipName: '长江探索号', routeName: '武汉-九江-南京-上海长江中下游航线', productName: '长江中下游全景游', days: 7, startDate: '2026-06-01', endDate: '2026-06-07', status: 'ticketing', direction: 'downstream', totalCabins: 210, soldCabins: 156, availableCabins: 54, shipId: 's01', routeId: 'r06', productId: 'prod07', templateName: '长江中下游准模板', templateId: 'vt04', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-04 08:00:00' },
   { id: 'v09', voyageNo: 'CJ20260509-HT2', shipName: '海天号', routeName: '大连-烟台-威海-青岛东北亚航线', productName: '齐鲁辽东精华游', days: 5, startDate: '2026-06-02', endDate: '2026-06-06', status: 'deadhead', direction: 'downstream', totalCabins: 155, soldCabins: 0, availableCabins: 155, shipId: 's07', routeId: 'r07', productId: 'prod08', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-05 11:00:00' },
   { id: 'v10', voyageNo: 'CJ20260510-SXMZ', shipName: '三峡明珠号', routeName: '广州-珠海-深圳珠三角航线', productName: '大湾区精品短线', days: 3, startDate: '2026-05-22', endDate: '2026-05-24', status: 'pending', direction: 'downstream', totalCabins: 140, soldCabins: 0, availableCabins: 140, shipId: 's05', routeId: 'r08', productId: 'prod09', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-05 11:00:00' },
   { id: 'v11', voyageNo: 'CJ20260511-HJ2', shipName: '黄金游轮', routeName: '上海-南京-武汉长江中游上水航线', productName: '长江中游古韵游', days: 6, startDate: '2026-06-05', endDate: '2026-06-10', status: 'ticketing', direction: 'upstream', totalCabins: 165, soldCabins: 45, availableCabins: 120, shipId: 's03', routeId: 'r09', productId: 'prod10', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-06 14:00:00' },
@@ -843,6 +934,8 @@ export const voyages: import('@/types').Voyage[] = [
   { id: 'v14', voyageNo: 'CJ20260514-WDL3', shipName: '维多利亚号', routeName: '天津-秦皇岛-大连-烟台环渤海北线', productName: '环渤海北线之旅', days: 5, startDate: '2026-06-03', endDate: '2026-06-07', status: 'ticketing', direction: 'downstream', totalCabins: 245, soldCabins: 67, availableCabins: 178, shipId: 's04', routeId: 'r12', productId: 'prod13', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-07 09:00:00' },
   { id: 'v15', voyageNo: 'CJ20260515-SXMZ2', shipName: '三峡明珠号', routeName: '重庆-宜昌快捷航线', productName: '三峡快捷精华游', days: 3, startDate: '2026-05-28', endDate: '2026-05-30', status: 'ticketing', direction: 'downstream', totalCabins: 140, soldCabins: 98, availableCabins: 42, shipId: 's05', routeId: 'r14', productId: 'prod15', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-08 10:00:00' },
   { id: 'v16', voyageNo: 'CJ20260516-YZJ', shipName: '扬子江号', routeName: '深圳-广州-珠海-湛江-北海南粤风情航线', productName: '南粤风情深度游', days: 6, startDate: '2026-06-10', endDate: '2026-06-15', status: 'suspended', direction: 'downstream', totalCabins: 95, soldCabins: 0, availableCabins: 0, shipId: 's08', routeId: 'r15', productId: 'prod16', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}],  updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-08 10:00:00' },
+  { id: 'v17', voyageNo: 'CJ20260517-SJ', shipName: '世纪游轮', routeName: '重庆-宜昌三峡航线（下水）', productName: '世纪游轮三峡下水游', days: 4, startDate: '2026-05-15', endDate: '2026-05-18', status: 'ticketing', direction: 'downstream', totalCabins: 230, soldCabins: 118, availableCabins: 112, shipId: 's02', routeId: 'r01', productId: 'prod02', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}], updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'v18', voyageNo: 'CJ20260518-SXMZ3', shipName: '三峡明珠号', routeName: '重庆-宜昌快捷航线', productName: '三峡快捷精华游', days: 3, startDate: '2026-05-15', endDate: '2026-05-17', status: 'ticketing', direction: 'downstream', totalCabins: 140, soldCabins: 76, availableCabins: 64, shipId: 's05', routeId: 'r14', productId: 'prod15', templateName: '', templateId: '', approvalStatus: '已审批', approvalTimeline: [{nodeName: '提交申请', approver: '运营经理', status: 'approved', duration: '2小时', plan: '自动通过', time: '2026-04-01 10:00'}], updatedBy: '系统管理员', updatedAt: '2026-05-01 08:00:00', createdAt: '2026-04-09 09:00:00' },
 ]
 
 // ===================== 航次模板数据 =====================
@@ -866,17 +959,20 @@ export const voyageTemplates: import('@/types').VoyageTemplate[] = [
       { id: 'tinv01_3', cabinName: '海景房', totalBeds: 2, released: 0, status: 'closed' },
     ],
     itinerary: [
-      { id: 'tit01_1', portName: '重庆港', day: 0, arrivalTime: '', departureTime: '20:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
-      { id: 'tit01_2', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', theme: '景点', startTime: '08:30', endTime: '11:30', description: '游览丰都鬼城', agency: '中青旅', attraction: '丰都鬼城' },
-      { id: 'tit01_3', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', theme: '用餐', startTime: '12:00', endTime: '13:00', description: '船上自助午餐', agency: '', attraction: '' },
-      { id: 'tit01_4', portName: '奉节', day: 2, arrivalTime: '07:00', departureTime: '14:00', theme: '景点', startTime: '08:00', endTime: '12:00', description: '游览白帝城', agency: '春秋旅游', attraction: '' },
-      { id: 'tit01_5', portName: '宜昌港', day: 4, arrivalTime: '09:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit01_1', portName: '重庆港', day: 0, arrivalTime: '', departureTime: '20:00', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit01_2', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', activityCategory: '景点游览', theme: '丰都鬼城', startTime: '08:30', endTime: '11:30', description: '游览丰都鬼城', agency: '中青旅', attraction: '丰都鬼城' },
+      { id: 'tit01_3', portName: '丰都', day: 1, arrivalTime: '08:00', departureTime: '12:00', activityCategory: '正餐', theme: '船上自助午餐', startTime: '12:00', endTime: '13:00', description: '船上自助午餐', agency: '', attraction: '' },
+      { id: 'tit01_4', portName: '奉节', day: 2, arrivalTime: '07:00', departureTime: '14:00', activityCategory: '景点游览', theme: '白帝城', startTime: '08:00', endTime: '12:00', description: '游览白帝城', agency: '春秋旅游', attraction: '' },
+      { id: 'tit01_5', portName: '宜昌港', day: 4, arrivalTime: '09:00', departureTime: '', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
     ],
-    tips: [],
+    tips: [
+      { id: 'ttip01_1', segmentKey: '重庆港-宜昌港', roomType: '标准间', tip: 50, mandatory: true },
+      { id: 'ttip01_2', segmentKey: '重庆港-丰都', roomType: '阳台房', tip: 45, mandatory: false },
+    ],
     deposits: [
-      { id: 'tdep01_1', marketCategory: 'foreign_usa', deposit: 3000 },
-      { id: 'tdep01_2', marketCategory: 'foreign_japan', deposit: 2000 },
-      { id: 'tdep01_3', marketCategory: 'domestic_wushan', deposit: 1000 },
+      { id: 'tdep01_1', segmentKey: '重庆港-宜昌港', roomType: '标准间', deposit: 3000 },
+      { id: 'tdep01_2', segmentKey: '重庆港-丰都', roomType: '阳台房', deposit: 2000 },
+      { id: 'tdep01_3', segmentKey: '丰都-宜昌港', roomType: '套房', deposit: 1000 },
     ],
     basePriceRef: 2800, surchargeStrategy: ['节假日加价', '旺季加价'], settlementRule: '月结30天', earlyBirdDiscount: 200,
     presaleDays: 90, cutoffDays: 3, refundPolicy: '标准退改', materialReq: ['宣传册', '行程单'],
@@ -890,15 +986,17 @@ export const voyageTemplates: import('@/types').VoyageTemplate[] = [
       { id: 'tinv02_2', cabinName: '海景房', totalBeds: 2, released: 0, status: 'open' },
     ],
     itinerary: [
-      { id: 'tit02_1', portName: '宜昌港', day: 0, arrivalTime: '', departureTime: '18:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
-      { id: 'tit02_2', portName: '奉节', day: 2, arrivalTime: '14:00', departureTime: '18:00', theme: '景点', startTime: '14:30', endTime: '17:30', description: '游览白帝城、夔门', agency: '携程国旅', attraction: '' },
-      { id: 'tit02_3', portName: '丰都', day: 3, arrivalTime: '09:00', departureTime: '13:00', theme: '景点', startTime: '09:30', endTime: '12:00', description: '游览名山景区', agency: '康辉旅游', attraction: '名山景区' },
-      { id: 'tit02_4', portName: '重庆港', day: 5, arrivalTime: '08:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit02_1', portName: '宜昌港', day: 0, arrivalTime: '', departureTime: '18:00', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit02_2', portName: '奉节', day: 2, arrivalTime: '14:00', departureTime: '18:00', activityCategory: '景点游览', theme: '白帝城、夔门', startTime: '14:30', endTime: '17:30', description: '游览白帝城、夔门', agency: '携程国旅', attraction: '' },
+      { id: 'tit02_3', portName: '丰都', day: 3, arrivalTime: '09:00', departureTime: '13:00', activityCategory: '景点游览', theme: '名山景区', startTime: '09:30', endTime: '12:00', description: '游览名山景区', agency: '康辉旅游', attraction: '名山景区' },
+      { id: 'tit02_4', portName: '重庆港', day: 5, arrivalTime: '08:00', departureTime: '', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
     ],
-    tips: [],
+    tips: [
+      { id: 'ttip02_1', segmentKey: '宜昌港-重庆港', roomType: '阳台房', tip: 60, mandatory: true },
+    ],
     deposits: [
-      { id: 'tdep02_1', marketCategory: 'foreign_usa', deposit: 3500 },
-      { id: 'tdep02_2', marketCategory: 'domestic_fengjie', deposit: 1500 },
+      { id: 'tdep02_1', segmentKey: '宜昌港-重庆港', roomType: '阳台房', deposit: 3500 },
+      { id: 'tdep02_2', segmentKey: '宜昌港-奉节', roomType: '海景房', deposit: 1500 },
     ],
     basePriceRef: 3200, surchargeStrategy: ['节假日加价'], settlementRule: '月结30天', earlyBirdDiscount: 300,
     presaleDays: 60, cutoffDays: 5, refundPolicy: '标准退改', materialReq: ['行程单'],
@@ -913,14 +1011,14 @@ export const voyageTemplates: import('@/types').VoyageTemplate[] = [
       { id: 'tinv03_3', cabinName: '海景房', totalBeds: 2, released: 0, status: 'open' },
     ],
     itinerary: [
-      { id: 'tit03_1', portName: '青岛港', day: 0, arrivalTime: '', departureTime: '17:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
-      { id: 'tit03_2', portName: '烟台港', day: 1, arrivalTime: '08:00', departureTime: '17:00', theme: '景点', startTime: '09:00', endTime: '16:00', description: '游览蓬莱阁、烟台山', agency: '众信旅游', attraction: '' },
-      { id: 'tit03_3', portName: '大连港', day: 2, arrivalTime: '09:00', departureTime: '18:00', theme: '景点', startTime: '09:30', endTime: '17:00', description: '星海广场、老虎滩', agency: '中青旅', attraction: '' },
-      { id: 'tit03_4', portName: '天津港', day: 4, arrivalTime: '08:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit03_1', portName: '青岛港', day: 0, arrivalTime: '', departureTime: '17:00', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit03_2', portName: '烟台港', day: 1, arrivalTime: '08:00', departureTime: '17:00', activityCategory: '景点游览', theme: '蓬莱阁、烟台山', startTime: '09:00', endTime: '16:00', description: '游览蓬莱阁、烟台山', agency: '众信旅游', attraction: '' },
+      { id: 'tit03_3', portName: '大连港', day: 2, arrivalTime: '09:00', departureTime: '18:00', activityCategory: '景点游览', theme: '星海广场、老虎滩', startTime: '09:30', endTime: '17:00', description: '星海广场、老虎滩', agency: '中青旅', attraction: '' },
+      { id: 'tit03_4', portName: '天津港', day: 4, arrivalTime: '08:00', departureTime: '', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
     ],
     tips: [],
     deposits: [
-      { id: 'tdep03_1', marketCategory: 'domestic_yunyang', deposit: 2000 },
+      { id: 'tdep03_1', segmentKey: '青岛港-天津港', roomType: '套房', deposit: 2000 },
     ],
     basePriceRef: 3500, surchargeStrategy: ['旺季加价'], settlementRule: '预付款50%', earlyBirdDiscount: 500,
     presaleDays: 120, cutoffDays: 7, refundPolicy: '标准退改', materialReq: ['宣传册', '行程单', '保险单'],
@@ -935,16 +1033,19 @@ export const voyageTemplates: import('@/types').VoyageTemplate[] = [
       { id: 'tinv04_3', cabinName: '海景房', totalBeds: 2, released: 0, status: 'closed' },
     ],
     itinerary: [
-      { id: 'tit04_1', portName: '武汉港', day: 0, arrivalTime: '', departureTime: '18:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
-      { id: 'tit04_2', portName: '九江港', day: 2, arrivalTime: '08:00', departureTime: '14:00', theme: '景点', startTime: '08:30', endTime: '12:30', description: '庐山一日游', agency: '携程国旅', attraction: '庐山' },
-      { id: 'tit04_3', portName: '南京港', day: 5, arrivalTime: '12:00', departureTime: '20:00', theme: '景点', startTime: '13:00', endTime: '18:00', description: '中山陵、夫子庙', agency: '康辉旅游', attraction: '中山陵' },
-      { id: 'tit04_4', portName: '上海港', day: 7, arrivalTime: '10:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit04_1', portName: '武汉港', day: 0, arrivalTime: '', departureTime: '18:00', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit04_2', portName: '九江港', day: 2, arrivalTime: '08:00', departureTime: '14:00', activityCategory: '景点游览', theme: '庐山一日游', startTime: '08:30', endTime: '12:30', description: '庐山一日游', agency: '携程国旅', attraction: '庐山' },
+      { id: 'tit04_3', portName: '南京港', day: 5, arrivalTime: '12:00', departureTime: '20:00', activityCategory: '景点游览', theme: '中山陵、夫子庙', startTime: '13:00', endTime: '18:00', description: '中山陵、夫子庙', agency: '康辉旅游', attraction: '中山陵' },
+      { id: 'tit04_4', portName: '上海港', day: 7, arrivalTime: '10:00', departureTime: '', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
     ],
-    tips: [],
+    tips: [
+      { id: 'ttip04_1', segmentKey: '武汉港-上海港', roomType: '套房', tip: 80, mandatory: true },
+      { id: 'ttip04_2', segmentKey: '武汉港-南京港', roomType: '阳台房', tip: 50, mandatory: false },
+    ],
     deposits: [
-      { id: 'tdep04_1', marketCategory: 'foreign_usa', deposit: 5000 },
-      { id: 'tdep04_2', marketCategory: 'foreign_japan', deposit: 3000 },
-      { id: 'tdep04_3', marketCategory: 'domestic_wushan', deposit: 2000 },
+      { id: 'tdep04_1', segmentKey: '武汉港-上海港', roomType: '套房', deposit: 5000 },
+      { id: 'tdep04_2', segmentKey: '武汉港-南京港', roomType: '阳台房', deposit: 3000 },
+      { id: 'tdep04_3', segmentKey: '南京港-上海港', roomType: '标准间', deposit: 2000 },
     ],
     basePriceRef: 6800, surchargeStrategy: ['节假日加价', '旺季加价', '单房差'], settlementRule: '月结30天', earlyBirdDiscount: 800,
     presaleDays: 180, cutoffDays: 10, refundPolicy: '严格退改', materialReq: ['宣传册', '行程单', '签证指南'],
@@ -958,19 +1059,40 @@ export const voyageTemplates: import('@/types').VoyageTemplate[] = [
       { id: 'tinv05_2', cabinName: '内舱房', totalBeds: 2, released: 0, status: 'open' },
     ],
     itinerary: [
-      { id: 'tit05_1', portName: '广州港', day: 0, arrivalTime: '', departureTime: '18:00', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
-      { id: 'tit05_2', portName: '珠海港', day: 1, arrivalTime: '08:00', departureTime: '17:00', theme: '景点', startTime: '09:00', endTime: '16:00', description: '长隆海洋王国', agency: '春秋旅游', attraction: '' },
-      { id: 'tit05_3', portName: '深圳港', day: 3, arrivalTime: '08:00', departureTime: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit05_1', portName: '广州港', day: 0, arrivalTime: '', departureTime: '18:00', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
+      { id: 'tit05_2', portName: '珠海港', day: 1, arrivalTime: '08:00', departureTime: '17:00', activityCategory: '景点游览', theme: '长隆海洋王国', startTime: '09:00', endTime: '16:00', description: '长隆海洋王国', agency: '春秋旅游', attraction: '' },
+      { id: 'tit05_3', portName: '深圳港', day: 3, arrivalTime: '08:00', departureTime: '', activityCategory: '', theme: '', startTime: '', endTime: '', description: '', agency: '', attraction: '' },
     ],
     tips: [],
     deposits: [
-      { id: 'tdep05_1', marketCategory: 'domestic_fengjie', deposit: 500 },
+      { id: 'tdep05_1', segmentKey: '广州港-深圳港', roomType: '海景房', deposit: 500 },
     ],
     basePriceRef: 1200, surchargeStrategy: [], settlementRule: '全额预付', earlyBirdDiscount: 100,
     presaleDays: 30, cutoffDays: 1, refundPolicy: '灵活退改', materialReq: ['行程单'],
     status: 'disabled', updatedBy: '系统管理员', updatedAt: '2026-04-06 15:00:00',  createdAt: '2026-04-01 09:00:00',
   },
 ]
+
+export const products: import('@/types').Product[] = baseProducts.map((product) => {
+  const template = voyageTemplates.find((item) => item.productId === product.id)
+  const enriched = enrichProductWithTemplateConfig(product, template)
+  if (product.id === 'prod01') {
+    return {
+      ...enriched,
+      configuredRoomTypes: ['阳台房', '套房', '海景房'],
+      privileges: [
+        { id: 'pp01', roomType: '阳台房', privilegeName: '欢迎礼遇' },
+        { id: 'pp02', roomType: '阳台房', privilegeName: '免费自助洗衣' },
+        { id: 'pp03', roomType: '套房', privilegeName: '独立观景台 / 阳台' },
+        { id: 'pp04', roomType: '套房', privilegeName: '免费MINI BAR' },
+        { id: 'pp05', roomType: '套房', privilegeName: '夜床服务' },
+        { id: 'pp06', roomType: '海景房', privilegeName: 'Wi-Fi / 客房VOD' },
+        { id: 'pp07', roomType: '海景房', privilegeName: '儿童专属洗浴用品' },
+      ],
+    }
+  }
+  return enriched
+})
 
 // ===================== 票类数据 =====================
 export const tickets: import('@/types').Ticket[] = [
@@ -1094,6 +1216,12 @@ export const voyageInventories: import('@/types').VoyageInventory[] = [
   { id: 'inv59', voyageId: 'v16', voyageNo: 'CJ20260516-YZJ', shipName: '扬子江号', cabinTypeName: '阳台房', physicalCapacity: 36, emergencyStock: 0, totalRooms: 50, sold: 34, locked: 1, maintenance: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'inv60', voyageId: 'v16', voyageNo: 'CJ20260516-YZJ', shipName: '扬子江号', cabinTypeName: '海景房', physicalCapacity: 52, emergencyStock: 3, totalRooms: 25, sold: 8, locked: 0, maintenance: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'inv61', voyageId: 'v16', voyageNo: 'CJ20260516-YZJ', shipName: '扬子江号', cabinTypeName: '内舱房', physicalCapacity: 51, emergencyStock: 1, totalRooms: 20, sold: 7, locked: 0, maintenance: 1, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
+  { id: 'inv62', voyageId: 'v17', voyageNo: 'CJ20260517-SJ', shipName: '世纪游轮', cabinTypeName: '套房', physicalCapacity: 27, emergencyStock: 0, totalRooms: 30, sold: 18, locked: 1, maintenance: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'inv63', voyageId: 'v17', voyageNo: 'CJ20260517-SJ', shipName: '世纪游轮', cabinTypeName: '阳台房', physicalCapacity: 48, emergencyStock: 2, totalRooms: 50, sold: 24, locked: 0, maintenance: 1, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'inv64', voyageId: 'v17', voyageNo: 'CJ20260517-SJ', shipName: '世纪游轮', cabinTypeName: '海景房', physicalCapacity: 30, emergencyStock: 2, totalRooms: 33, sold: 12, locked: 1, maintenance: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'inv65', voyageId: 'v18', voyageNo: 'CJ20260518-SXMZ3', shipName: '三峡明珠号', cabinTypeName: '套房', physicalCapacity: 42, emergencyStock: 1, totalRooms: 20, sold: 11, locked: 0, maintenance: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'inv66', voyageId: 'v18', voyageNo: 'CJ20260518-SXMZ3', shipName: '三峡明珠号', cabinTypeName: '阳台房', physicalCapacity: 35, emergencyStock: 0, totalRooms: 45, sold: 28, locked: 1, maintenance: 0, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'inv67', voyageId: 'v18', voyageNo: 'CJ20260518-SXMZ3', shipName: '三峡明珠号', cabinTypeName: '海景房', physicalCapacity: 40, emergencyStock: 1, totalRooms: 35, sold: 15, locked: 0, maintenance: 1, status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
 ]
 
 // ===================== 航次价格数据 =====================
@@ -1146,6 +1274,12 @@ export const voyagePrices: import('@/types').VoyagePrice[] = [
   { id: 'prc046', voyageId: 'v16', voyageNo: 'CJ20260516-YZJ', cabinTypeName: '套房', date: '2026-06-10', basePrice: 800, adultPrice: 800, childPrice: 240, babyPrice: 80, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'prc047', voyageId: 'v16', voyageNo: 'CJ20260516-YZJ', cabinTypeName: '阳台房', date: '2026-06-10', basePrice: 500, adultPrice: 500, childPrice: 150, babyPrice: 50, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
   { id: 'prc048', voyageId: 'v16', voyageNo: 'CJ20260516-YZJ', cabinTypeName: '海景房', date: '2026-06-10', basePrice: 300, adultPrice: 300, childPrice: 90, babyPrice: 30, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-01 08:00:00' },
+  { id: 'prc049', voyageId: 'v17', voyageNo: 'CJ20260517-SJ', cabinTypeName: '套房', date: '2026-05-15', basePrice: 880, adultPrice: 880, childPrice: 264, babyPrice: 88, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'prc050', voyageId: 'v17', voyageNo: 'CJ20260517-SJ', cabinTypeName: '阳台房', date: '2026-05-15', basePrice: 560, adultPrice: 560, childPrice: 168, babyPrice: 56, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'prc051', voyageId: 'v17', voyageNo: 'CJ20260517-SJ', cabinTypeName: '海景房', date: '2026-05-15', basePrice: 360, adultPrice: 360, childPrice: 108, babyPrice: 36, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'prc052', voyageId: 'v18', voyageNo: 'CJ20260518-SXMZ3', cabinTypeName: '套房', date: '2026-05-15', basePrice: 720, adultPrice: 720, childPrice: 216, babyPrice: 72, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'prc053', voyageId: 'v18', voyageNo: 'CJ20260518-SXMZ3', cabinTypeName: '阳台房', date: '2026-05-15', basePrice: 480, adultPrice: 480, childPrice: 144, babyPrice: 48, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
+  { id: 'prc054', voyageId: 'v18', voyageNo: 'CJ20260518-SXMZ3', cabinTypeName: '海景房', date: '2026-05-15', basePrice: 320, adultPrice: 320, childPrice: 96, babyPrice: 32, updatedBy: '系统管理员', updatedAt: '2026-05-10 09:00:00', createdAt: '2026-04-09 09:00:00' },
 ]
 
 // ===================== 产品库存数据 =====================

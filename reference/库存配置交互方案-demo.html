@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>库存配置交互方案 Demo · 共有 + 分销商</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card: #fff;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --warn-bg: #fef3c7;
+      --warn-text: #b45309;
+      --ok: #059669;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; max-width: 720px; }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+    .card h2 { margin: 0 0 4px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .card .desc { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+    .tag { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-weight: 500; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid var(--border); padding: 7px 8px; text-align: left; }
+    th { background: #f9fafb; font-weight: 600; color: #374151; }
+    tr:hover td { background: #fafafa; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: #fff; font-size: 12px; cursor: pointer; color: #374151;
+    }
+    .btn:hover { background: #f9fafb; }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-sm { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+    .btn-link { border: none; background: none; color: var(--primary); padding: 2px 4px; }
+    .btn-link:hover { text-decoration: underline; background: none; }
+    .check { width: 14px; height: 14px; }
+
+    /* Modal */
+    .backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 32px 16px; z-index: 100; overflow: auto;
+    }
+    .modal {
+      background: #fff; border-radius: 12px; width: 880px; max-width: 100%;
+      max-height: calc(100vh - 64px); display: flex; flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0,0,0,.15);
+    }
+    .modal-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    }
+    .modal-header h3 { margin: 0; font-size: 16px; }
+    .modal-header .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .modal-close { border: none; background: none; font-size: 20px; color: #9ca3af; cursor: pointer; line-height: 1; }
+    .modal-close:hover { color: #374151; }
+
+    .main-tabs {
+      display: flex; gap: 0; padding: 0 18px; border-bottom: 1px solid var(--border);
+      background: #fafafa;
+    }
+    .main-tabs button {
+      padding: 10px 16px; border: none; background: none; font-size: 13px;
+      color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .main-tabs button.active { color: var(--text); font-weight: 600; border-bottom-color: var(--primary); background: #fff; }
+
+    .modal-body { padding: 16px 18px; overflow: auto; flex: 1; }
+    .modal-footer {
+      padding: 12px 18px; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    }
+    .summary-bar {
+      font-size: 12px; padding: 8px 12px; border-radius: 8px; background: #f0fdf4; color: var(--ok);
+      border: 1px solid #bbf7d0;
+    }
+    .summary-bar.warn { background: var(--warn-bg); color: var(--warn-text); border-color: #fcd34d; }
+    .summary-bar.error { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
+
+    .info-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;
+    }
+    .info-grid label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .info-grid input {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; background: #f9fafb; color: #6b7280;
+    }
+
+    .dealer-tabs { display: flex; gap: 4px; overflow-x: auto; margin: 10px 0; padding-bottom: 4px; }
+    .dealer-tabs button {
+      flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+      background: #fff; font-size: 11px; cursor: pointer; color: #4b5563;
+    }
+    .dealer-tabs button.active { background: #111827; color: #fff; border-color: #111827; }
+
+    .filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+    .filter-row select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; }
+
+    .cell-stack { display: flex; flex-direction: column; gap: 4px; min-width: 72px; }
+    .cell-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; gap: 6px; }
+    .cell-row span.lbl { color: var(--muted); }
+    .cell-row input {
+      width: 48px; padding: 3px 4px; text-align: right; border: 1px solid var(--border);
+      border-radius: 4px; font-size: 11px;
+    }
+    .cell-row input:disabled { background: #f3f4f6; border-color: #e5e7eb; color: #6b7280; }
+    .cell-row .val { font-weight: 600; }
+
+    .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #e5e7eb; color: #4b5563; }
+    .badge-edit { background: #dbeafe; color: #1d4ed8; }
+
+    .hidden { display: none !important; }
+
+    .legend {
+      margin-top: 20px; padding: 14px; background: #fff; border-radius: 12px; border: 1px solid var(--border);
+      font-size: 12px; color: #4b5563;
+    }
+    .legend h3 { margin: 0 0 8px; font-size: 13px; color: var(--text); }
+    .legend ul { margin: 0; padding-left: 18px; }
+    .legend li { margin-bottom: 4px; }
+    code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>库存配置交互 Demo</h1>
+  <p class="subtitle">
+    演示「共有库存 + 分销商库存」统一入口。左侧模拟<strong>库存看板</strong>（推荐主入口），右侧模拟<strong>航次列表批量</strong>。
+    弹窗内双 Tab 切换，底部实时校验总量是否超过物理容量。
+  </p>
+
+  <div class="layout">
+    <!-- 方案1：库存看板 -->
+    <div class="card">
+      <h2>库存看板 <span class="tag">推荐主入口</span></h2>
+      <p class="desc">批量与单航次共用「库存配置」弹窗，内部 Tab 切换共有 / 分销商库存。</p>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openConfig({ mode: 'batch', count: 3, label: '2026年5月 · 三峡下水' })">
+          批量配置库存（已选 3 个航次）
+        </button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>开航日</th><th>航次</th><th>产品</th><th>物理容量</th><th>已分配</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>05-15</td><td>CJ20260501</td><td>三峡经典下水</td><td>210</td><td>186</td>
+            <td><button class="btn btn-sm btn-link" onclick="openConfig({ mode: 'single', voyage: 'CJ20260501', product: '三峡经典下水之旅', date: '2026-05-15' })">库存配置</button></td>
+          </tr>
+          <tr>
+            <td>05-19</td><td>CJ20260502</td><td>三峡经典下水</td><td>210</td><td><span style="color:#2563eb">配置</span></td>
+            <td><button class="btn btn-sm btn-link" onclick="openConfig({ mode: 'single', voyage: 'CJ20260502', product: '三峡经典下水之旅', date: '2026-05-19' })">库存配置</button></td>
+          </tr>
+          <tr>
+            <td>05-14</td><td>CJ20260504</td><td>三峡深度上水</td><td>165</td><td>142</td>
+            <td><button class="btn btn-sm btn-link" onclick="openConfig({ mode: 'single', voyage: 'CJ20260504', product: '三峡深度上水游', date: '2026-05-14' })">库存配置</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 方案2：航次列表批量 -->
+    <div class="card">
+      <h2>航次列表 · 批量入口</h2>
+      <p class="desc">勾选多条航次后批量配置，弹窗与看板相同（此处仅演示入口差异）。</p>
+      <div class="toolbar">
+        <button class="btn">批量改状态</button>
+        <button class="btn btn-primary" onclick="openConfig({ mode: 'batch', count: 2, label: '已勾选 2 个航次' })">批量配置库存</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th></th><th>航次</th><th>模板</th><th>状态</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" class="check" checked></td>
+            <td>CJ20260503</td><td>世纪游轮模板</td><td>售票中</td>
+            <td><button class="btn btn-sm" onclick="openConfig({ mode: 'single', voyage: 'CJ20260503', product: '世纪游轮三峡', date: '2026-05-16' })">详情</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" class="check" checked></td>
+            <td>CJ20260508</td><td>长江中下游模板</td><td>售票中</td>
+            <td><button class="btn btn-sm" onclick="openConfig({ mode: 'single', voyage: 'CJ20260508', product: '长江中下游全景', date: '2026-06-01' })">详情</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>交互说明</h3>
+    <ul>
+      <li><strong>共有库存 Tab</strong>：配置「线上散客」「共享库存」，物理容量只读。</li>
+      <li><strong>分销商库存 Tab</strong>：按分销商 Tab 切换，配置各航段可售；已售只读。</li>
+      <li><strong>底部汇总</strong>：线上散客 + 共享库存 + 各分销商可售 ≤ 物理容量；超限标红。</li>
+      <li><strong>查看 / 编辑</strong>：默认查看态，点「编辑」后才可改数字（与昨天分销商弹窗一致）。</li>
+      <li>模板页可另设「默认库存方案」，日常操作仍以此弹窗为主。</li>
+    </ul>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script>
+    // ---- Mock data ----
+    const SEGMENTS = [
+      { key: 'whole', label: '重庆港-宜昌港 全程' },
+      { key: 'cq-fd', label: '重庆港-丰都' },
+      { key: 'fd-fj', label: '丰都-奉节' },
+      { key: 'fj-yc', label: '奉节-宜昌港' },
+    ];
+    const CABINS = ['套房', '阳台房', '海景房'];
+    const DEALERS = [
+      { id: 'd1', name: '成都环球国旅', channel: 'distribution' },
+      { id: 'd2', name: '重庆假日中心', channel: 'group' },
+      { id: 'd3', name: '武汉长江票务', channel: 'distribution' },
+    ];
+    const PHYSICAL = { '套房': 20, '阳台房': 80, '海景房': 50 };
+
+    let state = {
+      editing: false,
+      mainTab: 'shared', // shared | dealer
+      dealerId: 'd1',
+      channelFilter: 'all',
+      // shared[cabin][segment] = { online, shared }
+      shared: {},
+      // dealer[dealerId][cabin][segment] = { sold, available }
+      dealer: {},
+      context: {},
+    };
+
+    function initData() {
+      CABINS.forEach(cabin => {
+        state.shared[cabin] = {};
+        SEGMENTS.forEach(seg => {
+          const cap = PHYSICAL[cabin];
+          state.shared[cabin][seg.key] = {
+            online: Math.floor(cap * 0.25),
+            shared: Math.floor(cap * 0.35),
+          };
+        });
+      });
+      DEALERS.forEach(d => {
+        state.dealer[d.id] = {};
+        CABINS.forEach(cabin => {
+          state.dealer[d.id][cabin] = {};
+          SEGMENTS.forEach((seg, si) => {
+            state.dealer[d.id][cabin][seg.key] = {
+              sold: 4 + si,
+              available: 8 + si * 2,
+            };
+          });
+        });
+      });
+    }
+    initData();
+
+    function sumAllocated() {
+      let online = 0, shared = 0, dealerTotal = 0;
+      CABINS.forEach(cabin => {
+        SEGMENTS.forEach(seg => {
+          const s = state.shared[cabin][seg.key];
+          online += s.online;
+          shared += s.shared;
+        });
+      });
+      DEALERS.forEach(d => {
+        CABINS.forEach(cabin => {
+          SEGMENTS.forEach(seg => {
+            dealerTotal += state.dealer[d.id][cabin][seg.key].available;
+          });
+        });
+      });
+      return { online, shared, dealerTotal, total: online + shared + dealerTotal };
+    }
+
+    function physicalTotal() {
+      return Object.values(PHYSICAL).reduce((a, b) => a + b, 0) * SEGMENTS.length;
+    }
+
+    function summaryHtml() {
+      const alloc = sumAllocated();
+      const cap = physicalTotal();
+      const remain = cap - alloc.total;
+      let cls = 'summary-bar';
+      let text = `已分配 ${alloc.total} / 物理容量 ${cap}（剩余 ${remain}）· 共有 ${alloc.online + alloc.shared}（线上 ${alloc.online} + 共享 ${alloc.shared}）· 分销商 ${alloc.dealerTotal}`;
+      if (remain < 0) {
+        cls += ' error';
+        text = `⚠ 超出物理容量 ${-remain} 间！当前 ${alloc.total} / ${cap}`;
+      } else if (remain < 20) {
+        cls += ' warn';
+        text = `⚠ 接近上限：${text}`;
+      }
+      return `<div class="${cls}">${text}</div>`;
+    }
+
+    function filteredDealers() {
+      if (state.channelFilter === 'all') return DEALERS;
+      return DEALERS.filter(d => d.channel === state.channelFilter);
+    }
+
+    function openConfig(ctx) {
+      state.context = ctx;
+      state.editing = false;
+      state.mainTab = 'shared';
+      state.dealerId = DEALERS[0].id;
+      renderModal();
+    }
+
+    function closeModal() {
+      document.getElementById('modal-root').innerHTML = '';
+      initData();
+    }
+
+    function setMainTab(tab) {
+      state.mainTab = tab;
+      renderModal();
+    }
+
+    function setDealer(id) {
+      state.dealerId = id;
+      state.editing = false;
+      renderModal();
+    }
+
+    function toggleEdit() {
+      state.editing = !state.editing;
+      renderModal();
+    }
+
+    function updateShared(cabin, segKey, field, val) {
+      state.shared[cabin][segKey][field] = Math.max(0, parseInt(val) || 0);
+      renderModal();
+    }
+
+    function updateDealer(cabin, segKey, val) {
+      state.dealer[state.dealerId][cabin][segKey].available = Math.max(0, parseInt(val) || 0);
+      renderModal();
+    }
+
+    function renderModal() {
+      const ctx = state.context;
+      const title = ctx.mode === 'batch'
+        ? `批量库存配置 · ${ctx.label}`
+        : `库存配置 · ${ctx.voyage}`;
+      const meta = ctx.mode === 'batch'
+        ? `将统一应用到 ${ctx.count} 个航次（Demo 仅展示单航次视图）`
+        : `${ctx.product} · ${ctx.date} · 下水`;
+
+      const dealers = filteredDealers();
+      if (!dealers.find(d => d.id === state.dealerId) && dealers[0]) {
+        state.dealerId = dealers[0].id;
+      }
+
+      let body = '';
+      if (state.mainTab === 'shared') {
+        body = `
+          <p style="font-size:12px;color:#6b7280;margin:0 0 10px;">配置所有渠道可竞争的共有库存池。物理容量为船舶上限，不可编辑。</p>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:140px">航段</th>
+                ${CABINS.map(c => `<th>${c}<br><span style="font-weight:400;color:#9ca3af">容量 ${PHYSICAL[c]}</span></th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${SEGMENTS.map(seg => `
+                <tr>
+                  <td><strong>${seg.label}</strong></td>
+                  ${CABINS.map(cabin => {
+                    const cell = state.shared[cabin][seg.key];
+                    return `<td>
+                      <div class="cell-stack">
+                        <div class="cell-row"><span class="lbl">物理容量</span><span class="val">${PHYSICAL[cabin]}</span></div>
+                        <div class="cell-row">
+                          <span class="lbl">线上散客</span>
+                          ${state.editing
+                            ? `<input type="number" min="0" value="${cell.online}" onchange="updateShared('${cabin}','${seg.key}','online',this.value)">`
+                            : `<span class="val">${cell.online}</span>`}
+                        </div>
+                        <div class="cell-row">
+                          <span class="lbl">共享库存</span>
+                          ${state.editing
+                            ? `<input type="number" min="0" value="${cell.shared}" onchange="updateShared('${cabin}','${seg.key}','shared',this.value)">`
+                            : `<span class="val">${cell.shared}</span>`}
+                        </div>
+                      </div>
+                    </td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      } else {
+        body = `
+          <div class="filter-row">
+            <span style="color:#6b7280">组团分类</span>
+            <select onchange="state.channelFilter=this.value; state.editing=false; renderModal()">
+              <option value="all" ${state.channelFilter==='all'?'selected':''}>全部分类</option>
+              <option value="distribution" ${state.channelFilter==='distribution'?'selected':''}>分销商</option>
+              <option value="group" ${state.channelFilter==='group'?'selected':''}>组团社</option>
+            </select>
+            <span class="badge ${state.editing ? 'badge-edit' : ''}">${state.editing ? '编辑态' : '查看态'}</span>
+          </div>
+          <div class="dealer-tabs">
+            ${dealers.map(d => `
+              <button type="button" class="${d.id === state.dealerId ? 'active' : ''}" onclick="setDealer('${d.id}')">${d.name}</button>
+            `).join('')}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:140px">航段</th>
+                ${CABINS.map(c => `<th>${c}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${SEGMENTS.map(seg => `
+                <tr>
+                  <td><strong>${seg.label}</strong></td>
+                  ${CABINS.map(cabin => {
+                    const cell = state.dealer[state.dealerId][cabin][seg.key];
+                    return `<td>
+                      <div class="cell-stack">
+                        <div class="cell-row"><span class="lbl">已售</span><span class="val">${cell.sold}</span></div>
+                        <div class="cell-row">
+                          <span class="lbl">可售</span>
+                          ${state.editing
+                            ? `<input type="number" min="0" value="${cell.available}" onchange="updateDealer('${cabin}','${seg.key}',this.value)">`
+                            : `<span class="val">${cell.available}</span>`}
+                        </div>
+                      </div>
+                    </td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      }
+
+      const footerBtns = state.editing
+        ? `<button class="btn" onclick="state.editing=false; initData(); renderModal()">取消</button>
+           <button class="btn btn-primary" onclick="alert('Demo：已保存'); closeModal()">保存</button>`
+        : `<button class="btn" onclick="closeModal()">关闭</button>
+           <button class="btn btn-primary" onclick="toggleEdit()">编辑</button>`;
+
+      document.getElementById('modal-root').innerHTML = `
+        <div class="backdrop" onclick="if(event.target===this) closeModal()">
+          <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+              <div>
+                <h3>${title}</h3>
+                <div class="meta">${meta}</div>
+              </div>
+              <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="info-grid">
+              <div><label>产品</label><input value="${ctx.product || '三峡经典下水之旅'}" disabled></div>
+              <div><label>适用游轮</label><input value="长江探索号" disabled></div>
+              <div><label>配置范围</label><input value="${ctx.mode === 'batch' ? ctx.label : '单航次'}" disabled></div>
+            </div>
+            <div class="main-tabs">
+              <button class="${state.mainTab === 'shared' ? 'active' : ''}" onclick="setMainTab('shared')">共有库存</button>
+              <button class="${state.mainTab === 'dealer' ? 'active' : ''}" onclick="setMainTab('dealer')">分销商库存</button>
+            </div>
+            <div class="modal-body">${body}</div>
+            <div class="modal-footer">
+              ${summaryHtml()}
+              <div style="display:flex;gap:8px;flex-shrink:0">${footerBtns}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+  </script>
+</body>
+</html>

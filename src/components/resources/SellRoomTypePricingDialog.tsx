@@ -524,17 +524,18 @@ export default function SellRoomTypePricingDialog({
                             <div key={`${row.id}-guest-${guestIndex}`} className="flex flex-wrap items-center gap-1.5">
                               <span className="w-12 shrink-0 text-[11px] text-gray-500">{guestLabels[guestIndex]}</span>
                               <CoefficientStepper
-                                label="P"
                                 value={guestCoeff.p}
                                 onChange={(value) => updateGuestCoefficient(index, guestIndex, 'p', value)}
                               />
+                              <span className="text-xs font-mono text-gray-500">P</span>
+                              <span className="text-xs text-gray-400">+</span>
                               <CoefficientStepper
-                                label="S"
                                 value={guestCoeff.s}
                                 onChange={(value) => updateGuestCoefficient(index, guestIndex, 's', value)}
                               />
+                              <span className="text-xs font-mono text-gray-500">S</span>
+                              <span className="text-xs text-gray-400">+</span>
                               <CoefficientStepper
-                                label="X"
                                 value={guestCoeff.x}
                                 onChange={(value) => updateGuestCoefficient(index, guestIndex, 'x', value)}
                               />

@@ -90,6 +90,42 @@ export interface Menu {
   status: Status
 }
 
+// ========== 分级数据字典（二级） ==========
+export type HierarchicalDictTypeCode = 'ACTIVITY_CATEGORY' | 'PRIVILEGE_TYPE' | 'ATTRACTION_SERVICE'
+
+export interface HierarchicalDictItem {
+  id: string
+  dictType: HierarchicalDictTypeCode
+  code: string
+  nameCn: string
+  nameEn: string
+  parentId: string | null
+  level: 1 | 2
+  sort: number
+  remark: string
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface HierarchicalDictForm {
+  dictType: HierarchicalDictTypeCode
+  code: string
+  nameCn: string
+  nameEn: string
+  parentId: string | null
+  level: 1 | 2
+  sort: number
+  remark: string
+}
+
+/** @deprecated 使用 HierarchicalDictItem */
+export type ActivityCategory = HierarchicalDictItem
+
+/** @deprecated 使用 HierarchicalDictForm */
+export type ActivityCategoryForm = HierarchicalDictForm
+
 // ========== 数据字典 ==========
 export interface Dictionary {
   id: string
@@ -113,6 +149,8 @@ export interface Pier {
 }
 
 // ========== 码头 ==========
+export type RiverReach = 'upstream' | 'middle' | 'lower' | 'estuary'
+
 export interface Port {
   id: string
   name: string
@@ -134,6 +172,18 @@ export interface Port {
   transferInfo?: string
   remark?: string
   sort: number
+  /** 长江上中下游分区 */
+  riverReach?: RiverReach
+  /** 所属里程段名称，如「重庆-宜昌」 */
+  mileageSegment?: string
+  /** 该里程段内距下游锚点的公里数 */
+  mileageKm?: number
+  /** 自上个码头航行至此的上水时间（分钟） */
+  prevPierUpstreamMin?: number
+  /** 自本码头航行至下个码头的下水时间（分钟） */
+  nextPierDownstreamMin?: number
+  /** 长江全线排序（重庆→上海） */
+  riverSort?: number
   piers: Pier[]
   status: Status
   updatedBy: string
@@ -161,6 +211,10 @@ export interface PortForm {
   transferInfo: string
   remark: string
   sort: number
+  riverReach: RiverReach | ''
+  mileageKm: number
+  prevPierUpstreamMin: number
+  nextPierDownstreamMin: number
 }
 
 // ========== 码头距离 ==========
@@ -196,12 +250,18 @@ export interface Attraction {
   nameEn: string
   portId: string
   portName: string
+  /** 关联码头的江段（随码头同步） */
+  riverReach?: RiverReach
   city: string
   province?: string
   address?: string
   longitude?: number
   latitude?: number
   category?: string
+  /** 景点服务（二级分级字典 ATTRACTION_SERVICE 的二级项名称） */
+  attractionService?: string
+  /** 景点图片 */
+  images?: string[]
   visitDuration: string
   suggestedDurationMin?: number
   portDistanceKm?: number
@@ -230,6 +290,8 @@ export interface AttractionForm {
   longitude: number
   latitude: number
   category: string
+  attractionService: string
+  images: string[]
   visitDuration: string
   suggestedDurationMin: number
   portDistanceKm: number
@@ -421,6 +483,18 @@ export interface Product {
   description: string
   segments: ProductSegment[]
   pricing: PricingRow[]
+  /** 关联行程方案，航次停靠行程在行程管理中维护 */
+  itineraryPlanId?: string
+  deposits: TemplateDeposit[]
+  tips: TemplateTip[]
+  /** 产品可售房型（来自房型管理） */
+  configuredRoomTypes: string[]
+  /** 房型礼遇配置 */
+  privileges: ProductPrivilege[]
+  presaleDays: number
+  cutoffDays: number
+  refundPolicy: string
+  materialReq: string[]
   approvalStatus?: string
   approvalTimeline?: ApprovalStep[]
   publishStatus?: 'published' | 'unpublished'
@@ -516,6 +590,7 @@ export interface TemplateItinerary {
   day: number
   arrivalTime: string
   departureTime: string
+  activityCategory: string
   theme: string
   startTime: string
   endTime: string
@@ -524,16 +599,58 @@ export interface TemplateItinerary {
   attraction: string
 }
 
+/** 行程方案航段（基于航线航段，配置航速/景点/活动） */
+export interface ItineraryPlanSegment {
+  id: string
+  /** 对应航线中的航段序号（0 起） */
+  routeLegIndex?: number
+  fromPortId: string
+  toPortId: string
+  /** 本航段启航所在行程日：0=启航日 */
+  day: number
+  departureTime: string
+  speedKmH: number
+  passengerOnOff: boolean
+  attractionIds: string[]
+  /** 本航段关联活动 */
+  activities?: TemplateItinerary[]
+  remark: string
+}
+
+/** 行程方案：绑定航线 + 航段配置 + 停靠行程汇总 */
+export interface ItineraryPlan {
+  id: string
+  code: string
+  name: string
+  /** 关联航线，航段结构来源于航线 */
+  routeId: string
+  segments: ItineraryPlanSegment[]
+  schedule: TemplateItinerary[]
+  updatedAt: string
+  updatedBy: string
+}
+
 export interface TemplateDeposit {
   id: string
-  marketCategory: string
+  segmentKey: string
+  roomType: string
   deposit: number
 }
 
 export interface TemplateTip {
   id: string
-  marketCategory: string
+  segmentKey: string
+  roomType: string
   tip: number
+  /** 是否强制收取 */
+  mandatory: boolean
+}
+
+/** 产品礼遇：关联已配置房型 */
+export interface ProductPrivilege {
+  id: string
+  roomType: string
+  privilegeName: string
 }
 
 export interface VoyageTemplate {
