@@ -1,0 +1,15 @@
+# Cursor 项目规则
+
+当用户要求“部署项目”、“更新服务器”、“发布最新代码”时，请严格遵守以下规则：
+
+1. 不要自行猜测部署流程。
+2. 根据用户意图选择部署 Skill：
+   - **阿里云 ECS**（主站）：读取 `DEPLOY_SKILL.md`，执行【场景一】
+   - **腾讯云静态托管**（国内访问、演示）：读取 `TENCENT_DEPLOY_SKILL.md`，执行【场景一】
+   - **EdgeOne Makers**（国内静态托管）：读取 `EDGEONE_DEPLOY_SKILL.md`
+   - 用户未指定时：默认阿里云；强调「国内」「腾讯云」「Gitee」→ 腾讯云或说明 Pages 已下线
+   - 「两个都部署」→ 先 Git 推送，再依次阿里云 + 腾讯云（若已配置 `.deploy/tencent.env`）
+3. 阿里云 `RunCommand` 执行时随时报告结果。
+4. 腾讯云部署前检查 `.deploy/tencent.env` 是否存在；不存在则引导用户完成 Gitee「腾讯云托管」首次绑定或填写密钥。
+
+注意：Gitee Pages 不可用。国内访问优先：阿里云 ECS（已有）或腾讯云静态托管。
