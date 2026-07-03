@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { createHashRouter, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import MainLayout from '@/layouts/MainLayout'
 import DealerLayout from '@/layouts/DealerLayout'
@@ -93,7 +93,7 @@ function LegacyTemplateInventoryRedirect() {
   return <Navigate to={templateId ? `/voyage/inventory-templates?templateId=${templateId}` : '/voyage/inventory-templates'} replace />
 }
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
   {
     path: '/',
     element: <Navigate to="/voyage/list" replace />,
@@ -200,6 +200,4 @@ export const router = createBrowserRouter([
       { path: '/dealer/stats/cruise-sales', element: <DealerCruiseSalesStatsPage /> },
     ],
   },
-], {
-  basename: import.meta.env.BASE_URL,
-})
+]);

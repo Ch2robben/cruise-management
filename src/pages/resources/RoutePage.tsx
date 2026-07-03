@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MinusCircle, Plus, PlusCircle } from 'lucide-react'
 import { routeApi, portApi } from '@/mock/api'
 import type { Route, RouteStop, PaginatedResult, SearchParams, Port } from '@/types'
-import { formatDateTime, generateId } from '@/utils/format'
+import { formatDateTime, formatDurationMinutes, generateId } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -562,7 +562,7 @@ export default function RoutePage() {
                           <div className="relative">
                             <input
                               type="text"
-                              value={stop.sailTime}
+                              value={stop.sailTime ? formatDurationMinutes(Number(stop.sailTime)) : ''}
                               readOnly
                               placeholder={isStart ? '—' : '自动汇总'}
                               className={`w-full rounded-lg border px-3 py-2 pr-12 text-sm ${
@@ -572,7 +572,7 @@ export default function RoutePage() {
                               }`}
                             />
                             {!isStart && (
-                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">分钟</span>
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">时:分</span>
                             )}
                           </div>
                         </div>

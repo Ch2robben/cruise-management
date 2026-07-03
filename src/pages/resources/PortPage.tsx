@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { portApi, attractionApi } from '@/mock/api'
 import type { Attraction, PaginatedResult, Port, PortForm, SearchParams } from '@/types'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, formatDurationMinutes } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -299,7 +299,7 @@ export default function PortPage() {
                     placeholder="请输入"
                     className={`${inputClass} pr-12`}
                   />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">分钟</span>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">hh:mm</span>
                 </div>
               </div>
               <div>
@@ -313,7 +313,7 @@ export default function PortPage() {
                     placeholder="请输入"
                     className={`${inputClass} pr-12`}
                   />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">分钟</span>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">hh:mm</span>
                 </div>
               </div>
             </div>
@@ -339,8 +339,8 @@ export default function PortPage() {
             <DetailRow label="经纬度" value={`${detail.longitude || '-'}, ${detail.latitude || '-'}`} />
             <DetailRow label="江段" value={detail.riverReach ? RIVER_REACH_LABEL[detail.riverReach] : '-'} />
             <DetailRow label="段内里程" value={detail.mileageKm != null ? `${detail.mileageKm} km` : '-'} />
-            <DetailRow label="上个码头上水时间" value={detail.prevPierUpstreamMin != null ? `${detail.prevPierUpstreamMin} 分钟` : '-'} />
-            <DetailRow label="下个码头下水时间" value={detail.nextPierDownstreamMin != null ? `${detail.nextPierDownstreamMin} 分钟` : '-'} />
+            <DetailRow label="上个码头上水时间" value={formatDurationMinutes(detail.prevPierUpstreamMin)} />
+            <DetailRow label="下个码头下水时间" value={formatDurationMinutes(detail.nextPierDownstreamMin)} />
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
           </DetailCard>
           <DetailCard title="关联景点">
@@ -352,7 +352,7 @@ export default function PortPage() {
                   <li key={attraction.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{attraction.name}</p>
-                      <p className="mt-0.5 text-xs text-gray-500">{attraction.category || '-'} · 建议游览 {attraction.suggestedDurationMin ?? '-'} 分钟</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{attraction.category || '-'} · 建议游览 {formatDurationMinutes(attraction.suggestedDurationMin)}</p>
                     </div>
                     <StatusBadge status={attraction.status} />
                   </li>

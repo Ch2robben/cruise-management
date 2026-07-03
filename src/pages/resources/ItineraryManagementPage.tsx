@@ -6,6 +6,7 @@ import { listItineraryPlans, saveItineraryPlans } from '@/mock/itineraryPlanStor
 import { resolveMileageDistance, sortPortsByRiver } from '@/mock/yangtzeRiverMileage'
 import type { Attraction, ItineraryPlan, ItineraryPlanSegment, Port, PortDistance, RiverReach, Route, TemplateItinerary } from '@/types'
 import { RIVER_REACH_LABEL, RIVER_REACH_OPTIONS } from '@/utils/constants'
+import { formatDurationMinutes } from '@/utils/format'
 import { flattenSegmentActivities } from '@/utils/itinerarySchedule'
 import { buildSegmentsFromRoute, mergeRouteSegmentsWithConfig } from '@/utils/routeItinerarySegments'
 import ItineraryEditor, { formatItineraryDayLabel, getItineraryDayOptions } from '@/components/voyage/ItineraryEditor'
@@ -46,14 +47,7 @@ type GenerationTarget = 'product'
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900'
 const speedOptions = [14, 16, 18, 20, 22]
 
-const minutesToText = (minutes?: number) => {
-  if (minutes === undefined || Number.isNaN(minutes)) return '-'
-  if (minutes < 0) return '时间倒挂'
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  if (!hours) return `${rest}分钟`
-  return rest ? `${hours}小时${rest}分钟` : `${hours}小时`
-}
+const minutesToText = (minutes?: number) => formatDurationMinutes(minutes)
 
 const timeToMinutes = (value: string) => {
   const [hour, minute] = value.split(':').map(Number)

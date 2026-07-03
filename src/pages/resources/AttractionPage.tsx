@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, Upload, X } from 'lucide-react'
 import { attractionApi, portApi } from '@/mock/api'
 import type { Attraction, AttractionForm, PaginatedResult, Port, RiverReach, SearchParams } from '@/types'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, formatDurationMinutes } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -41,14 +41,6 @@ const emptyForm: AttractionForm = {
   bookingRequired: false,
   ticketPolicy: '',
   description: '',
-}
-
-const formatDuration = (minutes?: number) => {
-  if (!minutes && minutes !== 0) return '-'
-  if (minutes < 60) return `${minutes}分钟`
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  return rest ? `${hours}小时${rest}分钟` : `${hours}小时`
 }
 
 const isPreviewableImage = (url: string) => url.startsWith('data:') || url.startsWith('http')
@@ -272,8 +264,8 @@ export default function AttractionPage() {
       width: '190px',
       render: (record: Attraction) => (
         <div className="space-y-1 text-xs">
-          <p>游览：<span className="font-medium text-gray-900">{formatDuration(record.suggestedDurationMin)}</span></p>
-          <p>接驳：<span className="font-medium text-gray-900">{formatDuration(record.transferDurationMin)}</span></p>
+          <p>游览：<span className="font-medium text-gray-900">{formatDurationMinutes(record.suggestedDurationMin)}</span></p>
+          <p>接驳：<span className="font-medium text-gray-900">{formatDurationMinutes(record.transferDurationMin)}</span></p>
         </div>
       ),
     },
@@ -582,8 +574,8 @@ export default function AttractionPage() {
               <DetailRow label="开放季节" value={detail.openSeason || detail.visitDuration || '-'} />
               <DetailRow label="开放时间" value={detail.openHours || '-'} />
               <DetailRow label="码头距离" value={detail.portDistanceKm || detail.portDistanceKm === 0 ? `${detail.portDistanceKm} km` : '-'} />
-              <DetailRow label="单程接驳" value={formatDuration(detail.transferDurationMin)} />
-              <DetailRow label="建议游览" value={formatDuration(detail.suggestedDurationMin)} />
+              <DetailRow label="单程接驳" value={formatDurationMinutes(detail.transferDurationMin)} />
+              <DetailRow label="建议游览" value={formatDurationMinutes(detail.suggestedDurationMin)} />
               <DetailRow label="游览强度" value={detail.difficulty || '-'} />
               <DetailRow label="适配客群" value={detail.suitableGroups || '-'} />
               <DetailRow label="是否需预约" value={detail.bookingRequired ? '是' : '否'} />

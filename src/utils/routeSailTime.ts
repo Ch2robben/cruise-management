@@ -1,5 +1,6 @@
 import type { Port } from '@/types'
 import { getPortMileagePosition, yangtzeMileageAnchors } from '@/mock/yangtzeRiverMileage'
+import { formatDurationMinutes } from '@/utils/format'
 
 const DOWNSTREAM_SPEED_KMH = 18
 const UPSTREAM_SPEED_KMH = 15
@@ -127,6 +128,5 @@ export function applySailTimesToStops<T extends RouteStopLike>(
 export function formatSailTimeMinutes(value: string | undefined): string {
   if (!value?.trim()) return '-'
   const minutes = Number(value)
-  if (Number.isFinite(minutes) && minutes > 0) return `${minutes} 分钟`
-  return value
+  return formatDurationMinutes(Number.isFinite(minutes) ? minutes : undefined)
 }
