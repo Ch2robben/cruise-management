@@ -18,6 +18,16 @@ export function formatDate(dateStr: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** 分钟数 → "X小时Y分钟" 中文格式 */
+export function formatDurationMinutes(minutes?: number): string {
+  if (minutes === undefined || minutes === null || Number.isNaN(minutes)) return '-'
+  if (minutes <= 0) return '-'
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (!hours) return `${rest}分钟`
+  return rest ? `${hours}小时${rest}分钟` : `${hours}小时`
+}
+
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9)
 }

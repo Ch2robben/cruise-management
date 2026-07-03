@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { templateApi } from '@/mock/api'
-import { products, ships } from '@/mock/data'
+import { products, ships, voyages } from '@/mock/data'
+import TemplateLinkedVoyagesCell from '@/components/voyage/TemplateLinkedVoyagesCell'
+import { groupVoyagesByTemplateId } from '@/utils/templateLinkedVoyages'
 import { getTemplateCabinTypes, hasConfiguredTemplatePrice } from '@/mock/templatePriceRules'
 import type { PaginatedResult, SearchParams, VoyageTemplate } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
+import TemplateLinkVoyageDialog from '@/components/voyage/TemplateLinkVoyageDialog'
 
 const statusLabels: Record<string, string> = { draft: '草稿', enabled: '已启用', disabled: '已停用' }
 const statusColors: Record<string, string> = {
@@ -33,6 +36,7 @@ export default function VoyagePriceTemplatePage() {
     statusFilter: 'all',
   })
   const [autoOpenedTemplateId, setAutoOpenedTemplateId] = useState<string | null>(null)
+  const [linkTemplateId, setLinkTemplateId] = useState<string | null>(null)
 
   const fetchData = useCallback(
     async (page = 1) => {
@@ -61,6 +65,8 @@ export default function VoyagePriceTemplatePage() {
   const getTemplateDirection = (template: VoyageTemplate) =>
     directionLabels[products.find((item) => item.id === template.productId)?.routeType || ''] || '-'
 
+  const linkedVoyagesByTemplate = useMemo(() => groupVoyagesByTemplateId(voyages), [data])
+
   const columns = [
     {
       key: 'index',
@@ -88,6 +94,14 @@ export default function VoyagePriceTemplatePage() {
       title: '基准价参考',
       width: '110px',
       render: (record: VoyageTemplate) => (record.basePriceRef ? `¥${record.basePriceRef}` : '-'),
+    },
+    {
+      key: 'linkedVoyages',
+      title: '生效航次',
+      width: '200px',
+      render: (record: VoyageTemplate) => (
+        <TemplateLinkedVoyagesCell voyages={linkedVoyagesByTemplate.get(record.id) || []} />
+      ),
     },
     {
       key: 'priceStatus',
@@ -122,14 +136,22 @@ export default function VoyagePriceTemplatePage() {
     {
       key: 'actions',
       title: '操作',
-      width: '120px',
+      width: '200px',
       render: (record: VoyageTemplate) => (
-        <button
-          onClick={() => navigate(`/voyage/price-templates/${record.id}`)}
-          className="text-sm text-blue-600 hover:text-blue-700"
-        >
-          配置价格
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(`/voyage/price-templates/${record.id}`)}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            配置价格
+          </button>
+          <button
+            onClick={() => setLinkTemplateId(record.id)}
+            className="text-sm text-gray-600 hover:text-gray-900"
+          >
+            关联航次
+          </button>
+        </div>
       ),
     },
   ]
@@ -203,6 +225,13 @@ export default function VoyagePriceTemplatePage() {
           total: data.total,
           onChange: fetchData,
         }}
+      />
+
+      <TemplateLinkVoyageDialog
+        open={Boolean(linkTemplateId)}
+        templateId={linkTemplateId}
+        onClose={() => setLinkTemplateId(null)}
+        onSaved={() => fetchData(data.page)}
       />
     </div>
   )

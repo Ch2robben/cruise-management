@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, X } from 'lucide-react'
-import { voyageApi, priceApi, templateApi } from '@/mock/api'
+import { voyageApi, priceApi } from '@/mock/api'
 import { dealers, products, voyageTemplates, voyages, routes, ships } from '@/mock/data'
-import type { Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, VoyageTemplate, TemplateItinerary } from '@/types'
+import type { Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, TemplateItinerary } from '@/types'
 import { formatDateTime } from '@/utils/format'
+import { resolveTemplateItinerary } from '@/utils/productVoyageConfig'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
@@ -56,7 +57,6 @@ export default function VoyagePage() {
   // 航次行程
   const [itineraryOpen, setItineraryOpen] = useState(false)
   const [itineraryVoyage, setItineraryVoyage] = useState<Voyage | null>(null)
-  const [itineraryTemplate, setItineraryTemplate] = useState<VoyageTemplate | null>(null)
   const [itineraryDraft, setItineraryDraft] = useState<TemplateItinerary[]>([])
 
   // 价格日历
@@ -162,28 +162,32 @@ export default function VoyagePage() {
       || voyageTemplates.find(item => item.name === voyage.templateName)
       || voyageTemplates.find(item => item.productId === voyage.productId)
       || null
+    const product = products.find((item) => item.id === voyage.productId)
+    const baseItinerary = template ? resolveTemplateItinerary(template, product) : []
     setItineraryVoyage(voyage)
-    setItineraryTemplate(template)
-    setItineraryDraft(template?.itinerary.map(item => ({ ...item })) || [])
+    setItineraryDraft(
+      Array.isArray(voyage.itinerary) && voyage.itinerary.length
+        ? voyage.itinerary.map((item) => ({ ...item }))
+        : baseItinerary.map((item) => ({ ...item })),
+    )
     setItineraryOpen(true)
   }
 
   const closeItinerary = () => {
     setItineraryOpen(false)
     setItineraryVoyage(null)
-    setItineraryTemplate(null)
     setItineraryDraft([])
   }
 
   const saveItinerary = async () => {
-    if (!itineraryTemplate) return
-    await templateApi.update(itineraryTemplate.id, {
+    if (!itineraryVoyage) return
+    await voyageApi.update(itineraryVoyage.id, {
       itinerary: itineraryDraft,
       updatedBy: '当前用户',
       updatedAt: new Date().toISOString(),
     })
-    setItineraryTemplate({ ...itineraryTemplate, itinerary: itineraryDraft, updatedBy: '当前用户', updatedAt: new Date().toISOString() })
     setItineraryOpen(false)
+    fetchData(data.page)
   }
 
   const genTemplates = voyageTemplates.filter((t) => t.productId === genProductId)
@@ -306,27 +310,23 @@ export default function VoyagePage() {
               <div>
                 <h3 className="text-base font-semibold text-gray-900">编辑航次行程 · {itineraryVoyage.voyageNo}</h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  {itineraryVoyage.productName} · 模板：{itineraryTemplate?.name || itineraryVoyage.templateName || '未找到关联模板'}
+                  {itineraryVoyage.productName} · 基础行程在资源管理 → 行程管理中维护；此处保存为当前航次专属覆盖。
                 </p>
               </div>
               <button onClick={closeItinerary} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto p-5">
-              {!itineraryTemplate ? (
-                <div className="rounded-lg border border-dashed border-gray-300 py-16 text-center text-sm text-gray-400">未找到该航次关联的航次模板</div>
-              ) : (
-                <ItineraryEditor
-                  value={itineraryDraft}
-                  onChange={setItineraryDraft}
-                  compact
-                  emptyText="该模板暂无行程配置"
-                />
-              )}
+              <ItineraryEditor
+                value={itineraryDraft}
+                onChange={setItineraryDraft}
+                compact
+                emptyText="暂无行程配置，请先在行程管理中维护关联产品的行程方案"
+              />
             </div>
             <div className="flex justify-end gap-3 border-t px-6 py-4">
               <button onClick={closeItinerary} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-              <button onClick={saveItinerary} disabled={!itineraryTemplate} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50">保存</button>
+              <button onClick={saveItinerary} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">保存</button>
             </div>
           </div>
         </div>

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
-import { ArrowLeftRight, RefreshCw, Shuffle, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeftRight, Link2, Plus, RefreshCw, Shuffle, SlidersHorizontal, Trash2 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import FormDialog from '@/components/common/FormDialog'
+import { voyages } from '@/mock/data'
 import {
   demoVoyage,
   initialAllocationLogs,
@@ -14,6 +15,14 @@ import {
   type AllocationOrderRoom,
   type FloorInventoryPool,
 } from '@/mock/inventoryAllocation'
+import {
+  buildPoolsFromVoyage,
+  createEmptyOversellRule,
+  getVoyageInventoryRows,
+  prepareVoyageWorkbenchState,
+  saveVoyageOversellRules,
+  type VoyageOversellRule,
+} from '@/mock/voyageOversellRules'
 import { formatCurrency } from '@/utils/format'
 
 function nowStr() {
@@ -32,20 +41,58 @@ function MetricCard({ label, value, hint, warning }: { label: string; value: str
   )
 }
 
+function loadVoyageState(voyageId: string) {
+  const next = prepareVoyageWorkbenchState(voyageId)
+  return {
+    rules: next.rules,
+    pools: next.pools.length > 0 ? next.pools : JSON.parse(JSON.stringify(initialFloorPools)),
+    rooms: next.rooms.length > 0 ? next.rooms : JSON.parse(JSON.stringify(initialAllocationRooms)),
+    logs: next.logs.length > 0 ? next.logs : JSON.parse(JSON.stringify(initialAllocationLogs)),
+  }
+}
+
 export default function InventoryAllocationPage() {
-  const [pools, setPools] = useState<FloorInventoryPool[]>(() => JSON.parse(JSON.stringify(initialFloorPools)))
-  const [rooms, setRooms] = useState<AllocationOrderRoom[]>(() => JSON.parse(JSON.stringify(initialAllocationRooms)))
-  const [logs, setLogs] = useState<AllocationLog[]>(() => JSON.parse(JSON.stringify(initialAllocationLogs)))
+  const voyageOptions = useMemo(
+    () => voyages
+      .filter((item) => item.status === 'ticketing')
+      .sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [],
+  )
+
+  const [selectedVoyageId, setSelectedVoyageId] = useState('v01')
+  const selectedVoyage = voyageOptions.find((item) => item.id === selectedVoyageId) || voyageOptions[0]
+
+  const [oversellRules, setOversellRules] = useState<VoyageOversellRule[]>(() => loadVoyageState('v01').rules)
+  const [pools, setPools] = useState<FloorInventoryPool[]>(() => loadVoyageState('v01').pools)
+  const [rooms, setRooms] = useState<AllocationOrderRoom[]>(() => loadVoyageState('v01').rooms)
+  const [logs, setLogs] = useState<AllocationLog[]>(() => loadVoyageState('v01').logs)
+  const [rulesDirty, setRulesDirty] = useState(false)
 
   const [changeTarget, setChangeTarget] = useState<AllocationOrderRoom | null>(null)
   const [changeFloor, setChangeFloor] = useState('')
   const [swapSource, setSwapSource] = useState<AllocationOrderRoom | null>(null)
   const [swapTargetId, setSwapTargetId] = useState('')
 
+  const cabinTypes = useMemo(
+    () => getVoyageInventoryRows(selectedVoyageId).map((item) => item.cabinTypeName),
+    [selectedVoyageId],
+  )
+
+  useEffect(() => {
+    const next = loadVoyageState(selectedVoyageId)
+    setOversellRules(next.rules)
+    setPools(next.pools)
+    setRooms(next.rooms)
+    setLogs(next.logs)
+    setRulesDirty(false)
+    setChangeTarget(null)
+    setSwapSource(null)
+  }, [selectedVoyageId])
+
   const pendingRooms = useMemo(() => rooms.filter((r) => r.inventoryStatus === 'oversold_pending' || r.inventoryStatus === 'auto_upgraded'), [rooms])
   const basicPools = useMemo(() => pools.filter((p) => p.tier === 'basic'), [pools])
   const premiumPools = useMemo(() => pools.filter((p) => p.tier === 'premium'), [pools])
-  const releasableBasic = useMemo(() => pendingRooms.filter((r) => r.soldFloor === '2F' || r.soldFloor === '3F').length, [pendingRooms])
+  const releasableBasic = useMemo(() => pendingRooms.filter((r) => basicPools.some((pool) => pool.floorLabel === r.soldFloor)).length, [basicPools, pendingRooms])
 
   const swapTarget = useMemo(() => rooms.find((r) => r.id === swapTargetId), [rooms, swapTargetId])
   const swapCandidates = useMemo(() => {
@@ -70,9 +117,55 @@ export default function InventoryAllocationPage() {
     )
   }
 
+  const applyOversellRules = () => {
+    saveVoyageOversellRules(selectedVoyageId, oversellRules)
+    setPools(buildPoolsFromVoyage(selectedVoyageId, oversellRules))
+    setRulesDirty(false)
+    appendLog({
+      actionType: 'manual_change_cabin',
+      actionLabel: '超售关联',
+      summary: `更新航次 ${selectedVoyage?.voyageNo || selectedVoyageId} 房型超售关联 ${oversellRules.length} 条`,
+      operator: '计调-王敏',
+    })
+  }
+
+  const updateRule = (ruleId: string, patch: Partial<VoyageOversellRule>) => {
+    setOversellRules((prev) => prev.map((rule) => (rule.id === ruleId ? { ...rule, ...patch } : rule)))
+    setRulesDirty(true)
+  }
+
+  const toggleRuleTarget = (ruleId: string, cabinType: string) => {
+    setOversellRules((prev) => prev.map((rule) => {
+      if (rule.id !== ruleId) return rule
+      const exists = rule.targetCabinTypes.includes(cabinType)
+      return {
+        ...rule,
+        targetCabinTypes: exists
+          ? rule.targetCabinTypes.filter((item) => item !== cabinType)
+          : [...rule.targetCabinTypes, cabinType],
+      }
+    }))
+    setRulesDirty(true)
+  }
+
+  const addRule = () => {
+    if (cabinTypes.length < 2) return
+    setOversellRules((prev) => [...prev, createEmptyOversellRule(cabinTypes)])
+    setRulesDirty(true)
+  }
+
+  const removeRule = (ruleId: string) => {
+    setOversellRules((prev) => prev.filter((rule) => rule.id !== ruleId))
+    setRulesDirty(true)
+  }
+
   const openChangeCabin = (room: AllocationOrderRoom) => {
     setChangeTarget(room)
-    const options = pools.filter((p) => p.tier === 'premium' && poolAvailable(p) > 0)
+    const sourcePool = pools.find((pool) => pool.floorLabel === room.soldFloor)
+    const options = pools.filter((pool) => {
+      if (sourcePool?.upgradeTargets.length) return sourcePool.upgradeTargets.includes(pool.id) && poolAvailable(pool) > 0
+      return pool.tier === 'premium' && poolAvailable(pool) > 0
+    })
     setChangeFloor(options[0]?.floorLabel ?? '')
   }
 
@@ -85,6 +178,7 @@ export default function InventoryAllocationPage() {
           ? {
               ...room,
               allocatedFloor: changeFloor,
+              allocatedCabinType: changeFloor,
               inventoryStatus: room.soldFloor === changeFloor ? 'normal' : 'auto_upgraded',
             }
           : room,
@@ -151,13 +245,20 @@ export default function InventoryAllocationPage() {
   const runAutoUpgradeDemo = () => {
     const pending = rooms.find((r) => r.inventoryStatus === 'oversold_pending')
     if (!pending) return
-    const target = premiumPools.find((p) => poolAvailable(p) > 0)
+    const sourcePool = pools.find((pool) => pool.floorLabel === pending.soldFloor)
+    const target = pools.find((pool) => sourcePool?.upgradeTargets.includes(pool.id) && poolAvailable(pool) > 0)
+      || premiumPools.find((pool) => poolAvailable(pool) > 0)
     if (!target) return
     const before = pending.allocatedFloor
     setRooms((prev) =>
       prev.map((room) =>
         room.id === pending.id
-          ? { ...room, allocatedFloor: target.floorLabel, inventoryStatus: 'auto_upgraded' }
+          ? {
+              ...room,
+              allocatedFloor: target.floorLabel,
+              allocatedCabinType: target.cabinType,
+              inventoryStatus: 'auto_upgraded',
+            }
           : room,
       ),
     )
@@ -174,30 +275,181 @@ export default function InventoryAllocationPage() {
   }
 
   const resetDemo = () => {
-    setPools(JSON.parse(JSON.stringify(initialFloorPools)))
-    setRooms(JSON.parse(JSON.stringify(initialAllocationRooms)))
-    setLogs(JSON.parse(JSON.stringify(initialAllocationLogs)))
+    const next = loadVoyageState(selectedVoyageId)
+    setOversellRules(next.rules)
+    setPools(next.pools)
+    setRooms(next.rooms)
+    setLogs(next.logs)
+    setRulesDirty(false)
     setChangeTarget(null)
     setSwapSource(null)
   }
+
+  const voyageBanner = selectedVoyage
+    ? `${selectedVoyage.shipName} · ${selectedVoyage.routeName} · ${selectedVoyage.startDate} · 航次 ${selectedVoyage.voyageNo}`
+    : `${demoVoyage.shipName} · ${demoVoyage.route} · ${demoVoyage.sailDate} · 航次 ${demoVoyage.voyageNo}`
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="库存调配工作台"
-        description="超售场景下的自动升舱、改房型释放基础库存、升舱补差订单对调（排房前操作）"
+        description="配置房型超售关联，并在超售场景下执行自动升舱、改房型释放库存、升舱补差订单对调（排房前操作）"
       />
 
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex min-w-[280px] flex-col gap-1.5">
+            <span className="text-xs text-gray-500">选择航次</span>
+            <select
+              value={selectedVoyageId}
+              onChange={(event) => setSelectedVoyageId(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            >
+              {voyageOptions.map((voyage) => (
+                <option key={voyage.id} value={voyage.id}>
+                  {voyage.voyageNo} · {voyage.startDate} · {voyage.shipName}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selectedVoyage && (
+            <div className="text-sm text-gray-600">
+              <span className="text-gray-500">产品：</span>{selectedVoyage.productName}
+              <span className="mx-2 text-gray-300">|</span>
+              <span className="text-gray-500">可售舱位：</span>{selectedVoyage.availableCabins}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <Link2 className="h-4 w-4 text-blue-600" />
+            房型超售关联
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={addRule}
+              disabled={cabinTypes.length < 2}
+              className="inline-flex h-8 items-center gap-1 rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+            >
+              <Plus className="h-3.5 w-3.5" /> 新增关联
+            </button>
+            <button
+              type="button"
+              onClick={applyOversellRules}
+              disabled={!rulesDirty}
+              className="inline-flex h-8 items-center gap-1 rounded-md bg-blue-600 px-3 text-xs text-white hover:bg-blue-700 disabled:opacity-40"
+            >
+              保存并应用
+            </button>
+          </div>
+        </div>
+
+        <p className="border-b border-gray-100 px-4 py-2 text-xs text-gray-500">
+          将售卖房型关联到可占用房型：当售卖房型库存售罄后，可继续超售并按关联顺序占用高档房型，结算仍按原售卖房型计价。
+        </p>
+
+        {cabinTypes.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-gray-400">当前航次暂无库存房型数据</div>
+        ) : oversellRules.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-gray-400">
+            尚未配置超售关联，点击「新增关联」添加规则
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-white text-xs text-gray-500">
+                  <th className="px-4 py-3 text-left font-medium">售卖房型</th>
+                  <th className="px-4 py-3 text-left font-medium">关联占用房型</th>
+                  <th className="px-4 py-3 text-left font-medium">超售上限</th>
+                  <th className="px-4 py-3 text-left font-medium">说明</th>
+                  <th className="px-4 py-3 text-center font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {oversellRules.map((rule) => {
+                  const targetOptions = cabinTypes.filter((name) => name !== rule.sellCabinType)
+                  return (
+                    <tr key={rule.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <select
+                          value={rule.sellCabinType}
+                          onChange={(event) => updateRule(rule.id, {
+                            sellCabinType: event.target.value,
+                            targetCabinTypes: rule.targetCabinTypes.filter((item) => item !== event.target.value),
+                          })}
+                          className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                        >
+                          {cabinTypes.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          {targetOptions.map((name) => (
+                            <label key={name} className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-2 py-1 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={rule.targetCabinTypes.includes(name)}
+                                onChange={() => toggleRuleTarget(rule.id, name)}
+                                className="rounded border-gray-300 text-blue-600"
+                              />
+                              {name}
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          min={0}
+                          value={rule.oversellLimit}
+                          onChange={(event) => updateRule(rule.id, { oversellLimit: Math.max(0, Number(event.target.value) || 0) })}
+                          className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        {rule.targetCabinTypes.length > 0
+                          ? `${rule.sellCabinType} 售罄后可超售 ${rule.oversellLimit} 间，依次占用 ${rule.targetCabinTypes.join(' → ')}`
+                          : '请至少选择一个关联占用房型'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeRule(rule.id)}
+                          className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3 w-3" /> 删除
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        <strong>{demoVoyage.shipName}</strong> · {demoVoyage.route} · {demoVoyage.sailDate} · 航次 {demoVoyage.voyageNo}
-        <span className="ml-3 text-blue-600">基础楼层（2F/3F）已满，高档楼层（4F/5F）仍有余量，存在超售待调配订单。</span>
+        <strong>{voyageBanner}</strong>
+        <span className="ml-3 text-blue-600">
+          {basicPools.some((pool) => poolAvailable(pool) === 0 && pool.oversellLimit > 0)
+            ? '基础房型已满或触发超售，存在待调配订单。'
+            : '已加载当前航次房型库存与超售关联规则。'}
+        </span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="基础楼层可售" value={basicPools.reduce((s, p) => s + poolAvailable(p), 0)} hint="2F + 3F 合计" warning />
+        <MetricCard label="基础房型可售" value={basicPools.reduce((s, p) => s + poolAvailable(p), 0)} hint="含超售额度" warning />
         <MetricCard label="待调配房间" value={pendingRooms.length} hint="超售 / 自动升舱" warning={pendingRooms.length > 0} />
         <MetricCard label="可释放基础库存" value={`约 ${releasableBasic} 间`} hint="通过对调或改房型" />
-        <MetricCard label="高档楼层可售" value={premiumPools.reduce((s, p) => s + poolAvailable(p), 0)} hint="4F + 5F 合计" />
+        <MetricCard label="高档房型可售" value={premiumPools.reduce((s, p) => s + poolAvailable(p), 0)} hint="关联占用来源" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -220,11 +472,14 @@ export default function InventoryAllocationPage() {
       <div className="grid gap-5 xl:grid-cols-5">
         <section className="xl:col-span-2 space-y-4">
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800">楼层库存池</div>
+            <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800">房型库存池</div>
             <div className="divide-y divide-gray-100">
               {pools.map((pool) => {
                 const available = poolAvailable(pool)
                 const rate = pool.release > 0 ? Math.round((pool.sold / pool.release) * 100) : 0
+                const linkedNames = pool.upgradeTargets
+                  .map((targetId) => pools.find((item) => item.id === targetId)?.cabinType)
+                  .filter(Boolean)
                 return (
                   <div key={pool.id} className="px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
@@ -232,7 +487,7 @@ export default function InventoryAllocationPage() {
                         <span className={`mr-2 rounded px-1.5 py-0.5 text-[10px] font-medium ${pool.tier === 'basic' ? 'bg-slate-100 text-slate-600' : 'bg-purple-100 text-purple-700'}`}>
                           {pool.tier === 'basic' ? '基础' : '高档'}
                         </span>
-                        <span className="text-sm font-medium text-gray-900">{pool.floorLabel} · {pool.cabinType}</span>
+                        <span className="text-sm font-medium text-gray-900">{pool.cabinType}</span>
                       </div>
                       <span className={`text-xs font-medium ${available === 0 ? 'text-red-600' : 'text-green-600'}`}>
                         可售 {available}
@@ -244,10 +499,15 @@ export default function InventoryAllocationPage() {
                         style={{ width: `${Math.min(rate, 100)}%` }}
                       />
                     </div>
-                    <div className="mt-1 flex justify-between text-xs text-gray-500">
+                    <div className="mt-1 flex flex-wrap justify-between gap-1 text-xs text-gray-500">
                       <span>已售 {pool.sold} / 投放 {pool.release}</span>
                       {pool.oversellLimit > 0 && <span>可超售 {pool.oversellLimit}</span>}
                     </div>
+                    {linkedNames.length > 0 && (
+                      <div className="mt-1 text-xs text-blue-600">
+                        关联占用：{linkedNames.join('、')}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -264,21 +524,27 @@ export default function InventoryAllocationPage() {
             <table className="w-full min-w-[920px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-white text-xs text-gray-500">
-                  {['订单', '团名', '房间', '结算楼层', '占用楼层', '结算价', '状态', '操作'].map((col) => (
+                  {['订单', '团名', '房间', '结算房型', '占用房型', '结算价', '状态', '操作'].map((col) => (
                     <th key={col} className="px-3 py-3 text-left font-medium">{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rooms.map((room) => (
+                {rooms.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-12 text-center text-sm text-gray-400">
+                      当前航次暂无待调配演示订单
+                    </td>
+                  </tr>
+                ) : rooms.map((room) => (
                   <tr key={room.id} className="hover:bg-gray-50">
                     <td className="px-3 py-3 font-mono text-xs">{room.orderNo}</td>
                     <td className="px-3 py-3">{room.groupName}</td>
                     <td className="px-3 py-3">房{room.roomSeq} · {room.guestName}</td>
-                    <td className="px-3 py-3">{room.soldFloor} {room.soldCabinType}</td>
+                    <td className="px-3 py-3">{room.soldCabinType}</td>
                     <td className="px-3 py-3">
-                      <span className={room.soldFloor !== room.allocatedFloor ? 'font-medium text-orange-600' : ''}>
-                        {room.allocatedFloor} {room.allocatedCabinType}
+                      <span className={room.soldCabinType !== room.allocatedCabinType ? 'font-medium text-orange-600' : ''}>
+                        {room.allocatedCabinType}
                       </span>
                     </td>
                     <td className="px-3 py-3 tabular-nums">
@@ -349,14 +615,14 @@ export default function InventoryAllocationPage() {
         {changeTarget && (
           <div className="space-y-4 text-sm">
             <p className="text-gray-600">
-              将订单 <strong>{changeTarget.orderNo}</strong> 房间{changeTarget.roomSeq} 的<strong>实际占用</strong>调整到高档楼层，
-              结算仍按 <strong>{changeTarget.soldFloor}</strong> 计价，从而释放基础楼层库存。
+              将订单 <strong>{changeTarget.orderNo}</strong> 房间{changeTarget.roomSeq} 的<strong>实际占用</strong>调整到关联房型，
+              结算仍按 <strong>{changeTarget.soldCabinType}</strong> 计价，从而释放基础房型库存。
             </p>
             <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-              当前：卖 {changeTarget.soldFloor} / 占 {changeTarget.allocatedFloor} · {formatCurrency(changeTarget.soldPrice)}
+              当前：卖 {changeTarget.soldCabinType} / 占 {changeTarget.allocatedCabinType} · {formatCurrency(changeTarget.soldPrice)}
             </div>
             <label className="block">
-              <span className="mb-1 block text-gray-700">调整到占用楼层</span>
+              <span className="mb-1 block text-gray-700">调整到占用房型</span>
               <select
                 value={changeFloor}
                 onChange={(e) => setChangeFloor(e.target.value)}
@@ -364,7 +630,7 @@ export default function InventoryAllocationPage() {
               >
                 {changeFloorOptions.map((pool) => (
                   <option key={pool.id} value={pool.floorLabel}>
-                    {pool.floorLabel}（可售 {poolAvailable(pool)}）
+                    {pool.cabinType}（可售 {poolAvailable(pool)}）
                   </option>
                 ))}
               </select>
@@ -383,11 +649,11 @@ export default function InventoryAllocationPage() {
         {swapSource && (
           <div className="space-y-4 text-sm">
             <p className="text-gray-600">
-              将<strong>超售单</strong>（低价占高档房）与<strong>升舱单</strong>（愿付补差）对调占用楼层，回收升舱差价。
+              将<strong>超售单</strong>（低价占高档房）与<strong>升舱单</strong>（愿付补差）对调占用房型，回收升舱差价。
               须在排房前完成。
             </p>
             <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-800">
-              源订单：{swapSource.orderNo} 房{swapSource.roomSeq} · 卖{swapSource.soldFloor} 占{swapSource.allocatedFloor}
+              源订单：{swapSource.orderNo} 房{swapSource.roomSeq} · 卖{swapSource.soldCabinType} 占{swapSource.allocatedCabinType}
             </div>
             <label className="block">
               <span className="mb-1 block text-gray-700">选择对调目标订单</span>
@@ -399,7 +665,7 @@ export default function InventoryAllocationPage() {
                 <option value="">请选择</option>
                 {swapCandidates.map((room) => (
                   <option key={room.id} value={room.id}>
-                    {room.orderNo} 房{room.roomSeq} · 卖{room.soldFloor} 占{room.allocatedFloor}
+                    {room.orderNo} 房{room.roomSeq} · 卖{room.soldCabinType} 占{room.allocatedCabinType}
                     {room.upgradeFee > 0 ? ` · 补差¥${room.upgradeFee}` : ''}
                   </option>
                 ))}
@@ -410,9 +676,9 @@ export default function InventoryAllocationPage() {
                 <div className="mb-2 flex items-center gap-2 font-medium text-gray-900">
                   <ArrowLeftRight className="h-4 w-4" /> 对调预览
                 </div>
-                <div>A：占 {swapSource.allocatedFloor} → {swapTarget.allocatedFloor}（仍按 {swapSource.soldFloor} 结算）</div>
-                <div>B：占 {swapTarget.allocatedFloor} → {swapSource.allocatedFloor}（仍按 {swapTarget.soldFloor} 结算，补差 ¥{swapTarget.upgradeFee}）</div>
-                <div className="mt-2 text-green-700">基础楼层 {swapSource.soldFloor} 释放 1 间可售库存</div>
+                <div>A：占 {swapSource.allocatedCabinType} → {swapTarget.allocatedCabinType}（仍按 {swapSource.soldCabinType} 结算）</div>
+                <div>B：占 {swapTarget.allocatedCabinType} → {swapSource.allocatedCabinType}（仍按 {swapTarget.soldCabinType} 结算，补差 ¥{swapTarget.upgradeFee}）</div>
+                <div className="mt-2 text-green-700">基础房型 {swapSource.soldCabinType} 释放 1 间可售库存</div>
               </div>
             )}
           </div>

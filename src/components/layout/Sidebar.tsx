@@ -15,7 +15,6 @@ const menuItems: MenuItem[] = [
     key: 'resources', label: '资源', icon: 'Package',
     children: [
       { key: 'port', label: '码头管理', path: '/resources/ports' },
-      { key: 'port_distance', label: '码头距离库', path: '/resources/port-distances' },
       { key: 'attraction', label: '景点管理', path: '/resources/attractions' },
       { key: 'route', label: '航线管理', path: '/resources/routes' },
       { key: 'itinerary', label: '行程管理', path: '/resources/itineraries' },
@@ -35,6 +34,7 @@ const menuItems: MenuItem[] = [
       { key: 'voyage_template', label: '航次模板', path: '/voyage/templates' },
       { key: 'voyage_price_template', label: '航次价格配置', path: '/voyage/price-templates' },
       { key: 'voyage_inventory_template', label: '航次库存配置', path: '/voyage/inventory-templates' },
+      { key: 'voyage_calendar_board', label: '日历看板', path: '/voyage/calendar-board' },
       { key: 'voyage_inv', label: '航次库存看板', path: '/voyage/inventory' },
       { key: 'voyage_allocation', label: '库存调配工作台', path: '/voyage/inventory-allocation' },
       // { key: 'pricing_rule', label: '房型定价规则', path: '/voyage/pricing-rules' },
@@ -73,6 +73,12 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
+    key: 'user_management', label: '用户管理', icon: 'Users',
+    children: [
+      { key: 'user_center', label: '用户中心', path: '/user-management' },
+    ],
+  },
+  {
     key: 'finance', label: '财务管理', icon: 'Wallet',
     children: [
       { key: 'reconciliation', label: '对账批次', path: '/finance/reconciliations' },
@@ -91,6 +97,7 @@ const menuItems: MenuItem[] = [
       { key: 'holiday', label: '节假日设置', path: '/basic/holidays' },
       { key: 'id_type', label: '证件类型管理', path: '/basic/id-types' },
       { key: 'age_group', label: '年龄段管理', path: '/basic/age-groups' },
+      { key: 'activity_category', label: '分级字典', path: '/basic/hierarchical-dictionaries' },
     ],
   },
   {
@@ -150,6 +157,7 @@ export default function Sidebar() {
     distribution: true,
     service: true,
     customer: true,
+    user_management: true,
     finance: true,
     report: true,
     basic: true,

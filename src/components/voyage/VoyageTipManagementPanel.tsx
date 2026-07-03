@@ -36,7 +36,7 @@ function createDefaultRules(template?: VoyageTemplate, segmentKey = 'all'): Voya
   if (templateTips.length > 0) {
     return templateTips.map((tip, index) => ({
       id: tip.id || generateId(),
-      marketCategory: tip.marketCategory,
+      marketCategory: tip.roomType || (tip as { marketCategory?: string }).marketCategory || '',
       chargeType: 'perPerson' as const,
       amount: segmentKey === 'all' ? tip.tip : Math.max(0, tip.tip + (segmentKey.length % 3) * 10 - index * 5),
       status: 'enabled' as const,

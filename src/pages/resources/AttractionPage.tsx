@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus, Upload, X } from 'lucide-react'
 import { attractionApi, portApi } from '@/mock/api'
-import type { Attraction, AttractionForm, PaginatedResult, Port, SearchParams } from '@/types'
-import { formatDateTime } from '@/utils/format'
+import type { Attraction, AttractionForm, PaginatedResult, Port, RiverReach, SearchParams } from '@/types'
+import { formatDateTime, formatDurationMinutes } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -10,6 +10,9 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import PortSelectByReach from '@/components/resources/PortSelectByReach'
+import { RIVER_REACH_LABEL, RIVER_REACH_OPTIONS } from '@/utils/constants'
+import { loadHierarchicalDictOptions, type HierarchicalDictOption } from '@/utils/hierarchicalDict'
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent'
 const categoryOptions = ['自然景观', '历史人文', '工程参观', '城市观光', '民俗体验', '船岸联游']
@@ -25,6 +28,8 @@ const emptyForm: AttractionForm = {
   longitude: 0,
   latitude: 0,
   category: '自然景观',
+  attractionService: '',
+  images: [],
   visitDuration: '全年',
   suggestedDurationMin: 120,
   portDistanceKm: 0,
@@ -38,22 +43,20 @@ const emptyForm: AttractionForm = {
   description: '',
 }
 
-const formatDuration = (minutes?: number) => {
-  if (!minutes && minutes !== 0) return '-'
-  if (minutes < 60) return `${minutes}分钟`
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  return rest ? `${hours}小时${rest}分钟` : `${hours}小时`
-}
+const isPreviewableImage = (url: string) => url.startsWith('data:') || url.startsWith('http')
 
 export default function AttractionPage() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<PaginatedResult<Attraction>>({ data: [], total: 0, page: 1, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
   const [portFilter, setPortFilter] = useState('all')
+  const [reachFilter, setReachFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [serviceFilter, setServiceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [portList, setPortList] = useState<Port[]>([])
+  const [serviceOptions, setServiceOptions] = useState<HierarchicalDictOption[]>([])
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -71,26 +74,53 @@ export default function AttractionPage() {
 
   useEffect(() => {
     portApi.list({ pageSize: 100 }).then((result) => setPortList(result.data))
+    loadHierarchicalDictOptions('ATTRACTION_SERVICE').then(setServiceOptions)
   }, [])
+
+  const getServiceLabel = (value?: string) => {
+    if (!value) return '-'
+    return serviceOptions.find((item) => item.value === value)?.label || value
+  }
+
+  const handleImageFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || form.images.length >= 5) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setForm((prev) => ({ ...prev, images: [...prev.images, reader.result as string] }))
+      }
+    }
+    reader.readAsDataURL(file)
+    event.target.value = ''
+  }
+
+  const removeImage = (idx: number) => {
+    setForm({ ...form, images: form.images.filter((_, i) => i !== idx) })
+  }
 
   const fetchData = useCallback(async (
     page = 1,
-    overrides?: { keyword?: string; portId?: string; category?: string; status?: string },
+    overrides?: { keyword?: string; portId?: string; riverReach?: string; category?: string; attractionService?: string; status?: string },
   ) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     const nextKeyword = overrides?.keyword ?? keyword
     const nextPortId = overrides?.portId ?? portFilter
+    const nextReach = overrides?.riverReach ?? reachFilter
     const nextCategory = overrides?.category ?? categoryFilter
+    const nextService = overrides?.attractionService ?? serviceFilter
     const nextStatus = overrides?.status ?? statusFilter
     if (nextKeyword.trim()) params.keyword = nextKeyword.trim()
     if (nextPortId !== 'all') params.portId = nextPortId
+    if (nextReach !== 'all') params.riverReach = nextReach
     if (nextCategory !== 'all') params.category = nextCategory
+    if (nextService !== 'all') params.attractionService = nextService
     if (nextStatus !== 'all') params.status = nextStatus
     const result = await attractionApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, portFilter, categoryFilter, statusFilter])
+  }, [keyword, portFilter, reachFilter, categoryFilter, serviceFilter, statusFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -98,9 +128,11 @@ export default function AttractionPage() {
   const handleReset = () => {
     setKeyword('')
     setPortFilter('all')
+    setReachFilter('all')
     setCategoryFilter('all')
+    setServiceFilter('all')
     setStatusFilter('all')
-    fetchData(1, { keyword: '', portId: 'all', category: 'all', status: 'all' })
+    fetchData(1, { keyword: '', portId: 'all', riverReach: 'all', category: 'all', attractionService: 'all', status: 'all' })
   }
 
   const patchFormByPort = (portId: string) => {
@@ -131,6 +163,8 @@ export default function AttractionPage() {
       longitude: record.longitude || 0,
       latitude: record.latitude || 0,
       category: record.category || '自然景观',
+      attractionService: record.attractionService || '',
+      images: [...(record.images || [])],
       visitDuration: record.visitDuration || '全年',
       suggestedDurationMin: record.suggestedDurationMin || 120,
       portDistanceKm: record.portDistanceKm || 0,
@@ -163,6 +197,7 @@ export default function AttractionPage() {
       portName: port?.name || '',
       city: form.city || port?.city || '',
       province: form.province || port?.province || '',
+      riverReach: port?.riverReach as RiverReach | undefined,
       status: 'enabled' as const,
       updatedBy: '当前用户',
       updatedAt: now,
@@ -189,13 +224,28 @@ export default function AttractionPage() {
       title: '景点名称',
       width: '220px',
       render: (record: Attraction) => (
-        <div>
-          <p className="font-medium text-gray-900">{record.name}</p>
-          <p className="mt-1 text-xs text-gray-500">{record.nameEn || '-'}</p>
+        <div className="flex items-start gap-3">
+          {record.images?.[0] && isPreviewableImage(record.images[0]) ? (
+            <img src={record.images[0]} alt={record.name} className="h-10 w-10 shrink-0 rounded object-cover" />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-xs text-gray-400">无图</div>
+          )}
+          <div>
+            <p className="font-medium text-gray-900">{record.name}</p>
+            <p className="mt-1 text-xs text-gray-500">{record.nameEn || '-'}</p>
+          </div>
         </div>
       ),
     },
     { key: 'portName', title: '关联码头', dataIndex: 'portName' as keyof Attraction, width: '180px' },
+    {
+      key: 'riverReach',
+      title: '江段',
+      width: '80px',
+      render: (record: Attraction) => (
+        <span className="text-sm text-gray-700">{record.riverReach ? RIVER_REACH_LABEL[record.riverReach] : '-'}</span>
+      ),
+    },
     {
       key: 'location',
       title: '城市/类型',
@@ -204,6 +254,7 @@ export default function AttractionPage() {
         <div>
           <p className="text-gray-900">{record.city}</p>
           <p className="mt-1 text-xs text-gray-500">{record.category || '-'}</p>
+          <p className="mt-1 text-xs text-blue-600">{getServiceLabel(record.attractionService)}</p>
         </div>
       ),
     },
@@ -213,8 +264,8 @@ export default function AttractionPage() {
       width: '190px',
       render: (record: Attraction) => (
         <div className="space-y-1 text-xs">
-          <p>游览：<span className="font-medium text-gray-900">{formatDuration(record.suggestedDurationMin)}</span></p>
-          <p>接驳：<span className="font-medium text-gray-900">{formatDuration(record.transferDurationMin)}</span></p>
+          <p>游览：<span className="font-medium text-gray-900">{formatDurationMinutes(record.suggestedDurationMin)}</span></p>
+          <p>接驳：<span className="font-medium text-gray-900">{formatDurationMinutes(record.transferDurationMin)}</span></p>
         </div>
       ),
     },
@@ -279,10 +330,17 @@ export default function AttractionPage() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">江段</label>
+          <select value={reachFilter} onChange={(event) => setReachFilter(event.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+            <option value="all">全部江段</option>
+            {RIVER_REACH_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">关联码头</label>
           <select value={portFilter} onChange={(event) => setPortFilter(event.target.value)} className="w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
             <option value="all">全部码头</option>
-            {portList.map((port) => <option key={port.id} value={port.id}>{port.name}</option>)}
+            <PortSelectByReach ports={portList} />
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -290,6 +348,13 @@ export default function AttractionPage() {
           <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
             <option value="all">全部类型</option>
             {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">景点服务</label>
+          <select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+            <option value="all">全部服务</option>
+            {serviceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -344,14 +409,61 @@ export default function AttractionPage() {
                 <label className="mb-1 block text-sm text-gray-700">关联码头 <span className="text-red-500">*</span></label>
                 <select value={form.portId} onChange={(event) => patchFormByPort(event.target.value)} className={inputClass}>
                   <option value="">请选择码头</option>
-                  {portList.map((port) => <option key={port.id} value={port.id}>{port.name} - {port.city}</option>)}
+                  <PortSelectByReach ports={portList} />
                 </select>
+                {form.portId && (() => {
+                  const port = portList.find((item) => item.id === form.portId)
+                  return port?.riverReach ? (
+                    <p className="mt-1 text-xs text-gray-500">江段：{RIVER_REACH_LABEL[port.riverReach]}{port.mileageKm != null ? ` · ${port.mileageKm}km` : ''}</p>
+                  ) : null
+                })()}
               </div>
               <div>
                 <label className="mb-1 block text-sm text-gray-700">景点类型</label>
                 <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className={inputClass}>
                   {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">景点服务</label>
+                <select value={form.attractionService} onChange={(event) => setForm({ ...form, attractionService: event.target.value })} className={inputClass}>
+                  <option value="">请选择</option>
+                  {serviceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="mb-1 block text-sm text-gray-700">景点图片（最多5张）</label>
+                <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
+                <div className="flex flex-wrap gap-2">
+                  {form.images.map((img, idx) => (
+                    <div key={`${idx}-${img.slice(0, 24)}`} className="group relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+                      {isPreviewableImage(img) ? (
+                        <img src={img} alt={`景点图${idx + 1}`} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-gray-400">图{idx + 1}</div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(idx)}
+                        className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-bl bg-red-500 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {form.images.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600"
+                    >
+                      <Upload className="h-4 w-4" />
+                      <span className="text-xs">上传</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-sm text-gray-700">省份</label>
@@ -440,17 +552,30 @@ export default function AttractionPage() {
               <DetailRow label="景点名称" value={detail.name} />
               <DetailRow label="英文名称" value={detail.nameEn || '-'} />
               <DetailRow label="关联码头" value={detail.portName} />
+              <DetailRow label="江段" value={detail.riverReach ? RIVER_REACH_LABEL[detail.riverReach] : '-'} />
               <DetailRow label="城市" value={`${detail.province || ''}${detail.city ? ` / ${detail.city}` : ''}`} />
               <DetailRow label="景点类型" value={detail.category || '-'} />
+              <DetailRow label="景点服务" value={getServiceLabel(detail.attractionService)} />
               <DetailRow label="详细地址" value={detail.address || '-'} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
             </DetailCard>
+            {(detail.images || []).length > 0 && (
+              <DetailCard title="景点图片">
+                <div className="flex flex-wrap gap-2">
+                  {(detail.images || []).map((img, idx) => (
+                    isPreviewableImage(img) ? (
+                      <img key={`${idx}-${img.slice(0, 24)}`} src={img} alt={`${detail.name}-${idx + 1}`} className="h-24 w-24 rounded-lg object-cover" />
+                    ) : null
+                  ))}
+                </div>
+              </DetailCard>
+            )}
             <DetailCard title="行程编排参数">
               <DetailRow label="开放季节" value={detail.openSeason || detail.visitDuration || '-'} />
               <DetailRow label="开放时间" value={detail.openHours || '-'} />
               <DetailRow label="码头距离" value={detail.portDistanceKm || detail.portDistanceKm === 0 ? `${detail.portDistanceKm} km` : '-'} />
-              <DetailRow label="单程接驳" value={formatDuration(detail.transferDurationMin)} />
-              <DetailRow label="建议游览" value={formatDuration(detail.suggestedDurationMin)} />
+              <DetailRow label="单程接驳" value={formatDurationMinutes(detail.transferDurationMin)} />
+              <DetailRow label="建议游览" value={formatDurationMinutes(detail.suggestedDurationMin)} />
               <DetailRow label="游览强度" value={detail.difficulty || '-'} />
               <DetailRow label="适配客群" value={detail.suitableGroups || '-'} />
               <DetailRow label="是否需预约" value={detail.bookingRequired ? '是' : '否'} />

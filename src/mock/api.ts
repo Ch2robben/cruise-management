@@ -44,7 +44,7 @@ export function createCrudApi<T extends { id: string; status: string }>(
       }
 
       // 分类筛选 (通用)
-      for (const key of ['type', 'category', 'region', 'brand', 'org', 'roleId', 'dictCode', 'level'] as const) {
+      for (const key of ['type', 'category', 'region', 'brand', 'org', 'roleId', 'dictCode', 'dictType', 'level', 'city', 'riverReach', 'parentId', 'attractionService'] as const) {
         if (params[key] && params[key] !== 'all') {
           const itemVal = (item as Record<string, unknown>)[key]
           if (itemVal !== params[key]) return false
@@ -183,6 +183,7 @@ import {
   idTypes,
   ageGroups,
   approvalFlows,
+  hierarchicalDictItems,
 } from './data'
 import type {
   Port,
@@ -193,6 +194,8 @@ import type {
   Role,
   Menu,
   Dictionary,
+  ActivityCategory,
+  HierarchicalDictItem,
   Ship,
   ShipForm,
   Voyage,
@@ -229,7 +232,7 @@ export const portDistanceApi = createCrudApi<PortDistance>(portDistances, {
 })
 
 export const attractionApi = createCrudApi<Attraction>(attractions, {
-  searchFields: ['name', 'nameEn', 'portName', 'city', 'category', 'description'],
+  searchFields: ['name', 'nameEn', 'portName', 'city', 'category', 'attractionService', 'description'],
 })
 
 export const userApi = createCrudApi<User>(users, {
@@ -247,6 +250,13 @@ export const menuApi = createCrudApi<Menu>(menus, {
 export const dictionaryApi = createCrudApi<Dictionary>(dictionaries, {
   searchFields: ['dictCode', 'dictName', 'itemName'],
 })
+
+export const hierarchicalDictApi = createCrudApi<HierarchicalDictItem>(hierarchicalDictItems, {
+  searchFields: ['code', 'nameCn', 'nameEn', 'remark'],
+})
+
+/** @deprecated 使用 hierarchicalDictApi */
+export const activityCategoryApi = hierarchicalDictApi
 
 export const approvalFlowApi = createCrudApi<ApprovalFlow>(approvalFlows, {
   searchFields: ['businessType'],
@@ -374,6 +384,11 @@ export const productApi = {
       filtered = filtered.filter((p) => p.routeId === params.routeId)
     }
 
+    // 行程方案筛选
+    if (params.itineraryPlanId && params.itineraryPlanId !== 'all') {
+      filtered = filtered.filter((p) => p.itineraryPlanId === params.itineraryPlanId)
+    }
+
     // 上下水类型筛选
     if (params.routeType && params.routeType !== 'all') {
       filtered = filtered.filter((p) => p.routeType === params.routeType)
@@ -466,6 +481,7 @@ export const voyageApi = {
     if (params.direction && params.direction !== 'all') filtered = filtered.filter((v) => v.direction === params.direction)
     if (params.routeId && params.routeId !== 'all') filtered = filtered.filter((v) => v.routeId === params.routeId)
     if (params.shipId && params.shipId !== 'all') filtered = filtered.filter((v) => v.shipId === params.shipId)
+    if (params.productId && typeof params.productId === 'string') filtered = filtered.filter((v) => v.productId === params.productId)
     if (params.dateFrom && typeof params.dateFrom === 'string') filtered = filtered.filter((v) => v.startDate >= params.dateFrom!)
     if (params.dateTo && typeof params.dateTo === 'string') filtered = filtered.filter((v) => v.startDate <= params.dateTo!)
     const page = params.page || 1
@@ -475,6 +491,13 @@ export const voyageApi = {
     return { data: filtered.slice(start, start + pageSize), total, page, pageSize }
   },
   async getById(id: string): Promise<Voyage | undefined> { await delay(300); return voyages.find((v) => v.id === id) },
+  async update(id: string, patch: Partial<Voyage>): Promise<Voyage | undefined> {
+    await delay(300)
+    const index = voyages.findIndex((v) => v.id === id)
+    if (index === -1) return undefined
+    voyages[index] = { ...voyages[index], ...patch }
+    return voyages[index]
+  },
   async remove(id: string): Promise<boolean> { await delay(300); const i = voyages.findIndex((v) => v.id === id); if (i === -1) return false; voyages.splice(i, 1); return true },
   async batchUpdateStatus(ids: string[], status: string): Promise<void> {
     await delay(300)
@@ -482,6 +505,19 @@ export const voyageApi = {
       const i = voyages.findIndex((v) => v.id === id)
       if (i !== -1) voyages[i] = { ...voyages[i], status: status as Voyage['status'] }
     }
+  },
+  async batchLinkTemplate(templateId: string, templateName: string, voyageIds: string[]): Promise<void> {
+    await delay(300)
+    const linked = new Set(voyageIds)
+    voyages.forEach((voyage, index) => {
+      if (linked.has(voyage.id)) {
+        voyages[index] = { ...voyage, templateId, templateName }
+        return
+      }
+      if (voyage.templateId === templateId) {
+        voyages[index] = { ...voyage, templateId: '', templateName: '' }
+      }
+    })
   },
 }
 

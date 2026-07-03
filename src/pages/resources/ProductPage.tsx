@@ -1,27 +1,33 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, ChevronDown, ChevronRight, RotateCcw, X } from 'lucide-react'
 import { productApi } from '@/mock/api'
-import { routes, ships, tickets } from '@/mock/data'
+import { ports, ships, tickets } from '@/mock/data'
+import { getItineraryPlanById, listItineraryPlans } from '@/mock/itineraryPlanStore'
 import { productInventories } from '@/mock/data'
 import type { Product, ProductSegment, PricingRow, PaginatedResult, SearchParams, ProductInventory } from '@/types'
 import { formatDateTime } from '@/utils/format'
+import { getItineraryPlanAutoFill } from '@/utils/itineraryPlanProduct'
+import { getEnabledSellRoomTypesByShip } from '@/mock/sellRoomTypeConfig'
+import { pickProductVoyageConfig, buildProductSegmentOptions, formatSegmentKeyLabel } from '@/utils/productVoyageConfig'
+import ProductVoyageConfigPanel, { emptyProductVoyageConfig, type ProductVoyageConfigValue } from '@/components/resources/ProductVoyageConfigPanel'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import RichTextEditor, { RichTextContent } from '@/components/common/RichTextEditor'
 
 // ========== 常量 ==========
 const shipLevels = [...new Set(ships.map((s) => s.level))]
-const routeOptions = routes.slice(0, 5) // 选5条航线做下拉
+const itineraryPlanOptions = listItineraryPlans()
 const productCategoryOptions = ['三峡游轮', '长江游轮', '海洋游轮', '短线游轮', '定制游轮']
 
 type ProductForm = {
   name: string
   category: string
-  routeId: string
+  itineraryPlanId: string
   shipId: string
   icon: string
   images: string[]
@@ -40,7 +46,7 @@ interface ProductTicketConfig {
 }
 
 const emptyForm: ProductForm = {
-  name: '', category: '三峡游轮', routeId: '', shipId: '', icon: '', images: [], description: '',
+  name: '', category: '三峡游轮', itineraryPlanId: '', shipId: '', icon: '', images: [], description: '',
 }
 
 const cabinTypeLabels: Record<string, string> = { suite: '套房', balcony: '阳台房', window: '海景房', inside: '内舱房' }
@@ -94,33 +100,11 @@ function flattenRoomTickets(roomTickets: Record<string, string[]>) {
 }
 
 // ========== 工具函数 ==========
-interface StopInfo { name: string; day: number; dist: number }
-
-function generateSegments(stops: StopInfo[]): Omit<ProductSegment, 'id'>[] {
-  const segs: Omit<ProductSegment, 'id'>[] = []
-  for (let i = 0; i < stops.length; i++) {
-    for (let j = i + 1; j < stops.length; j++) {
-      let mileage = 0
-      for (let k = i + 1; k <= j; k++) mileage += stops[k].dist
-      segs.push({
-        startPort: stops[i].name,
-        endPort: stops[j].name,
-        days: stops[j].day - stops[i].day,
-        mileage,
-        status: 'enabled' as const,
-      })
-    }
+function getProductItineraryName(product: Product): string {
+  if (product.itineraryPlanId) {
+    return getItineraryPlanById(product.itineraryPlanId)?.name || product.routeName
   }
-  return segs
-}
-
-function calcTotalMileage(stops: StopInfo[]): number {
-  return stops.reduce((sum, s) => sum + s.dist, 0)
-}
-
-function calcTotalDays(stops: StopInfo[]): number {
-  if (stops.length === 0) return 0
-  return stops[stops.length - 1].day - stops[0].day
+  return product.routeName
 }
 
 function getProductCategory(product: Product): string {
@@ -141,7 +125,7 @@ export default function ProductPage() {
   const [keyword, setKeyword] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [shipLevel, setShipLevel] = useState('all')
-  const [routeId, setRouteId] = useState('all')
+  const [itineraryPlanFilter, setItineraryPlanFilter] = useState('all')
   const [routeType, setRouteType] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [minMileage, setMinMileage] = useState('')
@@ -175,8 +159,16 @@ export default function ProductPage() {
   const [ticketConfigs, setTicketConfigs] = useState<Record<string, ProductTicketConfig>>({})
   const [ticketDraft, setTicketDraft] = useState<ProductTicketConfig>(() => createDefaultTicketConfig())
 
+  const [configOpen, setConfigOpen] = useState(false)
+  const [configProduct, setConfigProduct] = useState<Product | null>(null)
+  const [configTab, setConfigTab] = useState(0)
+  const [configDraft, setConfigDraft] = useState<ProductVoyageConfigValue>(() => emptyProductVoyageConfig())
+  const [configLoading, setConfigLoading] = useState(false)
+
   const shipLevelOptions = ['all', ...shipLevels]
   const shipLevelLabels: Record<string, string> = { all: '全部', ...Object.fromEntries(shipLevels.map((l) => [l, l])) }
+
+  const portMap = useMemo(() => new Map(ports.map((port) => [port.id, port])), [])
 
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true)
@@ -184,7 +176,7 @@ export default function ProductPage() {
     if (keyword.trim()) params.keyword = keyword.trim()
     if (categoryFilter !== 'all') params.category = categoryFilter
     if (shipLevel !== 'all') params.shipLevel = shipLevel
-    if (routeId !== 'all') params.routeId = routeId
+    if (itineraryPlanFilter !== 'all') params.itineraryPlanId = itineraryPlanFilter
     if (routeType !== 'all') params.routeType = routeType
     if (statusFilter !== 'all') params.status = statusFilter
     if (minMileage.trim()) params.minMileage = minMileage
@@ -192,13 +184,13 @@ export default function ProductPage() {
     const result = await productApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, categoryFilter, shipLevel, routeId, routeType, statusFilter, minMileage, maxMileage])
+  }, [keyword, categoryFilter, shipLevel, itineraryPlanFilter, routeType, statusFilter, minMileage, maxMileage])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const handleSearch = () => fetchData(1)
   const handleReset = () => {
-    setKeyword(''); setCategoryFilter('all'); setShipLevel('all'); setRouteId('all'); setRouteType('all')
+    setKeyword(''); setCategoryFilter('all'); setShipLevel('all'); setItineraryPlanFilter('all'); setRouteType('all')
     setStatusFilter('all'); setMinMileage(''); setMaxMileage('')
   }
 
@@ -212,61 +204,35 @@ export default function ProductPage() {
   }
 
   // ========== 表单逻辑 ==========
-  const onRouteChange = (routeIdVal: string) => {
-    setForm((prev) => ({ ...prev, routeId: routeIdVal }))
-    if (!routeIdVal) {
+  const getPlanAutoFill = (planId: string) => {
+    const plan = getItineraryPlanById(planId)
+    if (!plan) return null
+    return getItineraryPlanAutoFill(plan, portMap)
+  }
+
+  const onItineraryPlanChange = (planId: string) => {
+    setForm((prev) => ({ ...prev, itineraryPlanId: planId }))
+    if (!planId) {
       setSegments([])
       return
     }
-    const route = routes.find((r) => r.id === routeIdVal)
-    if (!route) return
-    const stops: StopInfo[] = route.stops.map((s) => ({
-      name: s.portName,
-      day: s.day,
-      dist: s.distance,
-    }))
-    setSegments(generateSegments(stops))
-  }
-
-  const getRouteAutoFill = (routeIdVal: string) => {
-    const route = routes.find((r) => r.id === routeIdVal)
-    if (!route) return null
-    const stops: StopInfo[] = route.stops.map((s) => ({
-      name: s.portName,
-      day: s.day,
-      dist: s.distance,
-    }))
-    return {
-      routeType: route.type,
-      startPort: stops[0]?.name || '',
-      endPort: stops[stops.length - 1]?.name || '',
-      days: calcTotalDays(stops),
-      nights: Math.max(0, calcTotalDays(stops) - 1),
-      mileage: calcTotalMileage(stops),
-      duration: route.duration,
-    }
-  }
-
-  const removeSegment = (idx: number) => {
-    setSegments((prev) => prev.filter((_, i) => i !== idx))
+    const autoFill = getPlanAutoFill(planId)
+    if (!autoFill) return
+    setSegments(autoFill.productSegments)
   }
 
   const resetSegments = () => {
-    if (!form.routeId) return
-    onRouteChange(form.routeId)
+    if (!form.itineraryPlanId) return
+    onItineraryPlanChange(form.itineraryPlanId)
   }
 
   const openCreate = (defaults?: Partial<ProductForm>) => {
     setEditingId(null)
-    setForm({ ...emptyForm, ...defaults })
-    if (defaults?.routeId) {
-      const route = routes.find((item) => item.id === defaults.routeId)
-      const stops: StopInfo[] = route?.stops.map((stop) => ({
-        name: stop.portName,
-        day: stop.day,
-        dist: stop.distance,
-      })) || []
-      setSegments(generateSegments(stops))
+    const planId = defaults?.itineraryPlanId || ''
+    setForm({ ...emptyForm, ...defaults, itineraryPlanId: planId })
+    if (planId) {
+      const autoFill = getPlanAutoFill(planId)
+      setSegments(autoFill ? autoFill.productSegments : [])
     } else {
       setSegments([])
     }
@@ -277,7 +243,7 @@ export default function ProductPage() {
     if (searchParams.get('create') !== '1') return
     openCreate({
       name: searchParams.get('name') || '',
-      routeId: searchParams.get('routeId') || '',
+      itineraryPlanId: searchParams.get('itineraryPlanId') || '',
     })
     setSearchParams({}, { replace: true })
   }, [searchParams, setSearchParams])
@@ -287,7 +253,7 @@ export default function ProductPage() {
     setForm({
       name: record.name,
       category: getProductCategory(record),
-      routeId: record.routeId,
+      itineraryPlanId: record.itineraryPlanId || '',
       shipId: record.shipId,
       icon: record.icon,
       images: record.images,
@@ -303,13 +269,53 @@ export default function ProductPage() {
     setDetailOpen(true)
   }
 
+  const shipRoomTypeOptions = useMemo(() => {
+    if (!configProduct) return roomTypeOptions
+    const fromShip = getEnabledSellRoomTypesByShip(configProduct.shipName).map((item) => item.sellRoomTypeName)
+    return fromShip.length > 0 ? fromShip : roomTypeOptions
+  }, [configProduct])
+
+  const configRoomTypeOptions = useMemo(() => {
+    if (configDraft.configuredRoomTypes.length > 0) return configDraft.configuredRoomTypes
+    return shipRoomTypeOptions
+  }, [configDraft.configuredRoomTypes, shipRoomTypeOptions])
+
+  const configSegmentOptions = useMemo(() => {
+    if (!configProduct?.segments?.length) return []
+    return buildProductSegmentOptions(configProduct.segments)
+  }, [configProduct])
+
+  const openVoyageConfig = async (record: Product) => {
+    const product = await productApi.getById(record.id)
+    if (!product) return
+    setConfigProduct(product)
+    setConfigDraft(pickProductVoyageConfig(product))
+    setConfigTab(0)
+    setConfigOpen(true)
+  }
+
+  const saveVoyageConfig = async () => {
+    if (!configProduct) return
+    setConfigLoading(true)
+    const now = new Date().toISOString()
+    await productApi.update(configProduct.id, {
+      ...configDraft,
+      updatedBy: '当前用户',
+      updatedAt: now,
+    })
+    setConfigLoading(false)
+    setConfigOpen(false)
+    setConfigProduct(null)
+    fetchData(data.page)
+  }
+
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.routeId || !form.shipId) return
+    if (!form.name.trim() || !form.itineraryPlanId || !form.shipId) return
     setFormLoading(true)
-    const route = routes.find((r) => r.id === form.routeId)
+    const plan = getItineraryPlanById(form.itineraryPlanId)
     const ship = ships.find((s) => s.id === form.shipId)
-    const autoFill = getRouteAutoFill(form.routeId)
-    if (!route || !ship || !autoFill) { setFormLoading(false); return }
+    const autoFill = getPlanAutoFill(form.itineraryPlanId)
+    if (!plan || !ship || !autoFill) { setFormLoading(false); return }
 
     // Generate fresh pricing based on current segments and ship cabin types
     const newPricing: PricingRow[] = []
@@ -329,11 +335,13 @@ export default function ProductPage() {
     }
 
     const now = new Date().toISOString()
+    const existing = editingId ? await productApi.getById(editingId) : null
+    const voyageConfig = existing ? pickProductVoyageConfig(existing) : emptyProductVoyageConfig()
     const productData = {
       name: form.name,
       category: form.category,
-      routeId: form.routeId,
-      routeName: route.name,
+      routeId: existing?.routeId || '',
+      routeName: plan.name,
       routeType: autoFill.routeType,
       shipId: form.shipId,
       shipName: ship.name,
@@ -349,6 +357,8 @@ export default function ProductPage() {
       description: form.description,
       segments: segments.map((s, i) => ({ ...s, id: `seg_${i}` })) as ProductSegment[],
       pricing: newPricing,
+      itineraryPlanId: form.itineraryPlanId,
+      ...voyageConfig,
       status: 'enabled' as const,
       updatedBy: '当前用户',
       updatedAt: now,
@@ -490,7 +500,7 @@ export default function ProductPage() {
     { key: 'id', title: '产品ID', parent: (r: Product) => r.id, child: () => '' },
     { key: 'name', title: '产品名称', parent: (r: Product) => r.name, child: () => '' },
     { key: 'category', title: '产品分类', parent: (r: Product) => getProductCategory(r), child: () => '' },
-    { key: 'routeName', title: '航线', parent: (r: Product) => r.routeName, child: () => '' },
+    { key: 'routeName', title: '行程', parent: (r: Product) => getProductItineraryName(r), child: () => '' },
     { key: 'routeType', title: '上下水', parent: (r: Product) => (
       <span className={r.routeType === 'upstream' ? 'text-blue-600' : 'text-green-600'}>
         {r.routeType === 'upstream' ? '上水' : '下水'}
@@ -510,10 +520,11 @@ export default function ProductPage() {
     { key: 'status', title: '状态', parent: (r: Product) => <StatusBadge status={r.status} />, child: (s: ProductSegment) => <StatusBadge status={s.status} /> },
     { key: 'updatedBy', title: '操作人', parent: (r: Product) => r.updatedBy, child: (_s: ProductSegment, p: Product) => p.updatedBy },
     { key: 'updatedAt', title: '操作时间', parent: (r: Product) => formatDateTime(r.updatedAt), child: (_s: ProductSegment, p: Product) => formatDateTime(p.updatedAt) },
-    { key: 'actions', title: '操作', width: '280px', parent: (r: Product) => (
+    { key: 'actions', title: '操作', width: '340px', parent: (r: Product) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">编辑</button>
+        <button onClick={() => openVoyageConfig(r)} className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded">产品配置</button>
         <button onClick={() => openTicketManagement(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">票类管理</button>
         <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
           {r.status === 'enabled' ? '禁用' : '启用'}
@@ -524,12 +535,12 @@ export default function ProductPage() {
   ]
 
   // ========== 渲染 ==========
-  const routeFill = getRouteAutoFill(form.routeId)
+  const itineraryFill = getPlanAutoFill(form.itineraryPlanId)
   const selectedShip = ships.find((s) => s.id === form.shipId)
 
   return (
     <div>
-      <PageHeader title="产品管理" description="管理游轮产品信息、航段配置及基准价策略" />
+      <PageHeader title="产品管理" description="管理游轮产品信息、航段及行程/定金/销售规则/小费/房型/礼遇配置" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -557,11 +568,11 @@ export default function ProductPage() {
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">航线</label>
-          <select value={routeId} onChange={(e) => setRouteId(e.target.value)}
+          <label className="text-xs text-gray-500">行程</label>
+          <select value={itineraryPlanFilter} onChange={(e) => setItineraryPlanFilter(e.target.value)}
             className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
             <option value="all">全部</option>
-            {routeOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            {itineraryPlanOptions.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -692,16 +703,16 @@ export default function ProductPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">航线 <span className="text-red-500">*</span></label>
-                <select value={form.routeId} onChange={(e) => onRouteChange(e.target.value)}
+                <label className="block text-sm text-gray-700 mb-1">行程 <span className="text-red-500">*</span></label>
+                <select value={form.itineraryPlanId} onChange={(e) => onItineraryPlanChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
-                  <option value="">请选择航线</option>
-                  {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  <option value="">请选择行程</option>
+                  {itineraryPlanOptions.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">上下水类型</label>
-                <input value={routeFill ? (routeFill.routeType === 'upstream' ? '上水' : '下水') : '-'} disabled
+                <input value={itineraryFill ? (itineraryFill.routeType === 'upstream' ? '上水' : '下水') : '-'} disabled
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
               </div>
               <div>
@@ -714,12 +725,12 @@ export default function ProductPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">航行时长</label>
-                <input value={routeFill?.duration || '-'} disabled
+                <input value={itineraryFill?.duration || '-'} disabled
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">航行里程(nmi)</label>
-                <input value={routeFill ? `${routeFill.mileage} nmi` : '-'} disabled
+                <input value={itineraryFill ? `${itineraryFill.mileage} nmi` : '-'} disabled
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
               </div>
               <div className="col-span-2">
@@ -755,9 +766,11 @@ export default function ProductPage() {
               </div>
               <div className="col-span-2">
                 <label className="block text-sm text-gray-700 mb-1">产品介绍</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={3} placeholder="请输入产品介绍..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none" />
+                <RichTextEditor
+                  value={form.description}
+                  onChange={(description) => setForm({ ...form, description })}
+                  placeholder="请输入产品介绍..."
+                />
               </div>
             </div>
           </div>
@@ -766,7 +779,7 @@ export default function ProductPage() {
           {segments.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">航段信息（C(n,2)单向航段）</h4>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">航段信息（按上下客断点拆分）</h4>
                 <button type="button" onClick={resetSegments}
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
                   <RotateCcw className="w-3 h-3" />复原
@@ -781,7 +794,6 @@ export default function ProductPage() {
                       <th className="px-3 py-2 text-left text-gray-500 font-medium">航行时长</th>
                       <th className="px-3 py-2 text-left text-gray-500 font-medium">航行里程</th>
                       <th className="px-3 py-2 text-left text-gray-500 font-medium">状态</th>
-                      <th className="px-3 py-2 text-center text-gray-500 font-medium w-16">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -792,16 +804,12 @@ export default function ProductPage() {
                         <td className="px-3 py-1.5 text-gray-700">{seg.days}天</td>
                         <td className="px-3 py-1.5 text-gray-700">{seg.mileage} nmi</td>
                         <td className="px-3 py-1.5"><StatusBadge status={seg.status} /></td>
-                        <td className="px-3 py-1.5 text-center">
-                          <button type="button" onClick={() => removeSegment(idx)}
-                            className="px-2 py-0.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded">删除</button>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-gray-400 mt-1">共 {segments.length} 个航段，点击"复原"可重新生成所有 C(n,2) 航段</p>
+              <p className="text-xs text-gray-400 mt-1">共 {segments.length} 个可售航段，由行程编排自动生成；行程中勾选「上下客」的码头为航段断点，不可删除</p>
             </div>
           )}
         </div>
@@ -815,7 +823,7 @@ export default function ProductPage() {
               <DetailRow label="产品名称" value={detail.name} />
               <DetailRow label="产品ID" value={detail.id} mono />
               <DetailRow label="产品分类" value={getProductCategory(detail)} />
-              <DetailRow label="航线" value={detail.routeName} />
+              <DetailRow label="行程" value={getProductItineraryName(detail)} />
               <DetailRow label="上下水" value={<span className={detail.routeType === 'upstream' ? 'text-blue-600' : 'text-green-600'}>{detail.routeType === 'upstream' ? '上水' : '下水'}</span>} />
               <DetailRow label="游轮" value={`${detail.shipName}（${detail.shipLevel}）`} />
               <DetailRow label="起港" value={detail.startPort} />
@@ -823,7 +831,7 @@ export default function ProductPage() {
               <DetailRow label="航行时长" value={detail.duration} />
               <DetailRow label="航行里程" value={`${detail.mileage} nmi`} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
-              <DetailRow label="产品介绍" value={detail.description || '-'} />
+              <DetailRow label="产品介绍" value={<RichTextContent html={detail.description} />} />
             </DetailCard>
             <DetailCard title={`航段明细（${detail.segments.length}个航段）`}>
               <table className="w-full text-sm">
@@ -847,6 +855,48 @@ export default function ProductPage() {
                 </tbody>
               </table>
             </DetailCard>
+            <DetailCard title={`航次定金（${detail.deposits?.length || 0}项）`}>
+              {(detail.deposits || []).map((deposit) => (
+                <div key={deposit.id} className="flex flex-wrap gap-3 py-0.5 text-sm">
+                  <span className="text-gray-700">{formatSegmentKeyLabel(deposit.segmentKey, buildProductSegmentOptions(detail.segments))}</span>
+                  <span className="text-gray-500">· {deposit.roomType || '-'}</span>
+                  <span className="text-gray-500">¥{deposit.deposit}/人</span>
+                </div>
+              ))}
+            </DetailCard>
+            <DetailCard title="销售规则">
+              <DetailRow label="预售期" value={`${detail.presaleDays || 0}天`} />
+              <DetailRow label="截止售卖" value={`${detail.cutoffDays || 0}天前`} />
+              <DetailRow label="退改策略" value={detail.refundPolicy || '-'} />
+              <DetailRow label="物料需求" value={(detail.materialReq || []).join('、') || '-'} />
+            </DetailCard>
+            <DetailCard title={`小费（${detail.tips?.length || 0}项）`}>
+              {(detail.tips || []).map((tip) => (
+                <div key={tip.id} className="flex flex-wrap gap-3 py-0.5 text-sm">
+                  <span className="text-gray-700">{formatSegmentKeyLabel(tip.segmentKey, buildProductSegmentOptions(detail.segments))}</span>
+                  <span className="text-gray-500">· {tip.roomType || '-'}</span>
+                  <span className="text-gray-500">¥{tip.tip}/人</span>
+                  <span className={tip.mandatory ? 'text-amber-700' : 'text-gray-400'}>{tip.mandatory ? '强制收取' : '可选收取'}</span>
+                </div>
+              ))}
+            </DetailCard>
+            <DetailCard title={`房型配置（${detail.configuredRoomTypes?.length || 0}项）`}>
+              {(detail.configuredRoomTypes || []).length === 0 ? (
+                <p className="text-sm text-gray-500">未配置可售房型</p>
+              ) : (
+                <p className="text-sm text-gray-700">{(detail.configuredRoomTypes || []).join('、')}</p>
+              )}
+            </DetailCard>
+            <DetailCard title={`礼遇配置（${detail.privileges?.length || 0}项）`}>
+              {(detail.privileges || []).length === 0 ? (
+                <p className="text-sm text-gray-500">未配置礼遇</p>
+              ) : (detail.privileges || []).map((item) => (
+                <div key={item.id} className="flex flex-wrap gap-3 py-0.5 text-sm">
+                  <span className="text-gray-700">{item.roomType}</span>
+                  <span className="text-gray-500">· {item.privilegeName}</span>
+                </div>
+              ))}
+            </DetailCard>
             <DetailCard title="操作信息">
               <DetailRow label="修改人" value={detail.updatedBy} />
               <DetailRow label="修改时间" value={formatDateTime(detail.updatedAt)} />
@@ -855,6 +905,36 @@ export default function ProductPage() {
           </>
         )}
       </DetailDrawer>
+
+      {configOpen && configProduct && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[4vh]">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfigOpen(false)} />
+          <div className="relative mx-4 flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b px-6 py-3">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">产品配置 · {configProduct.name}</h3>
+                <p className="mt-1 text-xs text-gray-500">维护定金、销售规则、小费、房型与礼遇，航次模板将继承关联产品配置</p>
+              </div>
+              <button onClick={() => setConfigOpen(false)} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            </div>
+            <ProductVoyageConfigPanel
+              tab={configTab}
+              onTabChange={setConfigTab}
+              value={configDraft}
+              onChange={setConfigDraft}
+              segmentOptions={configSegmentOptions}
+              roomTypeOptions={configRoomTypeOptions}
+              availableRoomTypes={shipRoomTypeOptions}
+            />
+            <div className="flex shrink-0 justify-end gap-3 border-t px-6 py-3">
+              <button onClick={() => setConfigOpen(false)} className="rounded-lg border px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={saveVoyageConfig} disabled={configLoading} className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800 disabled:opacity-50">
+                {configLoading ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 票类管理弹窗 */}
       {ticketOpen && ticketProduct && (

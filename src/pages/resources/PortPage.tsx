@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { portApi } from '@/mock/api'
-import type { PaginatedResult, Port, PortForm, SearchParams } from '@/types'
-import { formatDateTime } from '@/utils/format'
+import { portApi, attractionApi } from '@/mock/api'
+import type { Attraction, PaginatedResult, Port, PortForm, SearchParams } from '@/types'
+import { formatDateTime, formatDurationMinutes } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -12,6 +12,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import RegionCascadeSelect from '@/components/common/RegionCascadeSelect'
 import { findProvinceByCity } from '@/mock/regionData'
+import { RIVER_REACH_LABEL, RIVER_REACH_OPTIONS } from '@/utils/constants'
 
 const emptyForm: PortForm = {
   name: '',
@@ -33,6 +34,10 @@ const emptyForm: PortForm = {
   transferInfo: '',
   remark: '',
   sort: 1,
+  riverReach: '',
+  mileageKm: 0,
+  prevPierUpstreamMin: 0,
+  nextPierDownstreamMin: 0,
 }
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm'
@@ -42,6 +47,7 @@ export default function PortPage() {
   const [data, setData] = useState<PaginatedResult<Port>>({ data: [], total: 0, page: 1, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
   const [cityFilter, setCityFilter] = useState('all')
+  const [reachFilter, setReachFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [allPiers, setAllPiers] = useState<Port[]>([])
 
@@ -52,25 +58,28 @@ export default function PortPage() {
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<Port | null>(null)
+  const [detailAttractions, setDetailAttractions] = useState<Attraction[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
 
   const fetchData = useCallback(async (
     page = 1,
-    overrides?: { keyword?: string; city?: string; status?: string },
+    overrides?: { keyword?: string; city?: string; riverReach?: string; status?: string },
   ) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     const nextKeyword = overrides?.keyword ?? keyword
     const nextCity = overrides?.city ?? cityFilter
+    const nextReach = overrides?.riverReach ?? reachFilter
     const nextStatus = overrides?.status ?? statusFilter
     if (nextKeyword.trim()) params.keyword = nextKeyword.trim()
     if (nextCity !== 'all') params.city = nextCity
+    if (nextReach !== 'all') params.riverReach = nextReach
     if (nextStatus !== 'all') params.status = nextStatus
     const result = await portApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, cityFilter, statusFilter])
+  }, [keyword, cityFilter, reachFilter, statusFilter])
 
   useEffect(() => {
     fetchData()
@@ -82,8 +91,9 @@ export default function PortPage() {
   const resetFilters = () => {
     setKeyword('')
     setCityFilter('all')
+    setReachFilter('all')
     setStatusFilter('all')
-    fetchData(1, { keyword: '', city: 'all', status: 'all' })
+    fetchData(1, { keyword: '', city: 'all', riverReach: 'all', status: 'all' })
   }
 
   const openCreate = () => {
@@ -114,13 +124,21 @@ export default function PortPage() {
       transferInfo: record.transferInfo || '',
       remark: record.remark || '',
       sort: record.sort,
+      riverReach: record.riverReach || '',
+      mileageKm: record.mileageKm ?? 0,
+      prevPierUpstreamMin: record.prevPierUpstreamMin ?? 0,
+      nextPierDownstreamMin: record.nextPierDownstreamMin ?? 0,
     })
     setFormOpen(true)
   }
 
   const openDetail = async (record: Port) => {
-    const item = await portApi.getById(record.id)
+    const [item, attractionResult] = await Promise.all([
+      portApi.getById(record.id),
+      attractionApi.list({ portId: record.id, pageSize: 100 }),
+    ])
     setDetail(item || null)
+    setDetailAttractions(attractionResult.data)
     setDetailOpen(true)
   }
 
@@ -169,6 +187,12 @@ export default function PortPage() {
       </div>
     ) },
     { key: 'code', title: '码头编码', render: (record: Port) => <span className="font-mono text-xs">{record.code || '-'}</span> },
+    { key: 'riverReach', title: '江段', width: '90px', render: (record: Port) => (
+      <span className="text-sm text-gray-700">{record.riverReach ? RIVER_REACH_LABEL[record.riverReach] : '-'}</span>
+    ) },
+    { key: 'mileage', title: '段内里程', width: '100px', render: (record: Port) => (
+      record.mileageKm != null ? `${record.mileageKm} km` : '-'
+    ) },
     { key: 'city', title: '所属城市', render: (record: Port) => {
       const parts = [record.province, record.city, record.district].filter(Boolean)
       return parts.length > 0 ? parts.join(' · ') : '-'
@@ -186,7 +210,7 @@ export default function PortPage() {
 
   return (
     <div>
-      <PageHeader title="码头管理" description="维护登离船码头、所属城市和基础位置信息。" />
+      <PageHeader title="码头管理" description="维护长江沿线码头，含上中下游分区与里程锚点。" />
 
       <SearchPanel onSearch={() => fetchData(1)} onReset={resetFilters} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -204,6 +228,13 @@ export default function PortPage() {
           <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm">
             <option value="all">全部</option>
             {cityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">江段</label>
+          <select value={reachFilter} onChange={(event) => setReachFilter(event.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <option value="all">全部</option>
+            {RIVER_REACH_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -249,6 +280,42 @@ export default function PortPage() {
               <div><label className="mb-1 block text-sm text-gray-700">经度</label><input type="number" value={form.longitude} onChange={(event) => setForm({ ...form, longitude: Number(event.target.value) })} className={inputClass} /></div>
               <div><label className="mb-1 block text-sm text-gray-700">纬度</label><input type="number" value={form.latitude} onChange={(event) => setForm({ ...form, latitude: Number(event.target.value) })} className={inputClass} /></div>
               <div><label className="mb-1 block text-sm text-gray-700">排序号</label><input type="number" value={form.sort} onChange={(event) => setForm({ ...form, sort: Number(event.target.value) })} className={inputClass} /></div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">江段（上中下游）</label>
+                <select value={form.riverReach} onChange={(event) => setForm({ ...form, riverReach: event.target.value as PortForm['riverReach'] })} className={inputClass}>
+                  <option value="">未设置</option>
+                  {RIVER_REACH_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
+              <div><label className="mb-1 block text-sm text-gray-700">段内里程(km)</label><input type="number" value={form.mileageKm} onChange={(event) => setForm({ ...form, mileageKm: Number(event.target.value) })} className={inputClass} /></div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">上个码头上水时间</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.prevPierUpstreamMin || ''}
+                    onChange={(event) => setForm({ ...form, prevPierUpstreamMin: Number(event.target.value) })}
+                    placeholder="请输入"
+                    className={`${inputClass} pr-12`}
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">hh:mm</span>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">下个码头下水时间</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.nextPierDownstreamMin || ''}
+                    onChange={(event) => setForm({ ...form, nextPierDownstreamMin: Number(event.target.value) })}
+                    placeholder="请输入"
+                    className={`${inputClass} pr-12`}
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">hh:mm</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -270,7 +337,28 @@ export default function PortPage() {
             <DetailRow label="所属城市" value={[detail.province, detail.city, detail.district].filter(Boolean).join(' · ') || '-'} />
             <DetailRow label="详细地址" value={detail.address || '-'} />
             <DetailRow label="经纬度" value={`${detail.longitude || '-'}, ${detail.latitude || '-'}`} />
+            <DetailRow label="江段" value={detail.riverReach ? RIVER_REACH_LABEL[detail.riverReach] : '-'} />
+            <DetailRow label="段内里程" value={detail.mileageKm != null ? `${detail.mileageKm} km` : '-'} />
+            <DetailRow label="上个码头上水时间" value={formatDurationMinutes(detail.prevPierUpstreamMin)} />
+            <DetailRow label="下个码头下水时间" value={formatDurationMinutes(detail.nextPierDownstreamMin)} />
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
+          </DetailCard>
+          <DetailCard title="关联景点">
+            {detailAttractions.length === 0 ? (
+              <p className="text-sm text-gray-500">暂无关联景点</p>
+            ) : (
+              <ul className="space-y-2">
+                {detailAttractions.map((attraction) => (
+                  <li key={attraction.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{attraction.name}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{attraction.category || '-'} · 建议游览 {formatDurationMinutes(attraction.suggestedDurationMin)}</p>
+                    </div>
+                    <StatusBadge status={attraction.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </DetailCard>
           <DetailCard title="补充信息">
             <DetailRow label="备注" value={detail.remark || '-'} />

@@ -26,7 +26,7 @@ export const CITIES_BY_PROVINCE: Record<string, string[]> = {
   '湖北': ['武汉', '宜昌', '荆州', '黄石'],
   '湖南': ['岳阳', '长沙'],
   '江西': ['九江', '南昌'],
-  '安徽': ['芜湖', '安庆', '马鞍山'],
+  '安徽': ['芜湖', '安庆', '马鞍山', '池州'],
   '北京': ['北京'],
 }
 
@@ -34,6 +34,20 @@ export const ROUTE_TYPES = [
   { value: 'upstream', label: '上水' },
   { value: 'downstream', label: '下水' },
 ]
+
+export const RIVER_REACH_OPTIONS = [
+  { value: 'upstream', label: '上游' },
+  { value: 'middle', label: '中游' },
+  { value: 'lower', label: '下游' },
+  { value: 'estuary', label: '入海口/港区' },
+] as const
+
+export const RIVER_REACH_LABEL: Record<string, string> = {
+  upstream: '上游',
+  middle: '中游',
+  lower: '下游',
+  estuary: '入海口/港区',
+}
 
 export const MENU_TYPES = [
   { value: 'menu', label: '菜单' },
