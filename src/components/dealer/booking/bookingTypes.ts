@@ -32,5 +32,6 @@ export interface DealerBookingDraft {
     touristList?: unknown[]
     teams?: unknown[]
     roomGroups?: unknown[]
+    escortTickets?: unknown[]
   }
 }

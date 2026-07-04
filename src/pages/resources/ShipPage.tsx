@@ -18,7 +18,7 @@ const STEP_LABELS = ['基本信息', '甲板信息', '舱房管理']
 
 const emptyForm: ShipForm = {
   name: '', nameEn: '', code: '', series: '', realNameId: '',
-  capacity: 0, floors: 0,
+  capacity: 0, capacityWarningType: 'ratio', capacityWarningValue: 0, floors: 0,
   length: 0, width: 0, depth: 0, speed: 0,
   voltage: 220, acSystem: '', factoryDate: '', lastRenovation: '',
   maidenVoyage: '', renovationContent: '', contact: '', contactPhone: '',
@@ -83,7 +83,10 @@ export default function ShipPage() {
     setForm({
       name: record.name, nameEn: record.nameEn, code: record.code,
       series: record.series, realNameId: record.realNameId,
-      capacity: record.capacity, floors: record.floors,
+      capacity: record.capacity,
+      capacityWarningType: record.capacityWarningType ?? 'ratio',
+      capacityWarningValue: record.capacityWarningValue ?? 80,
+      floors: record.floors,
       length: record.length, width: record.width, depth: record.depth, speed: record.speed,
       voltage: record.voltage, acSystem: record.acSystem,
       factoryDate: record.factoryDate, lastRenovation: record.lastRenovation,
@@ -108,7 +111,22 @@ export default function ShipPage() {
 
   // 步骤校验
   const canNext = (): boolean => {
-    if (step === 0) return !!form.name.trim() && !!form.nameEn.trim() && !!form.code.trim() && form.capacity > 0 && form.floors > 0 && !!form.factoryDate.trim()
+    if (step === 0) {
+      const warningValid =
+        form.capacityWarningValue > 0 &&
+        (form.capacityWarningType === 'ratio'
+          ? form.capacityWarningValue <= 100
+          : form.capacityWarningValue <= form.capacity)
+      return (
+        !!form.name.trim() &&
+        !!form.nameEn.trim() &&
+        !!form.code.trim() &&
+        form.capacity > 0 &&
+        warningValid &&
+        form.floors > 0 &&
+        !!form.factoryDate.trim()
+      )
+    }
     return true
   }
 
@@ -297,11 +315,46 @@ export default function ShipPage() {
       <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">物理规格信息</h4>
         <div className="grid grid-cols-3 gap-3">
           <div><label className="block text-xs text-gray-500 mb-0.5">核载客数 <span className="text-red-500">*</span></label><input type="number" value={form.capacity || ''} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-0.5">核载预警 <span className="text-red-500">*</span></label>
+            <div className="flex">
+              <select
+                value={form.capacityWarningType}
+                onChange={(e) => setForm({ ...form, capacityWarningType: e.target.value as ShipForm['capacityWarningType'], capacityWarningValue: 0 })}
+                className="w-28 shrink-0 rounded-l border border-r-0 border-gray-300 bg-gray-50 px-2 py-1.5 text-sm outline-none focus:border-blue-500"
+                aria-label="核载预警方式"
+              >
+                <option value="people">预警人数</option>
+                <option value="ratio">预警比例</option>
+              </select>
+              <div className="relative min-w-0 flex-1">
+                <input
+                  type="number"
+                  min="1"
+                  max={form.capacityWarningType === 'ratio' ? 100 : form.capacity || undefined}
+                  value={form.capacityWarningValue || ''}
+                  onChange={(e) => setForm({ ...form, capacityWarningValue: Number(e.target.value) })}
+                  placeholder={form.capacityWarningType === 'ratio' ? '1–100' : '不超过核载数'}
+                  className="w-full rounded-r border border-gray-300 px-2 py-1.5 pr-8 text-sm outline-none focus:border-blue-500"
+                  aria-label={form.capacityWarningType === 'ratio' ? '核载预警比例' : '核载预警人数'}
+                />
+                <span className="pointer-events-none absolute right-2 top-1.5 text-sm text-gray-500">
+                  {form.capacityWarningType === 'ratio' ? '%' : '人'}
+                </span>
+              </div>
+            </div>
+            {form.capacityWarningValue > 0 &&
+              ((form.capacityWarningType === 'ratio' && form.capacityWarningValue > 100) ||
+                (form.capacityWarningType === 'people' && form.capacity > 0 && form.capacityWarningValue > form.capacity)) && (
+                <p className="mt-1 text-xs text-red-500">
+                  {form.capacityWarningType === 'ratio' ? '预警比例不能超过 100%' : '预警人数不能超过核载客数'}
+                </p>
+              )}
+          </div>
           <div><label className="block text-xs text-gray-500 mb-0.5">层数 <span className="text-red-500">*</span></label><input type="number" value={form.floors || ''} onChange={(e) => setForm({ ...form, floors: Number(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
           <div><label className="block text-xs text-gray-500 mb-0.5">长度(m)</label><input type="number" value={form.length || ''} onChange={(e) => setForm({ ...form, length: Number(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
           <div><label className="block text-xs text-gray-500 mb-0.5">型宽(m)</label><input type="number" value={form.width || ''} onChange={(e) => setForm({ ...form, width: Number(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
           <div><label className="block text-xs text-gray-500 mb-0.5">型深(m)</label><input type="number" value={form.depth || ''} onChange={(e) => setForm({ ...form, depth: Number(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
-          <div><label className="block text-xs text-gray-500 mb-0.5">静水航速(km/h)</label><input type="number" value={form.speed || ''} onChange={(e) => setForm({ ...form, speed: Number(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
         </div>
       </div>
       <div><h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">设施与工程信息</h4>
@@ -646,11 +699,20 @@ export default function ShipPage() {
             </DetailCard>
             <DetailCard title="物理规格">
               <DetailRow label="核载客数" value={`${detail.capacity}人`} />
+              <DetailRow
+                label="核载预警"
+                value={
+                  detail.capacityWarningValue
+                    ? detail.capacityWarningType === 'people'
+                      ? `达到 ${detail.capacityWarningValue} 人`
+                      : `达到 ${detail.capacityWarningValue}%`
+                    : '达到 80%'
+                }
+              />
               <DetailRow label="层数" value={`${detail.floors}层`} />
               <DetailRow label="长度" value={`${detail.length}m`} />
               <DetailRow label="型宽" value={`${detail.width}m`} />
               <DetailRow label="型深" value={`${detail.depth}m`} />
-              <DetailRow label="静水航速" value={`${detail.speed}km/h`} />
               <DetailRow label="房型数量" value={`${detail.cabinCount}间`} />
             </DetailCard>
             <DetailCard title="设施与工程">

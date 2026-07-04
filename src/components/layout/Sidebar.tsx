@@ -24,6 +24,7 @@ const menuItems: MenuItem[] = [
       { key: 'sell_room_type_config', label: '房型管理', path: '/resources/sell-room-type-configs' },
       { key: 'facility', label: '设施管理', path: '/resources/facilities' },
       { key: 'ticket', label: '票类管理', path: '/resources/tickets' },
+      { key: 'package', label: '套票管理', path: '/resources/packages' },
       { key: 'product', label: '产品管理', path: '/resources/products' },
     ],
   },
@@ -51,12 +52,12 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    key: 'distribution', label: '分销合作', icon: 'Ship',
+    key: 'distribution', label: '分销中心', icon: 'Ship',
     children: [
-      { key: 'dealer', label: '合作分销商', path: '/distribution/dealers' },
-      { key: 'dealer_approval', label: '合作审核', path: '/distribution/dealer-approvals' },
-      { key: 'dealer_change_log', label: '分销商变更记录', path: '/distribution/dealer-change-logs' },
-      { key: 'cabin_hold', label: '锁舱记录', path: '/distribution/cabin-holds' },
+      { key: 'cooperation', label: '合作管理', path: '/distribution/cooperation' },
+      { key: 'distribution_mgmt', label: '分销管理', path: '/distribution/distribution-mgmt' },
+      { key: 'ota', label: 'OTA平台分销', path: '/distribution/ota' },
+      { key: 'discount_management', label: '优惠管理', path: '/distribution/discounts' },
     ],
   },
   {

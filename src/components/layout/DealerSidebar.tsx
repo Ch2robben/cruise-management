@@ -28,6 +28,8 @@ const menuItems: MenuItem[] = [
     key: 'orders', label: '订单管理', icon: 'ShoppingCart',
     children: [
       { key: 'cruise_orders', label: '游轮订单', path: '/dealer/orders/cruise' },
+      { key: 'tourist_orders', label: '游客订单', path: '/dealer/orders/tourists' },
+      { key: 'period_orders', label: '期票订单', path: '/dealer/orders/period' },
       { key: 'special_price_orders', label: '特价申请单', path: '/dealer/orders/special-price' },
       { key: 'boat_orders', label: '游船订单', path: '/dealer/orders/boat' },
       { key: 'combo_orders', label: '组合产品订单', path: '/dealer/booking/combo-orders' },

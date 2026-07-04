@@ -17,6 +17,20 @@ import {
 } from '@/mock/templatePriceRules'
 import type { VoyageTemplate } from '@/types'
 
+function VariableToken({ code }: { code: TemplatePricingVariableKey }) {
+  if (code === 'P' || code === 'Q' || code === 'K') {
+    return <span className="text-lg font-bold">{code}</span>
+  }
+
+  const suffix = code.slice(1)
+  return (
+    <>
+      <span className="text-lg font-bold">S</span>
+      <span className="ml-0.5 font-sans text-[10px] leading-none text-gray-500">{suffix}</span>
+    </>
+  )
+}
+
 export default function TemplatePricePage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -219,8 +233,8 @@ export default function TemplatePricePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="flex flex-col xl:col-span-7">
+        <div className="grid grid-cols-1 gap-6">
+          <div className="flex flex-col">
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基础变量</h4>
             <div className="flex-1 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               <table className="w-full text-sm">
@@ -250,9 +264,12 @@ export default function TemplatePricePage() {
                           <span className="text-2xl font-bold text-gray-900">P</span>
                         </td>
                       )}
-                      {idx > 2 && (
-                        <td className="sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-3 text-center align-middle shadow-[1px_0_0_0_#f3f4f6]">
-                          <span className="text-lg font-bold text-gray-900">{key}</span>
+                      {idx === 3 && (
+                        <td
+                          rowSpan={3}
+                          className="sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-3 text-center align-middle shadow-[1px_0_0_0_#f3f4f6]"
+                        >
+                          <span className="text-2xl font-bold text-gray-900">S</span>
                         </td>
                       )}
                       <td className="sticky left-16 z-10 whitespace-nowrap border-r border-gray-100 bg-white px-4 py-3 shadow-[1px_0_0_0_#f3f4f6]">
@@ -276,7 +293,7 @@ export default function TemplatePricePage() {
                                 <span className="ml-0.5 font-sans text-xs">标准</span>
                               </>
                             )}
-                            {key !== 'P' && key !== 'Q' && key !== 'K' && <span className="text-lg font-bold">{key}</span>}
+                            {key !== 'P' && key !== 'Q' && key !== 'K' && <VariableToken code={key} />}
                           </span>
                           <span className="mt-0.5 font-sans text-xs text-gray-400">{templateVariableLabels[key]}</span>
                         </div>
@@ -298,64 +315,6 @@ export default function TemplatePricePage() {
                           )}
                         </td>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="flex flex-col xl:col-span-5">
-            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">楼层费规则</h4>
-            <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50/80">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">甲板层</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">公式基底</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium whitespace-nowrap text-gray-500">计算结果(全程)</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">层级</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {priceRule.floorRules.map((row, index) => (
-                    <tr key={row.floor} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-4 text-sm font-medium text-gray-900">{row.label}</td>
-                      <td className="px-4 py-4">
-                        {editMode ? (
-                          <input
-                            value={row.formulaPrefix}
-                            onChange={(e) => updateFloorRule(index, 'formulaPrefix', e.target.value)}
-                            className="w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs"
-                          />
-                        ) : (
-                          <span className="rounded bg-gray-50 px-2.5 py-1.5 font-mono text-sm text-gray-700">
-                            {row.formulaPrefix}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-right text-base font-semibold text-blue-600">
-                        ¥
-                        {evaluateTemplateFormula(
-                          row.formulaPrefix,
-                          priceRule.variables.P[0] ?? 0,
-                          priceRule.variables.S[0] ?? 0,
-                        ).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        {editMode ? (
-                          <input
-                            type="number"
-                            value={row.floorLevel}
-                            onChange={(e) => updateFloorRule(index, 'floorLevel', Number(e.target.value))}
-                            className="w-16 rounded border border-gray-300 px-2 py-1.5 text-right text-xs"
-                          />
-                        ) : (
-                          <span className="rounded bg-gray-100 px-2.5 py-1.5 text-sm font-medium text-gray-700">
-                            {row.floorLevel}
-                          </span>
-                        )}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -430,8 +389,14 @@ export default function TemplatePricePage() {
                       ¥
                       {evaluateTemplateFormula(
                         row.formula,
-                        priceRule.variables.P[0] ?? 0,
-                        priceRule.variables.S[0] ?? 0,
+                        {
+                          P: priceRule.variables.P[0] ?? 0,
+                          Q: priceRule.variables.Q[0] ?? 0,
+                          K: priceRule.variables.K[0] ?? 0,
+                          S1F: priceRule.variables.S1F[0] ?? 0,
+                          S2F: priceRule.variables.S2F[0] ?? 0,
+                          S3F: priceRule.variables.S3F[0] ?? 0,
+                        },
                       ).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-center">

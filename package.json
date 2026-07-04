@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "deploy": "gh-pages -d dist",
     "build": "tsc -b && vite build",
     "build:edgeone": "tsc -b && vite build --base /",
     "build:gitee": "tsc -b && vite build --base /cruise-project/",

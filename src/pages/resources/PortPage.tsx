@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Clock } from 'lucide-react'
 import { portApi, attractionApi } from '@/mock/api'
 import type { Attraction, PaginatedResult, Port, PortForm, SearchParams } from '@/types'
+import NavigationTimeDialog from '@/components/resources/NavigationTimeDialog'
 import { formatDateTime, formatDurationMinutes } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -61,6 +62,7 @@ export default function PortPage() {
   const [detailAttractions, setDetailAttractions] = useState<Attraction[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
+  const [navTimeOpen, setNavTimeOpen] = useState(false)
 
   const fetchData = useCallback(async (
     page = 1,
@@ -247,9 +249,15 @@ export default function PortPage() {
         </div>
       </SearchPanel>
 
-      <div className="bg-white px-9 py-6">
+      <div className="bg-white px-9 py-6 flex items-center gap-3">
         <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
           <Plus className="w-4 h-4" />新增码头
+        </button>
+        <button
+          onClick={() => setNavTimeOpen(true)}
+          className="inline-flex h-11 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 hover:border-gray-400"
+        >
+          <Clock className="w-4 h-4 text-blue-500" />航行时间配置
         </button>
       </div>
 
@@ -378,6 +386,12 @@ export default function PortPage() {
         danger
         onConfirm={confirmDelete}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <NavigationTimeDialog
+        open={navTimeOpen}
+        ports={allPiers}
+        onClose={() => setNavTimeOpen(false)}
       />
     </div>
   )

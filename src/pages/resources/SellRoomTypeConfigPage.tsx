@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -13,8 +13,10 @@ import {
   formatMappingSummary,
   generateSellRoomTypeCode,
   getPhysicalCabinsByShip,
+  getSellRoomTypeFloorOptions,
   initialSellRoomTypeConfigs,
   sellRoomTypeShipOptions,
+  syncFloorPrices,
   type PhysicalRoomMapping,
   type SellRoomTypeConfig,
 } from '@/mock/sellRoomTypeConfig'
@@ -22,6 +24,8 @@ import {
   createDefaultPricingRule,
   type CabinPricingRule,
 } from '@/utils/cabinPriceCoefficient'
+import type { HierarchicalDictOption } from '@/utils/hierarchicalDict'
+import { loadHierarchicalDictOptions } from '@/utils/hierarchicalDict'
 
 const floorOptions = ['', '2F', '3F', '4F', '5F']
 
@@ -56,7 +60,12 @@ export default function SellRoomTypeConfigPage() {
   const [pricingOpen, setPricingOpen] = useState(false)
   const [editing, setEditing] = useState<SellRoomTypeConfig | null>(null)
   const [pricingTarget, setPricingTarget] = useState<SellRoomTypeConfig | null>(null)
+  const [privilegeOptions, setPrivilegeOptions] = useState<HierarchicalDictOption[]>([])
   const pageSize = 10
+
+  useEffect(() => {
+    loadHierarchicalDictOptions('PRIVILEGE_TYPE').then(setPrivilegeOptions)
+  }, [])
 
   const filteredData = useMemo(() => {
     if (appliedShipFilter === 'all') return records
@@ -73,6 +82,11 @@ export default function SellRoomTypeConfigPage() {
     return getPhysicalCabinsByShip(editing.shipName, initialCabinData)
   }, [editing])
 
+  const editingFloorOptions = useMemo(() => {
+    if (!editing) return []
+    return getSellRoomTypeFloorOptions(editing, initialCabinData)
+  }, [editing])
+
   const openCreate = () => {
     const defaultShip = appliedShipFilter === 'all' ? '长江叁号' : appliedShipFilter
     setEditing(createEmptySellRoomTypeConfig(defaultShip))
@@ -80,12 +94,21 @@ export default function SellRoomTypeConfigPage() {
   }
 
   const openEdit = (record: SellRoomTypeConfig) => {
-    setEditing({ ...record, mappings: record.mappings.map((item) => ({ ...item })) })
+    setEditing({
+      ...record,
+      privileges: [...(record.privileges || [])],
+      mappings: record.mappings.map((item) => ({ ...item })),
+      floorPrices: (record.floorPrices || []).map((item) => ({ ...item })),
+    })
     setFormOpen(true)
   }
 
   const openMapping = (record: SellRoomTypeConfig) => {
-    setEditing({ ...record, mappings: record.mappings.map((item) => ({ ...item })) })
+    setEditing({
+      ...record,
+      mappings: record.mappings.map((item) => ({ ...item })),
+      floorPrices: (record.floorPrices || []).map((item) => ({ ...item })),
+    })
     setMappingOpen(true)
   }
 
@@ -108,8 +131,9 @@ export default function SellRoomTypeConfigPage() {
     if (!editing || !editing.sellRoomTypeName.trim()) return
     setRecords((prev) => {
       const exists = prev.some((item) => item.id === editing.id)
+      const normalized = syncFloorPrices(editing, initialCabinData)
       const nextRecord = {
-        ...editing,
+        ...normalized,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       }
       return exists ? prev.map((item) => (item.id === editing.id ? nextRecord : item)) : [...prev, nextRecord]
@@ -120,11 +144,12 @@ export default function SellRoomTypeConfigPage() {
 
   const saveMappings = () => {
     if (!editing) return
+    const normalized = syncFloorPrices(editing, initialCabinData)
     setRecords((prev) =>
       prev.map((item) =>
         item.id === editing.id
           ? {
-              ...editing,
+              ...normalized,
               updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             }
           : item,
@@ -145,37 +170,37 @@ export default function SellRoomTypeConfigPage() {
       if (patch.shipName !== undefined || patch.sellRoomTypeName !== undefined) {
         next.sellRoomTypeCode = generateSellRoomTypeCode(next.shipName, next.sellRoomTypeName || '新房型')
       }
-      return next
+      return syncFloorPrices(next, initialCabinData)
     })
   }
 
   const updateMapping = (mappingId: string, patch: Partial<PhysicalRoomMapping>) => {
     setEditing((prev) => {
       if (!prev) return prev
-      return {
+      return syncFloorPrices({
         ...prev,
         mappings: prev.mappings.map((item) => (item.id === mappingId ? { ...item, ...patch } : item)),
-      }
+      }, initialCabinData)
     })
   }
 
   const addMapping = () => {
     setEditing((prev) => {
       if (!prev) return prev
-      return {
+      return syncFloorPrices({
         ...prev,
         mappings: [...prev.mappings, createEmptyMapping()],
-      }
+      }, initialCabinData)
     })
   }
 
   const removeMapping = (mappingId: string) => {
     setEditing((prev) => {
       if (!prev) return prev
-      return {
+      return syncFloorPrices({
         ...prev,
         mappings: prev.mappings.filter((item) => item.id !== mappingId),
-      }
+      }, initialCabinData)
     })
   }
 
@@ -206,6 +231,29 @@ export default function SellRoomTypeConfigPage() {
           <span className={`text-sm ${count > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
             {count > 0 ? `${count} 条规则` : '默认'}
           </span>
+        )
+      },
+    },
+    {
+      key: 'sellByFloor',
+      title: '售卖方式',
+      width: '110px',
+      render: (record: SellRoomTypeConfig) => (
+        <span className={`text-sm ${record.sellByFloor ? 'text-blue-600' : 'text-gray-500'}`}>
+          {record.sellByFloor ? '按楼层售卖' : '统一售卖'}
+        </span>
+      ),
+    },
+    {
+      key: 'privileges',
+      title: '礼遇',
+      width: '150px',
+      render: (record: SellRoomTypeConfig) => {
+        const privileges = record.privileges || []
+        return privileges.length > 0 ? (
+          <span className="text-sm text-blue-600">{privileges.length} 项礼遇</span>
+        ) : (
+          <span className="text-sm text-gray-400">未配置</span>
         )
       },
     },
@@ -375,16 +423,124 @@ export default function SellRoomTypeConfigPage() {
             </div>
 
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">计数维度</h4>
-              <select
-                value={editing.countDimension}
-                onChange={(e) => updateEditing({ countDimension: e.target.value as SellRoomTypeConfig['countDimension'] })}
-                className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="room">按间计数</option>
-                <option value="bed">按床计数</option>
-              </select>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">礼遇配置</h4>
+                  <p className="mt-1 text-xs text-gray-400">礼遇项复用产品管理的分级字典「礼遇类型」。</p>
+                </div>
+                <span className="text-xs text-gray-500">已选 {(editing.privileges || []).length} 项</span>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <div className="mb-3 flex min-h-8 flex-wrap gap-2">
+                  {(editing.privileges || []).length === 0 && (
+                    <span className="text-sm text-gray-400">暂未配置礼遇</span>
+                  )}
+                  {(editing.privileges || []).map((privilege) => (
+                    <span key={privilege} className="inline-flex items-center gap-1.5 rounded bg-blue-50 px-2.5 py-1 text-sm text-blue-700">
+                      {privilege}
+                      <button
+                        type="button"
+                        onClick={() => updateEditing({ privileges: (editing.privileges || []).filter((item) => item !== privilege) })}
+                        className="text-blue-400 hover:text-red-500"
+                        aria-label={`移除礼遇：${privilege}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (!e.target.value) return
+                    updateEditing({ privileges: Array.from(new Set([...(editing.privileges || []), e.target.value])) })
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  aria-label="添加房型礼遇"
+                >
+                  <option value="">请选择要添加的礼遇</option>
+                  {privilegeOptions
+                    .filter((option) => !(editing.privileges || []).includes(option.value))
+                    .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
             </div>
+
+            <div>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">计数维度</h4>
+              <div className="grid gap-4 md:grid-cols-[240px_1fr]">
+                <select
+                  value={editing.countDimension}
+                  onChange={(e) => updateEditing({ countDimension: e.target.value as SellRoomTypeConfig['countDimension'] })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="room">按间计数</option>
+                  <option value="bed">按床计数</option>
+                </select>
+
+                <div className="rounded-lg border border-gray-200 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">是否按可指定楼层</div>
+                      <div className="mt-1 text-xs text-gray-500">开启后，预订时可由业务选择指定甲板楼层。</div>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        className="peer sr-only"
+                        checked={editing.specifyFloorSelectable}
+                        onChange={(e) => updateEditing({ specifyFloorSelectable: e.target.checked })}
+                      />
+                      <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {editing.sellByFloor && (
+              <div>
+                <div className="mb-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">楼层价格配置</h4>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {editingFloorOptions.length > 0
+                      ? '按楼层售卖已开启，请维护每个楼层的房型价格。'
+                      : '暂无楼层来源，建议先在“关联配置”里选择具体船舱与楼层。'}
+                  </p>
+                </div>
+                <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                  {(editing.floorPrices || []).length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-400">
+                      暂无可配置楼层。
+                    </div>
+                  ) : (
+                    editing.floorPrices.map((item) => (
+                      <div key={item.floor} className="grid grid-cols-[120px_1fr] gap-4 rounded-lg bg-gray-50 px-4 py-3">
+                        <div className="flex items-center text-sm font-medium text-gray-900">{item.floor}</div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.price}
+                            onChange={(e) =>
+                              updateEditing({
+                                floorPrices: (editing.floorPrices || []).map((priceItem) =>
+                                  priceItem.floor === item.floor
+                                    ? { ...priceItem, price: Number(e.target.value) }
+                                    : priceItem,
+                                ),
+                              })
+                            }
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">元</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             <div>
               <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">预警设置</h4>
@@ -484,6 +640,7 @@ export default function SellRoomTypeConfigPage() {
                               updateMapping(mapping.id, {
                                 physicalCabinId: e.target.value,
                                 physicalCabinName: selected?.cabinName || '',
+                                floor: selected?.floors?.[0] || '',
                               })
                             }}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
@@ -503,7 +660,10 @@ export default function SellRoomTypeConfigPage() {
                             onChange={(e) => updateMapping(mapping.id, { floor: e.target.value || undefined })}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                           >
-                            {floorOptions.map((floor) => (
+                            {[
+                              '',
+                              ...(physicalCabins.find((item) => item.id === mapping.physicalCabinId)?.floors || floorOptions.filter(Boolean)),
+                            ].map((floor) => (
                               <option key={floor || 'none'} value={floor}>
                                 {floor || '不限'}
                               </option>
@@ -546,6 +706,10 @@ export default function SellRoomTypeConfigPage() {
           setPricingTarget(null)
         }}
         onSave={savePricingRules}
+        onUpdateSellRoomType={(config) => {
+          setRecords((prev) => prev.map((item) => (item.id === config.id ? { ...config } : item)))
+          setPricingTarget(config)
+        }}
       />
     </div>
   )

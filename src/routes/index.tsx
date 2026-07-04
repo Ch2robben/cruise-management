@@ -10,6 +10,7 @@ import AttractionPage from '@/pages/resources/AttractionPage'
 import RoutePage from '@/pages/resources/RoutePage'
 import ItineraryManagementPage from '@/pages/resources/ItineraryManagementPage'
 import ProductPage from '@/pages/resources/ProductPage'
+import PackageManagementPage from '@/pages/resources/PackageManagementPage'
 import ShipPage from '@/pages/resources/ShipPage'
 import VoyagePage from '@/pages/voyage/VoyagePage'
 import TemplatePage from '@/pages/voyage/TemplatePage'
@@ -32,6 +33,10 @@ import UserPage from '@/pages/system/UserPage'
 import RolePage from '@/pages/system/RolePage'
 import MenuPage from '@/pages/system/MenuPage'
 import DictionaryPage from '@/pages/system/DictionaryPage'
+import CooperationManagementPage from '@/pages/distribution/CooperationManagementPage'
+import DistributionManagementPage from '@/pages/distribution/DistributionManagementPage'
+import OtaDistributionPage from '@/pages/distribution/OtaDistributionPage'
+import DiscountManagementPage from '@/pages/distribution/DiscountManagementPage'
 import DealerPage from '@/pages/distribution/DealerPage'
 import CabinHoldPage from '@/pages/distribution/CabinHoldPage'
 import CharterOrderPage from '@/pages/service/CharterOrderPage'
@@ -57,7 +62,11 @@ import FlightQueryPage from '@/pages/dealer/booking/FlightQueryPage'
 import ComboSalesPage from '@/pages/dealer/booking/ComboSalesPage'
 import DealerCruiseOrderPage from '@/pages/dealer/order/DealerCruiseOrderPage'
 import DealerOrderTouristPage from '@/pages/dealer/order/DealerOrderTouristPage'
+import DealerTouristOrderListPage from '@/pages/dealer/order/DealerTouristOrderListPage'
 import DealerSpecialPriceApplicationPage from '@/pages/dealer/order/DealerSpecialPriceApplicationPage'
+import DealerPeriodTicketOrderPage from '@/pages/dealer/order/DealerPeriodTicketOrderPage'
+import DealerPeriodTicketOrderDetailPage from '@/pages/dealer/order/DealerPeriodTicketOrderDetailPage'
+import DealerPeriodTicketRedeemPage from '@/pages/dealer/order/DealerPeriodTicketRedeemPage'
 import DealerCruiseSalesStatsPage from '@/pages/dealer/stats/DealerCruiseSalesStatsPage'
 
 import DepositRulePage from '@/pages/rule/DepositRulePage'
@@ -117,6 +126,7 @@ export const router = createHashRouter([
       { path: '/resources/routes', element: <RoutePage /> },
       { path: '/resources/itineraries', element: <ItineraryManagementPage /> },
       { path: '/resources/products', element: <ProductPage /> },
+      { path: '/resources/packages', element: <PackageManagementPage /> },
       { path: '/resources/ships', element: <ShipPage /> },
       { path: '/voyage/list', element: <VoyagePage /> },
       { path: '/voyage/templates', element: <TemplatePage /> },
@@ -135,6 +145,10 @@ export const router = createHashRouter([
       { path: '/voyage/pricing', element: <PricingPage /> },
       { path: '/orders/list', element: <OrderListPage /> },
       { path: '/orders/voyage-passenger-rooms', element: <VoyagePassengerRoomPage /> },
+      { path: '/distribution/cooperation', element: <CooperationManagementPage /> },
+      { path: '/distribution/distribution-mgmt', element: <DistributionManagementPage /> },
+      { path: '/distribution/ota', element: <OtaDistributionPage /> },
+      { path: '/distribution/discounts', element: <DiscountManagementPage /> },
       { path: '/distribution/dealers', element: <DealerPage /> },
       { path: '/distribution/dealer-approvals', element: <DealerPage /> },
       { path: '/distribution/dealer-rules', element: <DealerPage /> },
@@ -195,6 +209,10 @@ export const router = createHashRouter([
       { path: '/dealer/booking/flight', element: <FlightQueryPage /> },
       { path: '/dealer/booking/combo-sales', element: <ComboSalesPage /> },
       { path: '/dealer/orders/cruise', element: <DealerCruiseOrderPage /> },
+      { path: '/dealer/orders/tourists', element: <DealerTouristOrderListPage /> },
+      { path: '/dealer/orders/period', element: <DealerPeriodTicketOrderPage /> },
+      { path: '/dealer/orders/period/:id', element: <DealerPeriodTicketOrderDetailPage /> },
+      { path: '/dealer/orders/period/redeem', element: <DealerPeriodTicketRedeemPage /> },
       { path: '/dealer/orders/special-price', element: <DealerSpecialPriceApplicationPage /> },
       { path: '/dealer/orders/cruise/tourists', element: <DealerOrderTouristPage /> },
       { path: '/dealer/stats/cruise-sales', element: <DealerCruiseSalesStatsPage /> },

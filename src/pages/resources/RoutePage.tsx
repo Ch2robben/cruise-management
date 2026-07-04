@@ -23,6 +23,8 @@ interface StopForm {
   distance: number
   type: 'start' | 'middle' | 'end'
   embarkDisembark: boolean
+  /** 途中码头是否开启售票（仅 middle 生效，默认 false） */
+  ticketingEnabled: boolean
 }
 
 interface RouteFormData {
@@ -51,6 +53,7 @@ const emptyStop = (type: 'start' | 'middle' | 'end'): StopForm => ({
   distance: 0,
   type,
   embarkDisembark: type === 'start' || type === 'end',
+  ticketingEnabled: false,
 })
 
 const emptyForm: RouteFormData = {
@@ -121,7 +124,7 @@ export default function RoutePage() {
 
   // 航线规划表单操作
   const stopsFromRoute = (r: Route): StopForm[] =>
-    r.stops.map((s) => ({ key: s.id, portId: s.portId, portName: s.portName, day: s.day, pierName: s.pierName, sailTime: s.sailTime, distance: s.distance, type: s.type, embarkDisembark: s.embarkDisembark ?? (s.type === 'start' || s.type === 'end') }))
+    r.stops.map((s) => ({ key: s.id, portId: s.portId, portName: s.portName, day: s.day, pierName: s.pierName, sailTime: s.sailTime, distance: s.distance, type: s.type, embarkDisembark: s.embarkDisembark ?? (s.type === 'start' || s.type === 'end'), ticketingEnabled: s.ticketingEnabled ?? false }))
 
   const openCreate = () => {
     setEditingId(null)
@@ -272,6 +275,7 @@ export default function RoutePage() {
       distance: s.distance,
       type: s.type,
       embarkDisembark: s.embarkDisembark,
+      ticketingEnabled: s.type === 'middle' ? s.ticketingEnabled : undefined,
     }))
 
     if (editingId) {
@@ -592,6 +596,22 @@ export default function RoutePage() {
                           />
                         </div>
                       </div>
+
+                      {/* 途中码头：开启售票 */}
+                      {stop.type === 'middle' && (
+                        <div className="mt-3 border-t border-gray-100 pt-3">
+                          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={stop.ticketingEnabled}
+                              onChange={(e) => updateStop(stop.key, 'ticketingEnabled', e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            开启售票
+                            <span className="text-xs text-gray-400">（勾选后该途中港可作为上船/下船节点对外售票）</span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

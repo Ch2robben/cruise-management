@@ -40,6 +40,7 @@ const emptyForm: AttractionForm = {
   suitableGroups: '普通游客、团队客人',
   bookingRequired: false,
   ticketPolicy: '',
+  routeLines: [],
   description: '',
 }
 
@@ -175,6 +176,7 @@ export default function AttractionPage() {
       suitableGroups: record.suitableGroups || '',
       bookingRequired: Boolean(record.bookingRequired),
       ticketPolicy: record.ticketPolicy || '',
+      routeLines: [...(record.routeLines || [])],
       description: record.description || '',
     })
     setFormOpen(true)
@@ -531,6 +533,40 @@ export default function AttractionPage() {
           <section>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">说明信息</h4>
             <div className="space-y-4">
+              {/* 线路（可多条） */}
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">适用线路</label>
+                <div className="space-y-2">
+                  {form.routeLines.map((line, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        value={line}
+                        onChange={(e) => {
+                          const next = [...form.routeLines]
+                          next[idx] = e.target.value
+                          setForm({ ...form, routeLines: next })
+                        }}
+                        placeholder={`线路 ${idx + 1}，如：长江三峡经典线`}
+                        className={inputClass}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, routeLines: form.routeLines.filter((_, i) => i !== idx) })}
+                        className="flex-shrink-0 rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, routeLines: [...form.routeLines, ''] })}
+                    className="inline-flex items-center gap-1 rounded border border-dashed border-gray-300 px-3 py-1.5 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600"
+                  >
+                    <Plus className="h-3.5 w-3.5" />添加线路
+                  </button>
+                </div>
+              </div>
               <div>
                 <label className="mb-1 block text-sm text-gray-700">票务/政策说明</label>
                 <textarea value={form.ticketPolicy} onChange={(event) => setForm({ ...form, ticketPolicy: event.target.value })} rows={2} className={`${inputClass} resize-none`} />
@@ -582,6 +618,18 @@ export default function AttractionPage() {
             </DetailCard>
             <DetailCard title="说明信息">
               <DetailRow label="票务/政策" value={detail.ticketPolicy || '-'} />
+              {(detail.routeLines || []).length > 0 && (
+                <DetailRow
+                  label="适用线路"
+                  value={
+                    <div className="flex flex-wrap gap-1.5">
+                      {(detail.routeLines || []).map((line, idx) => (
+                        <span key={idx} className="inline-flex rounded-full bg-blue-50 px-2.5 py-0.5 text-xs text-blue-700">{line}</span>
+                      ))}
+                    </div>
+                  }
+                />
+              )}
               <p className="mt-3 text-sm leading-relaxed text-gray-700">{detail.description || '-'}</p>
             </DetailCard>
             <DetailCard title="操作信息">

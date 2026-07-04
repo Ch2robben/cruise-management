@@ -5,6 +5,8 @@ export const HIERARCHICAL_DICT_TYPES: { code: HierarchicalDictTypeCode; name: st
   { code: 'ACTIVITY_CATEGORY', name: '活动分类' },
   { code: 'PRIVILEGE_TYPE', name: '礼遇类型' },
   { code: 'ATTRACTION_SERVICE', name: '景点服务' },
+  { code: 'CRUISE_FACILITY', name: '游轮设施' },
+  { code: 'CABIN_FACILITY', name: '船舱设施' },
 ]
 
 export interface HierarchicalDictOption {
