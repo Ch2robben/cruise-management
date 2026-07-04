@@ -51,6 +51,7 @@ interface TouristGuestLike {
   gender: string
   stayType: string
   nationality: string
+  floorFeeFloor?: string
   idType: string
   idNum: string
   guestType: string
@@ -68,6 +69,15 @@ interface RoomGroupLike {
 interface TeamLike {
   id: string
   name: string
+  remark?: string
+}
+
+interface EscortTicketLike {
+  id: string
+  name: string
+  idType: string
+  idNum: string
+  phone?: string
   remark?: string
 }
 
@@ -91,6 +101,8 @@ interface PriceGuestRow {
   ageGroup: string
   gender: string
   stayType: string
+  nationality: string
+  floorFeeFloor: string
   priceTypeLabel: string
   ticketPrice: number
 }
@@ -113,6 +125,7 @@ export default function Step4OrderConfirm({
   const hasCart = cart.length > 0
   const roomGroups = (data?.touristData?.roomGroups ?? []) as RoomGroupLike[]
   const teams = (data?.touristData?.teams ?? []) as TeamLike[]
+  const escortTickets = (data?.touristData?.escortTickets ?? []) as EscortTicketLike[]
 
   const matchedPolicies: MatchedPricePolicy[] =
     data?.matchedPolicies ?? (hasCart ? buildMatchedPricePolicies(cart) : defaultMatchedPolicies())
@@ -157,6 +170,8 @@ export default function Step4OrderConfirm({
           ageGroup: guest.ageGroup || '-',
           gender: guest.gender || '-',
           stayType: guest.stayType || '-',
+          nationality: guest.nationality || '-',
+          floorFeeFloor: guest.floorFeeFloor || '不收楼层费',
           priceTypeLabel: priceInfo.priceTypeLabel,
           ticketPrice: priceInfo.ticketPrice,
         }
@@ -258,10 +273,11 @@ export default function Step4OrderConfirm({
           <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
             <h3 className="text-sm font-semibold text-gray-800">人数信息</h3>
           </div>
-          <div className="grid grid-cols-4 gap-3 p-5">
+          <div className="grid grid-cols-5 gap-3 p-5">
             <StatCell label="总人数" value={totalPax} />
             <StatCell label="成人" value={hasCart ? totalPax : 4} />
             <StatCell label="儿童" value={hasCart ? 0 : 1} />
+            <StatCell label="全陪票" value={escortTickets.length} />
             <StatCell label="房间数" value={totalRooms} />
           </div>
         </div>
@@ -281,6 +297,27 @@ export default function Step4OrderConfirm({
             <FieldItem label="开船日期" value="2026-06-15" />
             <FieldItem label="离船日期" value="2026-06-18" />
           </div>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white lg:col-span-2">
+          <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
+            <h3 className="text-sm font-semibold text-gray-800">全陪票信息</h3>
+          </div>
+          {escortTickets.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-gray-400">未录入全陪票</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {escortTickets.map((ticket, index) => (
+                <div key={ticket.id} className="grid gap-x-10 px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <FieldItem label={`全陪票${index + 1}`} value={ticket.name} />
+                  <FieldItem label="证件类型" value={ticket.idType} />
+                  <FieldItem label="证件号码" value={ticket.idNum} mono />
+                  <FieldItem label="手机号" value={ticket.phone || '-'} />
+                  <FieldItem label="备注" value={ticket.remark || '-'} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -468,7 +505,7 @@ export default function Step4OrderConfirm({
                       <table className="w-full min-w-[820px] text-sm">
                         <thead>
                           <tr className="border-b border-gray-100 bg-white">
-                            {['房间', '房型', '姓名', '年龄段', '性别', '入住类型', '价格类型', '结算价'].map((col) => (
+                            {['房间', '房型', '姓名', '国籍', '楼层费', '年龄段', '性别', '入住类型', '价格类型', '结算价'].map((col) => (
                               <th
                                 key={col}
                                 className={`px-4 py-3 text-xs font-medium text-gray-500 ${
@@ -486,6 +523,8 @@ export default function Step4OrderConfirm({
                               <td className="px-4 py-3 text-gray-700">房间 {guest.roomSeq}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{guest.roomType}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.name}</td>
+                              <td className="px-4 py-3 text-gray-700">{guest.nationality}</td>
+                              <td className="px-4 py-3 text-gray-700">{guest.floorFeeFloor}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.ageGroup}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.gender}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.stayType}</td>

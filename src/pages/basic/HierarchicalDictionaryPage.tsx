@@ -171,9 +171,11 @@ export default function HierarchicalDictionaryPage() {
     setPage(1)
   }
 
-  const openCreate = (parentId?: string) => {
+  const openCreate = (options?: { parentId?: string; level?: 1 | 2 }) => {
     setEditingId(null)
     const dictType = dictTypeFilter === 'all' ? 'ACTIVITY_CATEGORY' : dictTypeFilter
+    const parentId = options?.parentId
+    const level = options?.level || (parentId ? 2 : 1)
     if (parentId) {
       const parent = parentMap.get(parentId)
       setForm({
@@ -185,7 +187,12 @@ export default function HierarchicalDictionaryPage() {
         code: parent ? `${parent.code}_` : '',
       })
     } else {
-      setForm({ ...emptyForm(dictType), sort: parentOptions.length + 1 })
+      setForm({
+        ...emptyForm(dictType),
+        level,
+        parentId: null,
+        sort: level === 1 ? parentOptions.length + 1 : 1,
+      })
     }
     setFormOpen(true)
   }
@@ -297,7 +304,7 @@ export default function HierarchicalDictionaryPage() {
           <button onClick={() => openDetail(row.record)} className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900">详情</button>
           <button onClick={() => openEdit(row.record)} className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900">编辑</button>
           {row.record.level === 1 && (
-            <button onClick={() => openCreate(row.record.id)} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700">添加子类</button>
+            <button onClick={() => openCreate({ parentId: row.record.id, level: 2 })} className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700">添加子类</button>
           )}
           <button onClick={() => handleToggleStatus(row.record.id)} className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900">
             {row.record.status === 'enabled' ? '禁用' : '启用'}
@@ -360,8 +367,11 @@ export default function HierarchicalDictionaryPage() {
 
       <div className="bg-white px-9 py-6">
         <div className="flex flex-wrap items-center gap-3">
-          <button onClick={() => openCreate()} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
+          <button onClick={() => openCreate({ level: 1 })} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
             <Plus className="h-4 w-4" />添加编码
+          </button>
+          <button onClick={() => openCreate({ level: 1 })} className="inline-flex h-11 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-5 text-sm text-gray-700 hover:bg-gray-50">
+            <Plus className="h-4 w-4" />添加分类型
           </button>
           <button onClick={() => setInfoOpen(true)} className="inline-flex h-11 items-center rounded-md border border-gray-300 bg-white px-5 text-sm text-gray-700 hover:bg-gray-50">
             编码说明

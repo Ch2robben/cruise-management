@@ -24,7 +24,6 @@ import {
   sortPricingRules,
   type CabinPricingRule,
   type ExcludePeriod,
-  type FloorPricingRule,
   type FormulaPricingRule,
   type GuestPriceCoefficient,
 } from '@/utils/cabinPriceCoefficient'
@@ -35,6 +34,7 @@ interface SellRoomTypePricingDialogProps {
   rules: CabinPricingRule[]
   onClose: () => void
   onSave: (rules: CabinPricingRule[]) => void
+  onUpdateSellRoomType: (config: SellRoomTypeConfig) => void
 }
 
 export default function SellRoomTypePricingDialog({
@@ -43,10 +43,12 @@ export default function SellRoomTypePricingDialog({
   rules,
   onClose,
   onSave,
+  onUpdateSellRoomType,
 }: SellRoomTypePricingDialogProps) {
   const [cabinRules, setCabinRules] = useState<CabinPricingRule[]>([])
   const [activeRuleId, setActiveRuleId] = useState('')
   const [editMode, setEditMode] = useState(false)
+  const [localSellRoomType, setLocalSellRoomType] = useState<SellRoomTypeConfig | null>(null)
 
   useEffect(() => {
     if (!open || !sellRoomType) return
@@ -59,11 +61,17 @@ export default function SellRoomTypePricingDialog({
     setCabinRules(sorted)
     setActiveRuleId(sorted[0]?.id || '')
     setEditMode(false)
+    setLocalSellRoomType(sellRoomType)
   }, [open, sellRoomType, rules])
 
   const pricingRule = useMemo(
     () => cabinRules.find((rule) => rule.id === activeRuleId) || null,
     [activeRuleId, cabinRules],
+  )
+
+  const floorDeckOptions = useMemo(
+    () => (localSellRoomType?.sellByFloor ? localSellRoomType.floorPrices.map((item) => item.floor) : deckOptions),
+    [localSellRoomType],
   )
 
   const updateActiveRule = (updater: (rule: CabinPricingRule) => CabinPricingRule) => {
@@ -95,14 +103,6 @@ export default function SellRoomTypePricingDialog({
       ...rule,
       excludePeriods: rule.excludePeriods.filter((period) => period.id !== periodId),
     }))
-  }
-
-  const updateFloorRule = (index: number, field: keyof FloorPricingRule, value: string | number) => {
-    updateActiveRule((rule) => {
-      const floorRules = [...rule.floorRules]
-      floorRules[index] = { ...floorRules[index], [field]: value }
-      return { ...rule, floorRules }
-    })
   }
 
   const updateFormulaRule = (
@@ -203,6 +203,22 @@ export default function SellRoomTypePricingDialog({
   }
 
   const handleSave = () => {
+    if (localSellRoomType?.sellByFloor) {
+      const floorList = localSellRoomType.floorPrices.map((item) => item.floor)
+      const invalidRule = cabinRules.some((rule) => rule.formulaRules.some((item) => item.enabled && item.floor === '全部'))
+      if (invalidRule) {
+        window.alert('开启按楼层售卖后，入住公式不能再配置为“全部”，请按具体甲板层维护。')
+        return
+      }
+      const missingFloorRule = cabinRules.find((rule) =>
+        floorList.some((floor) => !rule.formulaRules.some((item) => item.enabled && item.floor === floor)),
+      )
+      if (missingFloorRule) {
+        window.alert(`规则「${missingFloorRule.name}」尚未覆盖所有甲板层，请为每个楼层分别配置入住公式。`)
+        return
+      }
+    }
+
     onSave(
       sortPricingRules(
         cabinRules.map((rule) => ({
@@ -211,11 +227,14 @@ export default function SellRoomTypePricingDialog({
         })),
       ),
     )
+    if (localSellRoomType) {
+      onUpdateSellRoomType(localSellRoomType)
+    }
     setEditMode(false)
     onClose()
   }
 
-  if (!open || !sellRoomType || !pricingRule) return null
+  if (!open || !sellRoomType || !pricingRule || !localSellRoomType) return null
 
   return (
     <FormDialog
@@ -246,6 +265,12 @@ export default function SellRoomTypePricingDialog({
             <div className="mt-3 border-t border-gray-200 pt-3 text-sm text-gray-600">
               关联物理船舱：{formatMappingSummary(sellRoomType.mappings)}
             </div>
+            {localSellRoomType.sellByFloor && (
+              <div className="mt-2 text-sm text-blue-600">
+                按楼层售卖：
+                {(localSellRoomType.floorPrices || []).map((item) => `${item.floor} ${item.price}元`).join(' / ') || '未配置'}
+              </div>
+            )}
           </div>
           <button
             onClick={() => setEditMode((v) => !v)}
@@ -257,6 +282,36 @@ export default function SellRoomTypePricingDialog({
           >
             {editMode ? '退出编辑' : '编辑'}
           </button>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900">按楼层售卖</h4>
+              <p className="mt-1 text-xs text-gray-500">开启后，对该房型每个楼层分别配置销售价格。</p>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={localSellRoomType.sellByFloor}
+                disabled={!editMode}
+                onChange={(e) =>
+                  setLocalSellRoomType({
+                    ...localSellRoomType,
+                    sellByFloor: e.target.checked,
+                    floorPrices: e.target.checked ? localSellRoomType.floorPrices : [],
+                  })
+                }
+              />
+              <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white disabled:opacity-50" />
+            </label>
+          </div>
+          {localSellRoomType.sellByFloor && (
+            <div className="mt-4 border-t border-gray-100 pt-4 text-xs text-gray-500">
+              已开启按楼层售卖。楼层价格请回到房型编辑页维护。
+            </div>
+          )}
         </div>
 
         <div>
@@ -397,64 +452,24 @@ export default function SellRoomTypePricingDialog({
         </div>
 
         <div>
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">楼层费规则</h4>
-          <div className="overflow-hidden rounded-lg border border-gray-200">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="px-3 py-2 text-left text-xs text-gray-500">甲板层</th>
-                  <th className="px-3 py-2 text-left text-xs text-gray-500">公式基底</th>
-                  <th className="px-3 py-2 text-right text-xs text-gray-500">层级</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {pricingRule.floorRules.map((row, index) => (
-                  <tr key={row.floor}>
-                    <td className="px-3 py-2 text-sm font-medium text-gray-900">{row.label}</td>
-                    <td className="px-3 py-2">
-                      {editMode ? (
-                        <input
-                          value={row.formulaPrefix}
-                          onChange={(e) => updateFloorRule(index, 'formulaPrefix', e.target.value)}
-                          className="w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs"
-                        />
-                      ) : (
-                        <span className="font-mono text-xs text-gray-700">{row.formulaPrefix}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {editMode ? (
-                        <input
-                          type="number"
-                          value={row.floorLevel}
-                          onChange={(e) => updateFloorRule(index, 'floorLevel', Number(e.target.value))}
-                          className="w-16 rounded border border-gray-300 px-2 py-1.5 text-right text-xs"
-                        />
-                      ) : (
-                        <span className="text-xs text-gray-700">{row.floorLevel}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div>
           <div className="mb-3 flex items-center gap-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
             <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600">
               系数配置到人：第一人=XP+XS+X；P/S/X 变量取值在航次价格配置中维护
             </span>
           </div>
+          {localSellRoomType.sellByFloor && (
+            <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-6 text-blue-700">
+              当前已开启按楼层售卖，请按每个甲板层分别配置入住公式。可配置楼层：
+              {localSellRoomType.floorPrices.map((item) => item.floor).join('、') || '暂无'}
+            </div>
+          )}
           <div className="max-h-[420px] overflow-auto rounded-lg border border-gray-200">
             <table className="w-full min-w-[860px] text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b bg-gray-50">
                   <th className="px-3 py-2 text-left text-xs text-gray-500">甲板层</th>
                   <th className="px-3 py-2 text-left text-xs text-gray-500">公式模板</th>
-                  <th className="px-3 py-2 text-left text-xs text-gray-500">入住组合</th>
                   <th className="px-3 py-2 text-left text-xs text-gray-500">按人系数</th>
                   <th className="px-3 py-2 text-center text-xs text-gray-500">启用</th>
                   {editMode && <th className="px-3 py-2 text-center text-xs text-gray-500">操作</th>}
@@ -475,7 +490,7 @@ export default function SellRoomTypePricingDialog({
                           onChange={(e) => updateFormulaRule(index, 'floor', e.target.value)}
                           className="rounded border border-gray-300 px-2 py-1 text-xs"
                         >
-                          {deckOptions.map((opt) => (
+                          {floorDeckOptions.map((opt) => (
                             <option key={opt} value={opt}>
                               {opt}
                             </option>
@@ -505,19 +520,19 @@ export default function SellRoomTypePricingDialog({
                         </span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 align-top text-gray-700">
-                      {editMode ? (
-                        <input
-                          value={row.scenarioName}
-                          onChange={(e) => updateFormulaRule(index, 'scenarioName', e.target.value)}
-                          className="w-full min-w-[120px] rounded border border-gray-300 px-2 py-1 text-xs"
-                        />
-                      ) : (
-                        row.scenarioName
-                      )}
-                      <div className="mt-1 text-[11px] text-gray-400">{ticketClass?.name || '-'}</div>
-                    </td>
                     <td className="px-3 py-2 align-top">
+                      <div className="mb-2 text-xs text-gray-500">
+                        {editMode ? (
+                          <input
+                            value={row.scenarioName}
+                            onChange={(e) => updateFormulaRule(index, 'scenarioName', e.target.value)}
+                            className="w-full min-w-[120px] rounded border border-gray-300 px-2 py-1 text-xs"
+                          />
+                        ) : (
+                          <span className="text-gray-700">{row.scenarioName}</span>
+                        )}
+                        <div className="mt-1 text-[11px] text-gray-400">{ticketClass?.name || '-'}</div>
+                      </div>
                       {editMode ? (
                         <div className="space-y-2">
                           {row.guestCoefficients.map((guestCoeff, guestIndex) => (

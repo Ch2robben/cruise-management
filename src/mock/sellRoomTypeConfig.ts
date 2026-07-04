@@ -10,6 +10,11 @@ export interface PhysicalRoomMapping {
   floor?: string
 }
 
+export interface SellRoomTypeFloorPrice {
+  floor: string
+  price: number
+}
+
 /** 售卖房型配置 */
 export interface SellRoomTypeConfig {
   id: string
@@ -17,7 +22,12 @@ export interface SellRoomTypeConfig {
   sellRoomTypeName: string
   sellRoomTypeCode: string
   description: string
+  /** 房型礼遇，选项来源于分级字典 PRIVILEGE_TYPE */
+  privileges?: string[]
   mappings: PhysicalRoomMapping[]
+  sellByFloor: boolean
+  specifyFloorSelectable: boolean
+  floorPrices: SellRoomTypeFloorPrice[]
   countDimension: 'room' | 'bed'
   alertEnabled: boolean
   alertType: 'percentage' | 'quantity'
@@ -68,6 +78,45 @@ export function formatMappingSummary(mappings: PhysicalRoomMapping[]): string {
     .join(' / ')
 }
 
+export function getSellRoomTypeFloorOptions(config: SellRoomTypeConfig, cabins: CabinRecord[] = initialCabinData): string[] {
+  const floors = new Set<string>()
+  config.mappings.forEach((mapping) => {
+    if (mapping.floor) {
+      floors.add(mapping.floor)
+      return
+    }
+    const cabin = cabins.find((item) => item.id === mapping.physicalCabinId)
+    cabin?.floors?.forEach((floor) => floors.add(floor))
+  })
+
+  if (floors.size === 0) {
+    cabins
+      .filter((item) => item.shipName === config.shipName)
+      .flatMap((item) => item.floors || [])
+      .forEach((floor) => floors.add(floor))
+  }
+
+  return Array.from(floors).sort((a, b) => Number(a.replace('F', '')) - Number(b.replace('F', '')))
+}
+
+export function syncFloorPrices(
+  config: SellRoomTypeConfig,
+  cabins: CabinRecord[] = initialCabinData,
+): SellRoomTypeConfig {
+  if (!config.sellByFloor) {
+    return { ...config, floorPrices: [] }
+  }
+  const floors = getSellRoomTypeFloorOptions(config, cabins)
+  const currentMap = new Map((config.floorPrices || []).map((item) => [item.floor, item.price]))
+  return {
+    ...config,
+    floorPrices: floors.map((floor, index) => ({
+      floor,
+      price: currentMap.get(floor) ?? (index + 1) * 200 + 2980,
+    })),
+  }
+}
+
 export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
   {
     id: 'srt-1',
@@ -88,6 +137,12 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
         physicalCabinName: '长江叁号豪华阳台标准间',
         floor: '3F',
       },
+    ],
+    sellByFloor: true,
+    specifyFloorSelectable: true,
+    floorPrices: [
+      { floor: '2F', price: 2980 },
+      { floor: '3F', price: 3280 },
     ],
     countDimension: 'room',
     alertEnabled: true,
@@ -112,6 +167,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
         floor: '3F',
       },
     ],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -141,6 +199,12 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
         floor: '3F',
       },
     ],
+    sellByFloor: true,
+    specifyFloorSelectable: true,
+    floorPrices: [
+      { floor: '2F', price: 2680 },
+      { floor: '3F', price: 2880 },
+    ],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -164,6 +228,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
         floor: '3F',
       },
     ],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -193,6 +260,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
         floor: '5F',
       },
     ],
+    sellByFloor: true,
+    specifyFloorSelectable: true,
+    floorPrices: [{ floor: '5F', price: 6680 }],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -209,6 +279,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'CJ2-STD',
     description: '长江贰号标准间售卖配置，待补充物理房型映射。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -225,6 +298,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'CJTX-SUI',
     description: '长江探索号套房对外售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -241,6 +317,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'CJTX-BAL',
     description: '长江探索号阳台房对外售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -257,6 +336,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'CJTX-WIN',
     description: '长江探索号海景房对外售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -273,6 +355,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'HJ-BAL',
     description: '黄金游轮阳台房售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -289,6 +374,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'HJ-WIN',
     description: '黄金游轮海景房售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -305,6 +393,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'WDL-SUI',
     description: '维多利亚号套房售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -321,6 +412,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'WDL-BAL',
     description: '维多利亚号阳台房售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -337,6 +431,9 @@ export const initialSellRoomTypeConfigs: SellRoomTypeConfig[] = [
     sellRoomTypeCode: 'WDL-WIN',
     description: '维多利亚号海景房售卖口径。',
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',
@@ -355,7 +452,11 @@ export function createEmptySellRoomTypeConfig(shipName: string): SellRoomTypeCon
     sellRoomTypeName: '',
     sellRoomTypeCode: generateSellRoomTypeCode(shipName, '新房型'),
     description: '',
+    privileges: [],
     mappings: [],
+    sellByFloor: false,
+    specifyFloorSelectable: false,
+    floorPrices: [],
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',

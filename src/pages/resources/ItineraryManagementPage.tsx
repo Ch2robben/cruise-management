@@ -10,6 +10,7 @@ import { formatDurationMinutes } from '@/utils/format'
 import { flattenSegmentActivities } from '@/utils/itinerarySchedule'
 import { buildSegmentsFromRoute, mergeRouteSegmentsWithConfig } from '@/utils/routeItinerarySegments'
 import ItineraryEditor, { formatItineraryDayLabel, getItineraryDayOptions } from '@/components/voyage/ItineraryEditor'
+import ItineraryManagementBPage from './ItineraryManagementBPage'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -45,7 +46,7 @@ interface PlanMetrics {
 type GenerationTarget = 'product'
 
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900'
-const speedOptions = [14, 16, 18, 20, 22]
+
 
 const minutesToText = (minutes?: number) => formatDurationMinutes(minutes)
 
@@ -124,6 +125,7 @@ export default function ItineraryManagementPage() {
   const [attractions, setAttractions] = useState<Attraction[]>([])
   const [plans, setPlans] = useState<ItineraryPlan[]>(() => listItineraryPlans())
   const [editorOpen, setEditorOpen] = useState(false)
+  const [editorStep, setEditorStep] = useState<1 | 2>(1)
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
   const [draftRouteId, setDraftRouteId] = useState('')
@@ -159,8 +161,8 @@ export default function ItineraryManagementPage() {
       const toPort = portMap.get(segment.toPortId)
       const { distance, source, hint } = getDistance(segment.fromPortId, segment.toPortId)
       const mileageHint = hint
-      const sailingMinutes = distance && segment.speedKmH > 0
-        ? Math.round((distance.distanceKm / segment.speedKmH) * 60)
+      const sailingMinutes = distance && (segment.speedKmH ?? 15) > 0
+        ? Math.round((distance.distanceKm / (segment.speedKmH ?? 15)) * 60)
         : 0
       const arrivalMinutes = addMinutesToClock(segment.departureTime, sailingMinutes)
       const nextSegment = segments[index + 1]
@@ -238,6 +240,7 @@ export default function ItineraryManagementPage() {
     setDraftName('新建行程方案')
     setDraftRouteId('')
     setDraftSegments([])
+    setEditorStep(1)
   }
 
   const openEdit = (plan: ItineraryPlan) => {
@@ -251,6 +254,7 @@ export default function ItineraryManagementPage() {
       day: typeof segment.day === 'number' ? segment.day : index,
       activities: (segment.activities || []).map((item) => ({ ...item })),
     })))
+    setEditorStep(1)
   }
 
   const closeEditor = () => {
@@ -259,6 +263,7 @@ export default function ItineraryManagementPage() {
     setDraftName('')
     setDraftRouteId('')
     setDraftSegments([])
+    setEditorStep(1)
   }
 
   const syncPlans = (nextPlans: ItineraryPlan[]) => {
@@ -377,7 +382,7 @@ export default function ItineraryManagementPage() {
           <td>${safeText(row.segment.departureTime || '-')}</td>
           <td>${row.segment.passengerOnOff ? '是' : '否'}</td>
           <td>${safeText(row.distance ? `${row.distance.distanceKm} km` : '未维护')}</td>
-          <td>${safeText(`${row.segment.speedKmH} km/h`)}</td>
+          <td>-</td>
           <td>${safeText(minutesToText(row.sailingMinutes))}</td>
           <td>${safeText(row.arrivalTime || '-')}</td>
           <td>${safeText(row.attractions.map((item) => item.name).join('、') || '-')}</td>
@@ -628,13 +633,6 @@ export default function ItineraryManagementPage() {
                         className={inputClass}
                       />
                     </div>
-                    <div className="col-span-2">
-                      <label className="mb-1 block text-sm text-gray-700">航行速度</label>
-                      <select value={segment.speedKmH} onChange={(event) => updateSegment(segment.id, { speedKmH: Number(event.target.value) })} className={inputClass}>
-                        {speedOptions.map((speed) => <option key={speed} value={speed}>{speed} km/h</option>)}
-                        {distance?.speedKmH && !speedOptions.includes(distance.speedKmH) && <option value={distance.speedKmH}>{distance.speedKmH} km/h</option>}
-                      </select>
-                    </div>
                     <div className="col-span-2 rounded-lg bg-gray-50 px-4 py-3">
                       <p className="text-xs text-gray-500">距离库匹配</p>
                       <p className="mt-1 text-sm font-semibold text-gray-900">{distance ? `${distance.distanceKm} km` : '未维护距离'}</p>
@@ -706,6 +704,87 @@ export default function ItineraryManagementPage() {
         </>
         )}
       </div>
+  )
+
+  const wizardEditorContent = (
+    <div className="space-y-6">
+      <div className="flex items-center border-b border-gray-200 pb-5">
+        <div className="flex items-center gap-2">
+          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${editorStep === 1 ? 'bg-gray-900 text-white' : 'bg-blue-600 text-white'}`}>
+            {editorStep === 2 ? '✓' : '1'}
+          </span>
+          <span className={`text-sm font-medium ${editorStep === 1 ? 'text-gray-900' : 'text-gray-600'}`}>基本信息</span>
+        </div>
+        <div className="mx-4 h-px w-16 bg-gray-300" />
+        <div className="flex items-center gap-2">
+          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${editorStep === 2 ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>2</span>
+          <span className={`text-sm font-medium ${editorStep === 2 ? 'text-gray-900' : 'text-gray-400'}`}>行程编排</span>
+        </div>
+      </div>
+
+      {editorStep === 1 ? (
+        <div className="mx-auto max-w-3xl py-8">
+          <div className="mb-8">
+            <h4 className="text-lg font-semibold text-gray-900">行程基本信息</h4>
+            <p className="mt-2 text-sm text-gray-500">填写行程名称并选择航线，下一步将根据航线进入逐日行程编排。</p>
+          </div>
+          <div className="space-y-6 rounded-lg border border-gray-200 bg-gray-50/50 p-6">
+            <div>
+              <label className="mb-2 block text-sm text-gray-700">
+                行程名称 <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="请输入行程名称"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-gray-700">
+                选择航线 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={draftRouteId}
+                onChange={(event) => handleRouteChange(event.target.value)}
+                disabled={Boolean(editingPlanId && draftRouteId)}
+                className={inputClass}
+              >
+                <option value="">请选择航线</option>
+                {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
+              </select>
+              {editingPlanId && draftRouteId && <p className="mt-2 text-xs text-gray-400">编辑时不可更换关联航线。</p>}
+              {selectedRoute && (
+                <div className="mt-3 rounded border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  <p className="font-medium">{selectedRoute.name}</p>
+                  <p className="mt-1 text-xs text-blue-600">{selectedRoute.ports} · {selectedRoute.duration} · 共 {draftSegments.length} 个航段</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="mt-8 flex justify-between">
+            <button onClick={closeEditor} className="rounded border border-gray-300 bg-white px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+              取消
+            </button>
+            <button
+              onClick={() => setEditorStep(2)}
+              disabled={!draftName.trim() || !draftRouteId || draftSegments.length === 0}
+              className="rounded bg-gray-900 px-6 py-2.5 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              下一步：行程编排
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ItineraryManagementBPage
+          embedded
+          itineraryName={draftName}
+          routeName={selectedRoute?.name}
+          onBack={() => setEditorStep(1)}
+          onComplete={() => saveDraft()}
+        />
+      )}
+    </div>
   )
 
   return (
@@ -890,10 +969,10 @@ export default function ItineraryManagementPage() {
       <DetailDrawer
         open={editorOpen}
         title={editingPlanId ? '编辑行程方案' : '新增行程方案'}
-        width="w-[1120px]"
+        width={editorStep === 2 ? 'w-[calc(100vw-32px)]' : 'w-[920px]'}
         onClose={closeEditor}
       >
-        {editorContent}
+        {wizardEditorContent}
       </DetailDrawer>
 
       <ConfirmDialog

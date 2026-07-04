@@ -12,10 +12,10 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
 const guestTypeLabels: Record<string, string> = { adult: '成人', baby: '婴儿', child: '儿童' }
-const occupancyTypeOptions: TicketForm['occupancyType'][] = ['不拼房', '拼房', '加床', '不占座']
+const occupancyTypeOptions: TicketForm['occupancyType'][] = ['标准入住', '同性拼房', '加床', '不占床']
 
 const emptyForm: TicketForm = {
-  ticketId: '', name: '', guestType: 'adult', occupancyType: '不拼房', personCount: 1, priceCoefficient: 1.0,
+  ticketId: '', name: '', guestType: 'adult', occupancyType: '标准入住', personCount: 1, priceCoefficient: 1.0,
   shareRoomType: 'amount', shareRoomDirection: 'increase', shareRoomValue: 0,
   extraBedType: 'amount', extraBedDirection: 'increase', extraBedValue: 0,
   tipType: '不收取', tipValue: 0,
@@ -65,7 +65,7 @@ export default function TicketPage() {
     setBaseName(r.name)
     setBaseTicketId(r.ticketId)
     setMultiForms([{
-      _key: 'edit', ticketId: r.ticketId, name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '不拼房', personCount: r.personCount || 1,
+      _key: 'edit', ticketId: r.ticketId, name: r.name, guestType: r.guestType, occupancyType: r.occupancyType || '标准入住', personCount: r.personCount || 1,
       priceCoefficient: r.priceCoefficient, shareRoomType: r.shareRoomType, shareRoomDirection: r.shareRoomDirection || 'increase',
       shareRoomValue: r.shareRoomValue, extraBedType: r.extraBedType, extraBedDirection: r.extraBedDirection || 'increase',
       extraBedValue: r.extraBedValue, tipType: r.tipType, tipValue: r.tipValue

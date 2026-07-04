@@ -13,6 +13,8 @@ import { formatCurrency } from '@/utils/format'
 const comboOptions = ['VIP餐厅', '岸上观光', '酒水套餐', 'WiFi套餐', 'SPA套餐', '摄影套餐']
 const defaultRoomTypes = ['标准间', '豪华套房', '总统套房']
 const idTypeOptions = ['身份证', '护照', '台胞证', '港澳通行证', '回乡证', '其他']
+const nationalityOptions = ['中国', '美国', '日本', '韩国', '英国', '法国', '德国', '加拿大', '澳大利亚', '其他']
+const floorFeeOptions = ['不收楼层费', '2楼', '3楼', '4楼', '5楼', '6楼']
 
 interface GuestNameOption {
   name: string
@@ -129,6 +131,7 @@ interface TouristGuest {
   gender: string
   age: string
   nationality: string
+  floorFeeFloor: string
   province: string
   idType: string
   idNum: string
@@ -154,6 +157,15 @@ interface RoomGroup {
   segmentId: string
   segmentLabel: string
   guests: TouristGuest[]
+}
+
+interface EscortTicket {
+  id: string
+  name: string
+  idType: string
+  idNum: string
+  phone: string
+  remark: string
 }
 
 function getSegmentLabel(segmentId: string) {
@@ -182,6 +194,7 @@ function createGuest(id: number, stayType = '标准'): TouristGuest {
     gender: '男',
     age: '',
     nationality: '中国',
+    floorFeeFloor: '不收楼层费',
     province: '',
     idType: '身份证',
     idNum: '',
@@ -444,6 +457,7 @@ export default function Step3TouristInfo({
   const [newTeamName, setNewTeamName] = useState('')
   const [importPreview, setImportPreview] = useState<ImportPreviewGuest[]>([])
   const [importTip, setImportTip] = useState('')
+  const [escortTickets, setEscortTickets] = useState<EscortTicket[]>([])
 
   const roomTypeOptions = useMemo(() => {
     const types = Object.keys(roomData || {}).filter((key) => roomData[key])
@@ -535,8 +549,12 @@ export default function Step3TouristInfo({
       })
     })
     if (incomplete.length > 0) return `第 ${incomplete.join('、')} 行信息未补全（姓名/证件号码必填）`
+    const escortIncomplete = escortTickets
+      .map((ticket, index) => (!ticket.name.trim() || !ticket.idNum.trim() ? index + 1 : null))
+      .filter((value): value is number => value !== null)
+    if (escortIncomplete.length > 0) return `全陪票第 ${escortIncomplete.join('、')} 行信息未补全（姓名/证件号码必填）`
     return ''
-  }, [roomGroups, touristList.length])
+  }, [escortTickets, roomGroups, touristList.length])
 
   const canProceed = touristList.length > 0 && incompleteTip === ''
 
@@ -705,6 +723,29 @@ export default function Step3TouristInfo({
         }
       }),
     )
+  }
+
+  const addEscortTicket = () => {
+    if (escortTickets.length >= 2) return
+    setEscortTickets((prev) => [
+      ...prev,
+      {
+        id: `escort-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: '',
+        idType: '身份证',
+        idNum: '',
+        phone: '',
+        remark: '',
+      },
+    ])
+  }
+
+  const updateEscortTicket = (id: string, field: keyof EscortTicket, value: string) => {
+    setEscortTickets((prev) => prev.map((ticket) => (ticket.id === id ? { ...ticket, [field]: value } : ticket)))
+  }
+
+  const removeEscortTicket = (id: string) => {
+    setEscortTickets((prev) => prev.filter((ticket) => ticket.id !== id))
   }
 
   const handleImportList = () => {
@@ -903,12 +944,14 @@ export default function Step3TouristInfo({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-left text-sm whitespace-nowrap">
+                <table className="w-full min-w-[1420px] text-left text-sm whitespace-nowrap">
                   <thead className="border-b border-gray-100 bg-white text-gray-600">
                     <tr>
                       <th className="w-10 px-3 py-3 text-center">序</th>
                       <th className="w-24 px-3 py-3">入住类型</th>
                       <th className="w-28 px-3 py-3">姓名 <span className="text-red-500">*</span></th>
+                      <th className="w-24 px-3 py-3">国籍</th>
+                      <th className="w-24 px-3 py-3">楼层费</th>
                       <th className="w-24 px-3 py-3">证件类型</th>
                       <th className="w-32 px-3 py-3">证件号码 <span className="text-red-500">*</span></th>
                       <th className="w-16 px-3 py-3 text-gray-400">性别</th>
@@ -946,6 +989,28 @@ export default function Step3TouristInfo({
                               onChange={(name) => updateGuestField(room.id, guest.id, 'name', name)}
                               onSelectGuest={(option) => applyGuestSuggestion(room.id, guest.id, option)}
                             />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              value={guest.nationality}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'nationality', e.target.value)}
+                            >
+                              {nationalityOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              value={guest.floorFeeFloor}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'floorFeeFloor', e.target.value)}
+                            >
+                              {floorFeeOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-3 py-2">
                             <select
@@ -1166,6 +1231,93 @@ export default function Step3TouristInfo({
         </div>
       )}
 
+      <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">全陪票信息</div>
+            <div className="mt-1 text-xs text-gray-500">用于录入团队全陪票，最多可添加 2 张，不占用房间旅客名额。</div>
+          </div>
+          <button
+            type="button"
+            onClick={addEscortTicket}
+            disabled={escortTickets.length >= 2}
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" /> 新增全陪票
+          </button>
+        </div>
+        {escortTickets.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">当前未添加全陪票</div>
+        ) : (
+          <div className="space-y-3 p-4">
+            {escortTickets.map((ticket, index) => (
+              <div key={ticket.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-sm font-medium text-gray-800">全陪票 {index + 1}</div>
+                  <button
+                    type="button"
+                    onClick={() => removeEscortTicket(ticket.id)}
+                    className="inline-flex h-7 items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 text-xs text-red-600"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> 删除
+                  </button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">姓名 <span className="text-red-500">*</span></span>
+                    <input
+                      value={ticket.name}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'name', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                      placeholder="请输入姓名"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">证件类型</span>
+                    <select
+                      value={ticket.idType}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'idType', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                    >
+                      {idTypeOptions.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">证件号码 <span className="text-red-500">*</span></span>
+                    <input
+                      value={ticket.idNum}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'idNum', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                      placeholder="请输入证件号码"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">手机号</span>
+                    <input
+                      value={ticket.phone}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'phone', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                      placeholder="请输入手机号"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">备注</span>
+                    <input
+                      value={ticket.remark}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'remark', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                      placeholder="如：领队/导游"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {addTeamOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setAddTeamOpen(false)} />
@@ -1253,7 +1405,7 @@ export default function Step3TouristInfo({
           <button
             className={`rounded-md px-6 py-2 font-medium shadow-sm transition-colors ${canProceed ? 'bg-blue-600 text-white hover:bg-blue-700' : 'cursor-not-allowed bg-gray-200 text-gray-400'}`}
             disabled={!canProceed}
-            onClick={() => onNext({ touristList, teams, roomGroups })}
+            onClick={() => onNext({ touristList, teams, roomGroups, escortTickets })}
           >
             提交信息
           </button>
@@ -1261,7 +1413,7 @@ export default function Step3TouristInfo({
           <button
             className={`rounded-md px-6 py-2 font-medium shadow-sm transition-colors ${canProceed ? 'bg-blue-600 text-white hover:bg-blue-700' : 'cursor-not-allowed bg-gray-200 text-gray-400'}`}
             disabled={!canProceed}
-            onClick={() => onNext({ touristList, teams, roomGroups })}
+            onClick={() => onNext({ touristList, teams, roomGroups, escortTickets })}
           >
             下一步：订单确认 →
           </button>

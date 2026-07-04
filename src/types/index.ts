@@ -91,7 +91,12 @@ export interface Menu {
 }
 
 // ========== 分级数据字典（二级） ==========
-export type HierarchicalDictTypeCode = 'ACTIVITY_CATEGORY' | 'PRIVILEGE_TYPE' | 'ATTRACTION_SERVICE'
+export type HierarchicalDictTypeCode =
+  | 'ACTIVITY_CATEGORY'
+  | 'PRIVILEGE_TYPE'
+  | 'ATTRACTION_SERVICE'
+  | 'CRUISE_FACILITY'
+  | 'CABIN_FACILITY'
 
 export interface HierarchicalDictItem {
   id: string
@@ -273,6 +278,8 @@ export interface Attraction {
   bookingRequired?: boolean
   ticketPolicy?: string
   validationNotes?: string
+  /** 适用线路列表 */
+  routeLines?: string[]
   description: string
   status: Status
   updatedBy: string
@@ -302,6 +309,7 @@ export interface AttractionForm {
   suitableGroups: string
   bookingRequired: boolean
   ticketPolicy: string
+  routeLines: string[]
   description: string
 }
 
@@ -317,6 +325,8 @@ export interface RouteStop {
   distance: number
   type: 'start' | 'middle' | 'end'
   embarkDisembark?: boolean
+  /** 途中码头是否开启售票（仅 middle 生效） */
+  ticketingEnabled?: boolean
 }
 
 export interface Route {
@@ -397,6 +407,8 @@ export interface Ship {
   series: string
   realNameId: string
   capacity: number
+  capacityWarningType?: 'people' | 'ratio'
+  capacityWarningValue?: number
   floors: number
   length: number
   width: number
@@ -427,6 +439,8 @@ export interface ShipForm {
   series: string
   realNameId: string
   capacity: number
+  capacityWarningType: 'people' | 'ratio'
+  capacityWarningValue: number
   floors: number
   length: number
   width: number
@@ -686,7 +700,7 @@ export interface VoyageTemplate {
 
 // ========== 票类管理 ==========
 export type GuestType = 'adult' | 'baby' | 'child'
-export type TicketOccupancyType = '不拼房' | '拼房' | '加床' | '不占座'
+export type TicketOccupancyType = '标准入住' | '同性拼房' | '加床' | '不占床'
 export type PriceAdjustType = 'amount' | 'percent'
 export type AdjustDirection = 'increase' | 'decrease'
 
