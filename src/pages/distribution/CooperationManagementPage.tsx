@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, X, Plus, Search, Download, CreditCard, ChevronDown } from 'lucide-react'
+import { Check, X, Plus, Search, Download, CreditCard, ChevronDown, Pencil, Copy, Trash2 } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 
 // ======================== Mock 数据 ========================
@@ -9,6 +9,8 @@ const GROUPS = [
   { id: 'g2', name: '湖北地区', count: 3 },
   { id: 'g3', name: 'OTA渠道', count: 2 },
 ]
+
+type DealerGroup = typeof GROUPS[number]
 
 const initDealers = [
   { id: 'd1', groupId: 'g1', name: '三峡国际旅行社', type: '旅行社', contact: '张经理', phone: '023-6812-3456', creditLimit: 500000, usedCredit: 128000, balance: 42000, deposit: 20000, status: '启用', createdAt: '2024-01-15', licenseNo: 'L-CQ-2024-001' },
@@ -84,11 +86,76 @@ function FormRow({ label, required, children }: { label: string; required?: bool
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 const selectCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
+type GroupDialogMode = 'create' | 'edit' | 'copy'
+
+function GroupModal({ mode, group, groups, onClose, onSave }: {
+  mode: GroupDialogMode
+  group?: DealerGroup
+  groups: DealerGroup[]
+  onClose: () => void
+  onSave: (name: string) => void
+}) {
+  const [name, setName] = useState(mode === 'copy' ? `${group?.name ?? ''}副本` : group?.name ?? '')
+  const [error, setError] = useState('')
+  const title = mode === 'create' ? '新建分组' : mode === 'edit' ? '编辑分组' : '复制分组'
+
+  const submit = () => {
+    const normalized = name.trim()
+    if (!normalized) {
+      setError('请输入分组名称')
+      return
+    }
+    const duplicated = groups.some(item => item.id !== (mode === 'edit' ? group?.id : undefined) && item.name.trim() === normalized)
+    if (duplicated) {
+      setError('分组名称已存在，请更换名称')
+      return
+    }
+    onSave(normalized)
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <FormRow label="分组名称" required>
+        <input
+          value={name}
+          onChange={event => { setName(event.target.value); setError('') }}
+          onKeyDown={event => { if (event.key === 'Enter') submit() }}
+          className={inputCls}
+          placeholder="请输入分组名称"
+          autoFocus
+        />
+        {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+      </FormRow>
+      {mode === 'copy' && (
+        <p className="ml-28 mt-1 text-xs leading-5 text-gray-500">仅复制分组配置，不复制原分组中的分销商；新分组创建后成员数为 0。</p>
+      )}
+      <div className="mt-5 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button onClick={submit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
+          {mode === 'create' ? '创建' : mode === 'edit' ? '保存' : '确认复制'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function DeleteGroupModal({ group, onClose, onDelete }: { group: DealerGroup; onClose: () => void; onDelete: () => void }) {
+  return (
+    <Modal title="删除分组" onClose={onClose}>
+      <p className="text-sm leading-6 text-gray-700">确认删除分组“<strong>{group.name}</strong>”吗？删除后不可恢复。</p>
+      <div className="mt-5 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button onClick={onDelete} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">确认删除</button>
+      </div>
+    </Modal>
+  )
+}
+
 // 添加分销商弹窗
-function AddDealerModal({ onClose, onSave }: { onClose: () => void; onSave: (d: Partial<Dealer>) => void }) {
+function AddDealerModal({ groups, onClose, onSave }: { groups: DealerGroup[]; onClose: () => void; onSave: (d: Partial<Dealer>) => void }) {
   const [mode, setMode] = useState<'search' | 'create'>('search')
   const [searchKw, setSearchKw] = useState('')
-  const [form, setForm] = useState({ name: '', type: '旅行社', contact: '', phone: '', groupId: 'g1', licenseNo: '' })
+  const [form, setForm] = useState({ name: '', type: '旅行社', contact: '', phone: '', groupId: groups[0]?.id ?? '', licenseNo: '' })
 
   return (
     <Modal title="添加分销商" onClose={onClose} width="max-w-xl">
@@ -129,7 +196,7 @@ function AddDealerModal({ onClose, onSave }: { onClose: () => void; onSave: (d: 
             <FormRow label="联系电话" required><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputCls} placeholder="请输入手机号或座机" /></FormRow>
             <FormRow label="加入分组">
               <select value={form.groupId} onChange={e => setForm(f => ({ ...f, groupId: e.target.value }))} className={selectCls}>
-                {GROUPS.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </FormRow>
             <FormRow label="执照号码"><input value={form.licenseNo} onChange={e => setForm(f => ({ ...f, licenseNo: e.target.value }))} className={inputCls} placeholder="统一社会信用代码或许可证号" /></FormRow>
@@ -330,9 +397,12 @@ function TabDealers({ dealers, setDealers, setCreditRecords }: {
   setDealers: React.Dispatch<React.SetStateAction<typeof initDealers>>
   setCreditRecords: React.Dispatch<React.SetStateAction<typeof initCreditRecords>>
 }) {
+  const [groups, setGroups] = useState<DealerGroup[]>(GROUPS)
   const [selectedGroup, setSelectedGroup] = useState<string>('all')
   const [keyword, setKeyword] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [groupDialog, setGroupDialog] = useState<{ mode: GroupDialogMode; group?: DealerGroup } | null>(null)
+  const [deleteGroup, setDeleteGroup] = useState<DealerGroup | null>(null)
   const [creditTarget, setCreditTarget] = useState<Dealer | null>(null)
   const [rechargeTarget, setRechargeTarget] = useState<Dealer | null>(null)
   const [refundTarget, setRefundTarget] = useState<Dealer | null>(null)
@@ -341,6 +411,15 @@ function TabDealers({ dealers, setDealers, setCreditRecords }: {
   const [toast, setToast] = useState('')
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
+
+  const requestDeleteGroup = (group: DealerGroup) => {
+    const memberCount = dealers.filter(dealer => dealer.groupId === group.id).length
+    if (memberCount > 0) {
+      showToast(`“${group.name}”下还有 ${memberCount} 家分销商，请先转移成员后再删除`)
+      return
+    }
+    setDeleteGroup(group)
+  }
 
   const filtered = dealers.filter(d =>
     (selectedGroup === 'all' || d.groupId === selectedGroup) &&
@@ -353,16 +432,33 @@ function TabDealers({ dealers, setDealers, setCreditRecords }: {
       {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[999] rounded-lg bg-gray-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
 
       {/* 左侧分组 */}
-      <div className="w-44 shrink-0 rounded-lg border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 px-3 py-2.5 text-xs font-semibold text-gray-500">分销商分组</div>
+      <div className="w-56 shrink-0 rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5">
+          <span className="text-xs font-semibold text-gray-500">分销商分组</span>
+          <button
+            type="button"
+            onClick={() => setGroupDialog({ mode: 'create' })}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-blue-600 hover:bg-blue-50"
+          >
+            <Plus className="h-3.5 w-3.5" />新建
+          </button>
+        </div>
         <div className="p-1.5 space-y-0.5">
           <button onClick={() => setSelectedGroup('all')} className={`w-full flex items-center justify-between rounded-md px-3 py-2 text-sm ${selectedGroup === 'all' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
             <span>全部</span><span className="text-xs text-gray-400">{dealers.length}</span>
           </button>
-          {GROUPS.map(g => (
-            <button key={g.id} onClick={() => setSelectedGroup(g.id)} className={`w-full flex items-center justify-between rounded-md px-3 py-2 text-sm ${selectedGroup === g.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
-              <span>{g.name}</span><span className="text-xs text-gray-400">{dealers.filter(d => d.groupId === g.id).length}</span>
-            </button>
+          {groups.map(g => (
+            <div key={g.id} className={`group flex items-center rounded-md ${selectedGroup === g.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
+              <button onClick={() => setSelectedGroup(g.id)} className={`flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2 text-left text-sm ${selectedGroup === g.id ? 'font-medium' : ''}`}>
+                <span className="truncate">{g.name}</span>
+                <span className="text-xs text-gray-400">{dealers.filter(d => d.groupId === g.id).length}</span>
+              </button>
+              <div className={`mr-1 flex shrink-0 items-center gap-0.5 transition-opacity ${selectedGroup === g.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                <button type="button" aria-label={`编辑分组 ${g.name}`} title="编辑" onClick={() => setGroupDialog({ mode: 'edit', group: g })} className="rounded p-1 text-gray-400 hover:bg-white hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                <button type="button" aria-label={`复制分组 ${g.name}`} title="复制" onClick={() => setGroupDialog({ mode: 'copy', group: g })} className="rounded p-1 text-gray-400 hover:bg-white hover:text-blue-600"><Copy className="h-3.5 w-3.5" /></button>
+                <button type="button" aria-label={`删除分组 ${g.name}`} title="删除" onClick={() => requestDeleteGroup(g)} className="rounded p-1 text-gray-400 hover:bg-white hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -436,7 +532,39 @@ function TabDealers({ dealers, setDealers, setCreditRecords }: {
       </div>
 
       {/* 弹窗 */}
-      {showAdd && <AddDealerModal onClose={() => setShowAdd(false)} onSave={d => { setDealers(prev => [...prev, { id: `d${Date.now()}`, groupId: d.groupId ?? 'g1', name: d.name ?? '', type: d.type ?? '旅行社', contact: d.contact ?? '', phone: d.phone ?? '', creditLimit: 0, usedCredit: 0, balance: 0, deposit: 0, status: '启用', createdAt: new Date().toISOString().slice(0, 10), licenseNo: d.licenseNo ?? '' }]); showToast('分销商添加成功') }} />}
+      {showAdd && <AddDealerModal groups={groups} onClose={() => setShowAdd(false)} onSave={d => { setDealers(prev => [...prev, { id: `d${Date.now()}`, groupId: d.groupId ?? groups[0]?.id ?? '', name: d.name ?? '', type: d.type ?? '旅行社', contact: d.contact ?? '', phone: d.phone ?? '', creditLimit: 0, usedCredit: 0, balance: 0, deposit: 0, status: '启用', createdAt: new Date().toISOString().slice(0, 10), licenseNo: d.licenseNo ?? '' }]); showToast('分销商添加成功') }} />}
+      {groupDialog && (
+        <GroupModal
+          mode={groupDialog.mode}
+          group={groupDialog.group}
+          groups={groups}
+          onClose={() => setGroupDialog(null)}
+          onSave={name => {
+            if (groupDialog.mode === 'edit' && groupDialog.group) {
+              setGroups(prev => prev.map(group => group.id === groupDialog.group?.id ? { ...group, name } : group))
+              showToast('分组名称已更新')
+            } else {
+              const newGroup = { id: `g${Date.now()}`, name, count: 0 }
+              setGroups(prev => [...prev, newGroup])
+              setSelectedGroup(newGroup.id)
+              showToast(groupDialog.mode === 'copy' ? '分组复制成功' : '分组创建成功')
+            }
+            setGroupDialog(null)
+          }}
+        />
+      )}
+      {deleteGroup && (
+        <DeleteGroupModal
+          group={deleteGroup}
+          onClose={() => setDeleteGroup(null)}
+          onDelete={() => {
+            setGroups(prev => prev.filter(group => group.id !== deleteGroup.id))
+            if (selectedGroup === deleteGroup.id) setSelectedGroup('all')
+            showToast('分组已删除')
+            setDeleteGroup(null)
+          }}
+        />
+      )}
       {creditTarget && <CreditModal dealer={creditTarget} onClose={() => setCreditTarget(null)} onSave={(limit, remark) => { setDealers(prev => prev.map(x => x.id === creditTarget.id ? { ...x, creditLimit: limit } : x)); setCreditRecords(prev => [{ id: `cr${Date.now()}`, dealerName: creditTarget.name, type: '授信', amount: limit, operator: '管理员', operatedAt: new Date().toLocaleString('zh-CN'), status: '操作成功', remark }, ...prev]); showToast('授信配置成功') }} />}
       {rechargeTarget && <RechargeModal dealer={rechargeTarget} onClose={() => setRechargeTarget(null)} onSave={(type, amount) => { setDealers(prev => prev.map(x => x.id === rechargeTarget.id ? { ...x, balance: x.balance + amount } : x)); setCreditRecords(prev => [{ id: `cr${Date.now()}`, dealerName: rechargeTarget.name, type, amount, operator: '管理员', operatedAt: new Date().toLocaleString('zh-CN'), status: '操作成功', remark: '' }, ...prev]); showToast('充值成功') }} />}
       {refundTarget && <RefundModal dealer={refundTarget} onClose={() => setRefundTarget(null)} onSave={() => { setCreditRecords(prev => [{ id: `cr${Date.now()}`, dealerName: refundTarget.name, type: '余额退款', amount: 0, operator: '管理员', operatedAt: new Date().toLocaleString('zh-CN'), status: '待审核', remark: '退款申请待审批' }, ...prev]); showToast('退款申请已提交，等待审批') }} />}

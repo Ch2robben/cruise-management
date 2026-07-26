@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList, ShoppingCart } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList, ShoppingCart, Share2 } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -26,6 +26,7 @@ const menuItems: MenuItem[] = [
       { key: 'ticket', label: '票类管理', path: '/resources/tickets' },
       { key: 'package', label: '套票管理', path: '/resources/packages' },
       { key: 'product', label: '产品管理', path: '/resources/products' },
+      { key: 'additional_product', label: '附加产品管理', path: '/resources/additional-products' },
     ],
   },
   {
@@ -38,6 +39,7 @@ const menuItems: MenuItem[] = [
       { key: 'voyage_calendar_board', label: '日历看板', path: '/voyage/calendar-board' },
       { key: 'voyage_inv', label: '航次库存看板', path: '/voyage/inventory' },
       { key: 'voyage_allocation', label: '库存调配工作台', path: '/voyage/inventory-allocation' },
+      { key: 'voyage_transfer', label: '转船处置', path: '/voyage/transfers' },
       // { key: 'pricing_rule', label: '房型定价规则', path: '/voyage/pricing-rules' },
       // { key: 'sales_control', label: '销售控制', path: '/voyage/sales-control' },
       // { key: 'voyage_price', label: '价格日历', path: '/voyage/pricing' },
@@ -48,8 +50,12 @@ const menuItems: MenuItem[] = [
     key: 'order', label: '订单管理', icon: 'ShoppingCart',
     children: [
       { key: 'order_list', label: '订单列表', path: '/orders/list' },
+      { key: 'voyage_additional_products', label: '航次附加产品清单', path: '/orders/voyage-additional-products' },
       { key: 'voyage_passenger_room', label: '航次旅客房型管理', path: '/orders/voyage-passenger-rooms' },
     ],
+  },
+  {
+    key: 'distribution_management', label: '分销管理', icon: 'Share2', path: '/distribution-management',
   },
   {
     key: 'distribution', label: '分销中心', icon: 'Ship',
@@ -90,6 +96,7 @@ const menuItems: MenuItem[] = [
     key: 'report', label: '报表中心', icon: 'PieChart',
     children: [
       { key: 'data_report', label: '数据报表', path: '/report/data-reports' },
+      { key: 'rebate_order_statistics', label: '返利订单统计', path: '/report/rebate-orders' },
     ],
   },
   {
@@ -119,7 +126,7 @@ const menuItems: MenuItem[] = [
       { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
       { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
       { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
-      { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
+      // { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
       { key: 'price_policy_type', label: '价格政策类型', path: '/rule/price-type' },
       { key: 'rebate_rule', label: '返利政策管理', path: '/rule/rebate' },
       { key: 'rebate_target', label: '返利任务指标', path: '/rule/rebate-targets' },
@@ -146,6 +153,7 @@ const iconMap: Record<string, React.ReactNode> = {
   PieChart: <PieChart className="w-4 h-4" />,
   ClipboardList: <ClipboardList className="w-4 h-4" />,
   ShoppingCart: <ShoppingCart className="w-4 h-4" />,
+  Share2: <Share2 className="w-4 h-4" />,
 }
 
 export default function Sidebar() {
@@ -182,7 +190,18 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 py-2">
-        {menuItems.map((item) => (
+        {menuItems.map((item) => item.path ? (
+          <NavLink
+            key={item.key}
+            to={item.path}
+            className={() => `flex w-full items-center gap-2 px-4 py-3 text-base transition-colors hover:bg-gray-800 ${
+              location.pathname === item.path || location.pathname.startsWith(`${item.path}/`) ? 'bg-gray-800 text-white' : ''
+            }`}
+          >
+            <span className="shrink-0">{iconMap[item.icon]}</span>
+            <span className="flex-1 text-left">{item.label}</span>
+          </NavLink>
+        ) : (
           <div key={item.key}>
             <button
               onClick={() => toggle(item.key)}

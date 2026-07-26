@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Link, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { Plus, Link, ArrowUp, ArrowDown, X, CalendarDays, Pencil, Eye } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 
 // ======================== Mock 数据 ========================
@@ -39,6 +39,71 @@ const initPackageProducts = [
 const initPeriodProducts = [
   { id: 'ep1', channel: '美团', productName: '三峡游轮暑期通票', otaName: '长江三峡暑期游轮通票（7-8月通用）', ticketType: '成人票', costPrice: 980, marketPrice: 1380, retailPrice: 1280, settlementPrice: 1080, merchantId: 'MT_8812345', attractionId: 'AT_88500', status: '已上架', multiStore: false, semiDirect: false },
   { id: 'ep2', channel: '携程', productName: '国庆黄金周游轮通票', otaName: '长江三峡国庆期间游轮畅游通票', ticketType: '成人票', costPrice: 1100, marketPrice: 1600, retailPrice: 1480, settlementPrice: 1200, merchantId: 'CX_99234', attractionId: 'AT_99600', status: '已下架', multiStore: false, semiDirect: false },
+]
+
+type VoucherVoyageStatus = '启用' | '停用'
+
+interface VoucherVoyageConfig {
+  id: string
+  channel: string
+  voucherName: string
+  voucherSku: string
+  routeName: string
+  roomTypes: string[]
+  voyageCount: number
+  voyageDates: string[]
+  quota: number
+  redeemed: number
+  advanceDays: number
+  validStart: string
+  validEnd: string
+  status: VoucherVoyageStatus
+  updatedAt: string
+}
+
+const OTA_VOUCHER_PRODUCTS = [
+  '长江三峡双人游兑换券',
+  '三峡亲子家庭游兑换券',
+  '豪华阳台房升舱兑换券',
+  '长江探索号暑期兑换券',
+]
+
+const OTA_ROUTES = [
+  '重庆-宜昌三峡航线（下水）',
+  '宜昌-重庆三峡航线（上水）',
+  '武汉-九江-南京-上海长江中下游航线',
+]
+
+const OTA_ROOM_TYPES = ['标准间', '阳台房', '行政房', '豪华套房']
+
+const MOCK_VOYAGE_OPTIONS = [
+  { id: 'ov1', no: 'CJ20260706-TXS', date: '2026-07-06', ship: '长江探索号', route: OTA_ROUTES[0], stock: 36 },
+  { id: 'ov2', no: 'CJ20260713-TXS', date: '2026-07-13', ship: '长江探索号', route: OTA_ROUTES[0], stock: 28 },
+  { id: 'ov3', no: 'CJ20260720-SJ', date: '2026-07-20', ship: '世纪游轮', route: OTA_ROUTES[0], stock: 42 },
+  { id: 'ov4', no: 'CJ20260727-HJ', date: '2026-07-27', ship: '黄金游轮', route: OTA_ROUTES[1], stock: 31 },
+  { id: 'ov5', no: 'CJ20260803-HJ', date: '2026-08-03', ship: '黄金游轮', route: OTA_ROUTES[1], stock: 25 },
+  { id: 'ov6', no: 'CJ20260810-TXS', date: '2026-08-10', ship: '长江探索号', route: OTA_ROUTES[2], stock: 18 },
+]
+
+const initVoucherVoyageConfigs: VoucherVoyageConfig[] = [
+  {
+    id: 'ovc1', channel: '美团', voucherName: '长江三峡双人游兑换券', voucherSku: 'MT-VCH-202607-001',
+    routeName: OTA_ROUTES[0], roomTypes: ['标准间', '阳台房'], voyageCount: 3,
+    voyageDates: ['2026-07-06', '2026-07-13', '2026-07-20'], quota: 90, redeemed: 37,
+    advanceDays: 3, validStart: '2026-07-01', validEnd: '2026-08-31', status: '启用', updatedAt: '2026-07-04 15:20',
+  },
+  {
+    id: 'ovc2', channel: '携程', voucherName: '豪华阳台房升舱兑换券', voucherSku: 'CTRIP-VCH-88021',
+    routeName: OTA_ROUTES[1], roomTypes: ['阳台房', '行政房'], voyageCount: 2,
+    voyageDates: ['2026-07-27', '2026-08-03'], quota: 48, redeemed: 16,
+    advanceDays: 5, validStart: '2026-07-15', validEnd: '2026-09-15', status: '启用', updatedAt: '2026-07-03 11:08',
+  },
+  {
+    id: 'ovc3', channel: '抖音团购', voucherName: '长江探索号暑期兑换券', voucherSku: 'DY-VCH-66008',
+    routeName: OTA_ROUTES[2], roomTypes: ['标准间'], voyageCount: 1,
+    voyageDates: ['2026-08-10'], quota: 20, redeemed: 0,
+    advanceDays: 7, validStart: '2026-08-01', validEnd: '2026-08-31', status: '停用', updatedAt: '2026-07-02 09:30',
+  },
 ]
 
 const PRODUCTS = ['长江三峡5日游', '黄金水道4日游', '三峡人家精华游3日', '长江明珠豪华游轮7日']
@@ -381,6 +446,239 @@ function ProductTable({ initData, channelTabs }: { initData: typeof initBoatTick
   )
 }
 
+// ======================== OTA兑换券航次 ========================
+
+function VoucherVoyageModal({
+  initial,
+  onClose,
+  onSave,
+}: {
+  initial?: VoucherVoyageConfig | null
+  onClose: () => void
+  onSave: (value: VoucherVoyageConfig) => void
+}) {
+  const [form, setForm] = useState({
+    channel: initial?.channel ?? '美团',
+    voucherName: initial?.voucherName ?? OTA_VOUCHER_PRODUCTS[0],
+    voucherSku: initial?.voucherSku ?? '',
+    routeName: initial?.routeName ?? OTA_ROUTES[0],
+    roomTypes: initial?.roomTypes ?? ['标准间'],
+    voyageDates: initial?.voyageDates ?? [],
+    quota: initial?.quota ?? 20,
+    advanceDays: initial?.advanceDays ?? 3,
+    validStart: initial?.validStart ?? '2026-07-01',
+    validEnd: initial?.validEnd ?? '2026-08-31',
+    status: initial?.status ?? '启用' as VoucherVoyageStatus,
+  })
+
+  const availableVoyages = MOCK_VOYAGE_OPTIONS.filter(item => item.route === form.routeName)
+  const toggleValue = (key: 'roomTypes' | 'voyageDates', value: string) => {
+    setForm(prev => ({
+      ...prev,
+      [key]: prev[key].includes(value) ? prev[key].filter(item => item !== value) : [...prev[key], value],
+    }))
+  }
+  const canSave = form.voucherSku.trim() && form.roomTypes.length > 0 && form.voyageDates.length > 0 && form.quota > 0 && form.validStart && form.validEnd
+
+  return (
+    <Modal title={initial ? '编辑兑换券航次' : '新增兑换券航次'} onClose={onClose} width="max-w-4xl">
+      <div className="max-h-[70vh] overflow-y-auto pr-2">
+        <div className="grid grid-cols-2 gap-x-8">
+          <FormRow label="OTA渠道" required>
+            <select className={selectCls} value={form.channel} onChange={e => setForm(prev => ({ ...prev, channel: e.target.value }))}>
+              {['美团', '携程', '抖音团购', '同程', '飞猪'].map(item => <option key={item}>{item}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="兑换券产品" required>
+            <select className={selectCls} value={form.voucherName} onChange={e => setForm(prev => ({ ...prev, voucherName: e.target.value }))}>
+              {OTA_VOUCHER_PRODUCTS.map(item => <option key={item}>{item}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="渠道券SKU" required>
+            <input className={inputCls} value={form.voucherSku} onChange={e => setForm(prev => ({ ...prev, voucherSku: e.target.value }))} placeholder="请输入OTA侧券SKU/商品ID" />
+          </FormRow>
+          <FormRow label="适用航线" required>
+            <select className={selectCls} value={form.routeName} onChange={e => setForm(prev => ({ ...prev, routeName: e.target.value, voyageDates: [] }))}>
+              {OTA_ROUTES.map(item => <option key={item}>{item}</option>)}
+            </select>
+          </FormRow>
+          <FormRow label="有效期开始" required>
+            <input type="date" className={inputCls} value={form.validStart} onChange={e => setForm(prev => ({ ...prev, validStart: e.target.value }))} />
+          </FormRow>
+          <FormRow label="有效期结束" required>
+            <input type="date" className={inputCls} value={form.validEnd} onChange={e => setForm(prev => ({ ...prev, validEnd: e.target.value }))} />
+          </FormRow>
+          <FormRow label="兑换配额" required>
+            <div className="relative"><input type="number" min={1} className={`${inputCls} pr-10`} value={form.quota} onChange={e => setForm(prev => ({ ...prev, quota: +e.target.value }))} /><span className="absolute right-3 top-2 text-sm text-gray-400">间</span></div>
+          </FormRow>
+          <FormRow label="提前预约" required>
+            <div className="relative"><input type="number" min={0} className={`${inputCls} pr-10`} value={form.advanceDays} onChange={e => setForm(prev => ({ ...prev, advanceDays: +e.target.value }))} /><span className="absolute right-3 top-2 text-sm text-gray-400">天</span></div>
+          </FormRow>
+        </div>
+
+        <div className="mt-3 border-t border-gray-100 pt-4">
+          <div className="mb-2 text-sm font-medium text-gray-800">可兑换房型 <span className="text-red-500">*</span></div>
+          <div className="flex flex-wrap gap-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            {OTA_ROOM_TYPES.map(item => (
+              <label key={item} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.roomTypes.includes(item)} onChange={() => toggleValue('roomTypes', item)} />
+                {item}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-800">选择可兑换航次 <span className="text-red-500">*</span></div>
+            <div className="text-xs text-gray-400">已选择 {form.voyageDates.length} 个航次</div>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
+                <tr><th className="w-12 px-4 py-3"></th><th className="px-4 py-3 text-left font-medium">航次编号</th><th className="px-4 py-3 text-left font-medium">开航日期</th><th className="px-4 py-3 text-left font-medium">游轮</th><th className="px-4 py-3 text-right font-medium">当前可售</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {availableVoyages.map(item => (
+                  <tr key={item.id} className={form.voyageDates.includes(item.date) ? 'bg-blue-50/60' : ''}>
+                    <td className="px-4 py-3 text-center"><input type="checkbox" checked={form.voyageDates.includes(item.date)} onChange={() => toggleValue('voyageDates', item.date)} /></td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{item.no}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.date}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.ship}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{item.stock} 间</td>
+                  </tr>
+                ))}
+                {availableVoyages.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">该航线暂无可配置航次</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div className="mt-5 flex justify-end gap-3 border-t border-gray-100 pt-4">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button
+          disabled={!canSave}
+          onClick={() => onSave({
+            id: initial?.id ?? `ovc${Date.now()}`,
+            ...form,
+            voyageCount: form.voyageDates.length,
+            redeemed: initial?.redeemed ?? 0,
+            updatedAt: new Date().toLocaleString('zh-CN', { hour12: false }).split('/').join('-'),
+          })}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          保存配置
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function VoucherVoyageDetail({ config, onClose }: { config: VoucherVoyageConfig; onClose: () => void }) {
+  return (
+    <Modal title="兑换券航次详情" onClose={onClose} width="max-w-2xl">
+      <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+        {[
+          ['OTA渠道', config.channel], ['渠道券SKU', config.voucherSku],
+          ['兑换券产品', config.voucherName], ['状态', config.status],
+          ['适用航线', config.routeName], ['可兑换房型', config.roomTypes.join('、')],
+          ['券有效期', `${config.validStart} 至 ${config.validEnd}`], ['提前预约', `至少 ${config.advanceDays} 天`],
+          ['兑换配额', `${config.quota} 间`], ['已兑换', `${config.redeemed} 间`],
+        ].map(([label, value]) => (
+          <div key={label}><div className="mb-1 text-xs text-gray-400">{label}</div><div className="text-gray-800">{value}</div></div>
+        ))}
+      </div>
+      <div className="mt-5 border-t border-gray-100 pt-4">
+        <div className="mb-2 text-sm font-medium text-gray-800">可兑换航次</div>
+        <div className="flex flex-wrap gap-2">
+          {config.voyageDates.map(date => <span key={date} className="rounded-md bg-blue-50 px-3 py-1.5 text-xs text-blue-700">{date}</span>)}
+        </div>
+      </div>
+      <div className="mt-5 flex justify-end"><button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700">关闭</button></div>
+    </Modal>
+  )
+}
+
+function TabVoucherVoyages() {
+  const [configs, setConfigs] = useState(initVoucherVoyageConfigs)
+  const [channel, setChannel] = useState('全部')
+  const [status, setStatus] = useState('全部')
+  const [keyword, setKeyword] = useState('')
+  const [editing, setEditing] = useState<VoucherVoyageConfig | null | undefined>(undefined)
+  const [detail, setDetail] = useState<VoucherVoyageConfig | null>(null)
+  const [toast, setToast] = useState('')
+  const showToast = (message: string) => { setToast(message); setTimeout(() => setToast(''), 2500) }
+  const filtered = configs.filter(item =>
+    (channel === '全部' || item.channel === channel)
+    && (status === '全部' || item.status === status)
+    && (!keyword || item.voucherName.includes(keyword) || item.voucherSku.toLowerCase().includes(keyword.toLowerCase())),
+  )
+
+  return (
+    <div>
+      {toast && <div className="fixed top-6 left-1/2 z-[999] -translate-x-1/2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
+      <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        将OTA侧兑换券绑定至本系统可售航次。消费者核销时，仅可选择这里配置的航线、航次与房型，兑换量从独立配额中扣减。
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <input className="h-9 w-64 rounded-lg border border-gray-300 bg-white px-3 text-sm" placeholder="兑换券名称 / 渠道券SKU" value={keyword} onChange={e => setKeyword(e.target.value)} />
+        <select className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm" value={channel} onChange={e => setChannel(e.target.value)}>
+          {['全部', '美团', '携程', '抖音团购', '同程', '飞猪'].map(item => <option key={item}>{item}</option>)}
+        </select>
+        <select className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm" value={status} onChange={e => setStatus(e.target.value)}>
+          {['全部', '启用', '停用'].map(item => <option key={item}>{item}</option>)}
+        </select>
+        <button onClick={() => { setKeyword(''); setChannel('全部'); setStatus('全部') }} className="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">重置</button>
+        <button onClick={() => setEditing(null)} className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-sm text-white hover:bg-blue-700"><Plus className="h-4 w-4" />新增兑换券航次</button>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs text-gray-500">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">OTA渠道</th>
+              <th className="px-4 py-3 text-left font-medium">兑换券产品 / SKU</th>
+              <th className="px-4 py-3 text-left font-medium">航线</th>
+              <th className="px-4 py-3 text-left font-medium">可兑换房型</th>
+              <th className="px-4 py-3 text-center font-medium">航次数</th>
+              <th className="px-4 py-3 text-center font-medium">配额使用</th>
+              <th className="px-4 py-3 text-left font-medium">有效期</th>
+              <th className="px-4 py-3 text-center font-medium">状态</th>
+              <th className="px-4 py-3 text-center font-medium">操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filtered.map(item => {
+              const usage = Math.round(item.redeemed / item.quota * 100)
+              return (
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-800">{item.channel}</td>
+                  <td className="px-4 py-3"><div className="font-medium text-gray-900">{item.voucherName}</div><div className="mt-0.5 font-mono text-xs text-gray-400">{item.voucherSku}</div></td>
+                  <td className="max-w-[220px] px-4 py-3 text-gray-600">{item.routeName}</td>
+                  <td className="px-4 py-3 text-gray-600">{item.roomTypes.join('、')}</td>
+                  <td className="px-4 py-3 text-center"><span className="inline-flex items-center gap-1 text-blue-700"><CalendarDays className="h-3.5 w-3.5" />{item.voyageCount}</span></td>
+                  <td className="px-4 py-3 text-center"><div className="text-gray-700">{item.redeemed} / {item.quota}</div><div className="mx-auto mt-1 h-1.5 w-20 overflow-hidden rounded bg-gray-100"><div className="h-full bg-blue-500" style={{ width: `${Math.min(usage, 100)}%` }} /></div></td>
+                  <td className="px-4 py-3 text-xs text-gray-600"><div>{item.validStart}</div><div>至 {item.validEnd}</div></td>
+                  <td className="px-4 py-3 text-center"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${item.status === '启用' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{item.status}</span></td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-3 text-xs">
+                      <button onClick={() => setDetail(item)} className="inline-flex items-center gap-1 text-blue-600"><Eye className="h-3 w-3" />查看</button>
+                      <button onClick={() => setEditing(item)} className="inline-flex items-center gap-1 text-blue-600"><Pencil className="h-3 w-3" />编辑</button>
+                      <button onClick={() => { setConfigs(prev => prev.map(config => config.id === item.id ? { ...config, status: config.status === '启用' ? '停用' : '启用' } : config)); showToast(item.status === '启用' ? '配置已停用' : '配置已启用') }} className={item.status === '启用' ? 'text-orange-500' : 'text-green-600'}>{item.status === '启用' ? '停用' : '启用'}</button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">暂无符合条件的兑换券航次配置</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {editing !== undefined && <VoucherVoyageModal initial={editing} onClose={() => setEditing(undefined)} onSave={value => { setConfigs(prev => prev.some(item => item.id === value.id) ? prev.map(item => item.id === value.id ? value : item) : [value, ...prev]); setEditing(undefined); showToast('兑换券航次配置已保存') }} />}
+      {detail && <VoucherVoyageDetail config={detail} onClose={() => setDetail(null)} />}
+    </div>
+  )
+}
+
 // ======================== 主页面 ========================
 
 const BOAT_CHANNELS = ['美团', '携程', '抖音', '抖音团购']
@@ -392,6 +690,7 @@ const TABS = [
   { key: 'boat_tickets', label: 'OTA船票产品' },
   { key: 'packages', label: 'OTA套票产品' },
   { key: 'period', label: 'OTA期票产品' },
+  { key: 'voucher_voyages', label: 'OTA兑换券航次' },
 ]
 
 export default function OtaDistributionPage() {
@@ -411,6 +710,7 @@ export default function OtaDistributionPage() {
       {activeTab === 'boat_tickets' && <ProductTable key="boat" initData={initBoatTickets} channelTabs={BOAT_CHANNELS} />}
       {activeTab === 'packages' && <ProductTable key="package" initData={initPackageProducts} channelTabs={PACKAGE_CHANNELS} />}
       {activeTab === 'period' && <ProductTable key="period" initData={initPeriodProducts} channelTabs={PERIOD_CHANNELS} />}
+      {activeTab === 'voucher_voyages' && <TabVoucherVoyages />}
     </div>
   )
 }

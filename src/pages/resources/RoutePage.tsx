@@ -82,7 +82,6 @@ export default function RoutePage() {
   const [formLoading, setFormLoading] = useState(false)
   const [nextGeneration, setNextGeneration] = useState<'product' | null>(null)
   const [nextProductName, setNextProductName] = useState('')
-  const [nextItineraryPlanId, setNextItineraryPlanId] = useState('')
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<Route | null>(null)
@@ -143,7 +142,6 @@ export default function RoutePage() {
     const name = searchParams.get('name') || ''
     const next = searchParams.get('next') === 'product' ? 'product' : null
     const productName = searchParams.get('productName') || name
-    const itineraryPlanId = searchParams.get('itineraryPlanId') || ''
     let payload: ItineraryGenerationPayload | null = null
 
     try {
@@ -173,7 +171,6 @@ export default function RoutePage() {
     }))
     setNextGeneration(next)
     setNextProductName(productName)
-    setNextItineraryPlanId(itineraryPlanId)
     setFormOpen(true)
     setSearchParams({}, { replace: true })
   }, [searchParams, setSearchParams, patchForm])
@@ -295,9 +292,7 @@ export default function RoutePage() {
       const params = new URLSearchParams({ create: '1' })
       if (nextProductName.trim()) params.set('name', nextProductName.trim())
       if (createdRoute?.id) params.set('routeId', createdRoute.id)
-      if (nextItineraryPlanId) params.set('itineraryPlanId', nextItineraryPlanId)
       setNextGeneration(null)
-      setNextItineraryPlanId('')
       navigate(`/resources/products?${params.toString()}`)
       return
     }

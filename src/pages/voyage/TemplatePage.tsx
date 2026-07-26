@@ -5,7 +5,6 @@ import { products, ships } from '@/mock/data'
 import type { VoyageTemplate, PaginatedResult, SearchParams } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import { applyVoyageConfigToTemplate } from '@/utils/productVoyageConfig'
-import { resolveProductItinerarySchedule } from '@/utils/itinerarySchedule'
 import { formatItineraryDayLabel } from '@/components/voyage/ItineraryEditor'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -141,11 +140,10 @@ export default function TemplatePage() {
     const now = new Date().toISOString()
     const product = products.find((item) => item.id === form.productId)
     const inheritedConfig = applyVoyageConfigToTemplate(product)
-    const inheritedItinerary = resolveProductItinerarySchedule(product?.itineraryPlanId)
     const existing = editingId ? await templateApi.getById(editingId) : null
     const item: Omit<VoyageTemplate, 'id'> = {
       ...form,
-      itinerary: inheritedItinerary.length ? inheritedItinerary : (existing?.itinerary || []),
+      itinerary: existing?.itinerary || [],
       inventory: existing?.inventory || [],
       basePriceRef: existing?.basePriceRef || 0,
       surchargeStrategy: existing?.surchargeStrategy || [],

@@ -1,5 +1,5 @@
 import { resolveMileageDistance } from '@/mock/yangtzeRiverMileage'
-import type { ItineraryPlan, Port, ProductSegment } from '@/types'
+import type { ItineraryPlan, Port, ProductSegment, Route } from '@/types'
 
 export interface ItineraryPlanStop {
   name: string
@@ -121,5 +121,37 @@ export function getItineraryPlanAutoFill(plan: ItineraryPlan, portMap: Map<strin
     duration: buildItineraryDuration(stops),
     stops,
     productSegments: buildProductSegmentsFromItineraryPlan(plan, portMap),
+  }
+}
+
+/** 产品只关联航线时，由航线基础结构生成可售航段与汇总字段。 */
+export function getRouteProductAutoFill(route?: Route | null) {
+  const stops = route?.stops || []
+  const productSegments: Omit<ProductSegment, 'id'>[] = []
+
+  for (let startIndex = 0; startIndex < stops.length; startIndex += 1) {
+    let mileage = 0
+    for (let endIndex = startIndex + 1; endIndex < stops.length; endIndex += 1) {
+      mileage += Number(stops[endIndex].distance || 0)
+      productSegments.push({
+        startPort: stops[startIndex].portName,
+        endPort: stops[endIndex].portName,
+        days: Math.max(0, stops[endIndex].day - stops[startIndex].day),
+        mileage,
+        status: 'enabled',
+      })
+    }
+  }
+
+  const mileage = stops.reduce((sum, stop) => sum + Number(stop.distance || 0), 0)
+  return {
+    routeType: route?.type || 'downstream' as const,
+    startPort: stops[0]?.portName || '',
+    endPort: stops[stops.length - 1]?.portName || '',
+    days: route?.days || 0,
+    nights: route?.nights || 0,
+    mileage,
+    duration: route?.duration || '-',
+    productSegments,
   }
 }

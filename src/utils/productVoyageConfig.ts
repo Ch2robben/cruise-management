@@ -1,7 +1,7 @@
 import type { Product, ProductSegment, TemplateDeposit, TemplateItinerary, TemplateTip, VoyageTemplate } from '@/types'
 import type { ProductVoyageConfigValue } from '@/components/resources/ProductVoyageConfigPanel'
 import { emptyProductVoyageConfig } from '@/components/resources/ProductVoyageConfigPanel'
-import { resolveProductItinerarySchedule } from '@/utils/itinerarySchedule'
+import { resolveRouteItinerarySchedule } from '@/utils/itinerarySchedule'
 
 export interface ProductSegmentOption {
   key: string
@@ -95,8 +95,12 @@ export function enrichProductWithTemplateConfig(
   }
 }
 
-export function resolveTemplateItinerary(template: VoyageTemplate, product?: Product | null): TemplateItinerary[] {
-  const fromPlan = resolveProductItinerarySchedule(product?.itineraryPlanId)
+export function resolveTemplateItinerary(
+  template: VoyageTemplate,
+  product?: Product | null,
+  departureDate?: string,
+): TemplateItinerary[] {
+  const fromPlan = resolveRouteItinerarySchedule(product?.routeId, departureDate)
   if (fromPlan.length) return fromPlan
   return template.itinerary || []
 }

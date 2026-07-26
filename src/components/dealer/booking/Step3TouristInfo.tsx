@@ -9,8 +9,9 @@ import {
   type GuestPriceInfo,
 } from '@/components/dealer/booking/guestPricingUtils'
 import { formatCurrency } from '@/utils/format'
+import { getAdditionalCategoryPath, getAdditionalProductsForProduct } from '@/mock/additionalProducts'
+import type { AdditionalProduct } from '@/types'
 
-const comboOptions = ['VIP餐厅', '岸上观光', '酒水套餐', 'WiFi套餐', 'SPA套餐', '摄影套餐']
 const defaultRoomTypes = ['标准间', '豪华套房', '总统套房']
 const idTypeOptions = ['身份证', '护照', '台胞证', '港澳通行证', '回乡证', '其他']
 const nationalityOptions = ['中国', '美国', '日本', '韩国', '英国', '法国', '德国', '加拿大', '澳大利亚', '其他']
@@ -156,6 +157,7 @@ interface RoomGroup {
   teamId: string
   segmentId: string
   segmentLabel: string
+  additionalProductIds: string[]
   guests: TouristGuest[]
 }
 
@@ -224,6 +226,7 @@ function createRoomGroup(
     teamId,
     segmentId,
     segmentLabel: getSegmentLabel(segmentId),
+    additionalProductIds: [],
     guests: Array.from({ length: count }, (_, index) => createGuest(baseId + index, stayType)),
   }
 }
@@ -297,6 +300,7 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       teamId: teamIds.team1,
       segmentId: bookingSegmentOptions[0].id,
       segmentLabel: getSegmentLabel(bookingSegmentOptions[0].id),
+      additionalProductIds: [],
       guests: [
         guest(baseId, '张明', '420106198801011234', '13812345678', '男', '标准'),
         guest(baseId + 1, '李红', '420106199002021235', '13912345679', '女', '标准'),
@@ -309,6 +313,7 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       teamId: teamIds.team1,
       segmentId: bookingSegmentOptions[1]?.id ?? bookingSegmentOptions[0].id,
       segmentLabel: getSegmentLabel(bookingSegmentOptions[1]?.id ?? bookingSegmentOptions[0].id),
+      additionalProductIds: [],
       guests: [
         guest(baseId + 2, '王强', 'P12345678', '13712345670', '男', '单间', '成人', '外宾', '护照'),
       ],
@@ -320,6 +325,7 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       teamId: teamIds.team2,
       segmentId: bookingSegmentOptions[2]?.id ?? bookingSegmentOptions[0].id,
       segmentLabel: getSegmentLabel(bookingSegmentOptions[2]?.id ?? bookingSegmentOptions[0].id),
+      additionalProductIds: [],
       guests: [
         guest(baseId + 3, '赵丽', '420106199204041237', '13612345671', '女', '标准'),
         guest(baseId + 4, '陈浩', '420106201006051238', '13512345672', '男', '儿童不占床', '儿童'),
@@ -433,6 +439,7 @@ function calculateRoomPrice(room: RoomGroup, roomData: Record<string, { price?: 
 
 export default function Step3TouristInfo({
   roomData,
+  productId = 'prod01',
   onNext,
   onPrev,
   mode = 'booking',
@@ -440,6 +447,7 @@ export default function Step3TouristInfo({
   initialGroupName,
 }: {
   roomData: any
+  productId?: string
   onNext: (data: any) => void
   onPrev: () => void
   mode?: 'booking' | 'order-edit'
@@ -449,6 +457,7 @@ export default function Step3TouristInfo({
   const [teams, setTeams] = useState<TourTeam[]>([])
   const [roomGroups, setRoomGroups] = useState<RoomGroup[]>([])
   const [comboOpenKey, setComboOpenKey] = useState<string | null>(null)
+  const [roomAdditionalOpenKey, setRoomAdditionalOpenKey] = useState<string | null>(null)
   const [addRoomOpen, setAddRoomOpen] = useState(false)
   const [addTeamOpen, setAddTeamOpen] = useState(false)
   const [newRoomType, setNewRoomType] = useState('标准间')
@@ -458,6 +467,19 @@ export default function Step3TouristInfo({
   const [importPreview, setImportPreview] = useState<ImportPreviewGuest[]>([])
   const [importTip, setImportTip] = useState('')
   const [escortTickets, setEscortTickets] = useState<EscortTicket[]>([])
+
+  const availableAdditionalProducts = useMemo(
+    () => getAdditionalProductsForProduct(productId),
+    [productId],
+  )
+  const personAdditionalProducts = useMemo(
+    () => availableAdditionalProducts.filter((item) => item.chargeMethod === 'per_person'),
+    [availableAdditionalProducts],
+  )
+  const roomAdditionalProducts = useMemo(
+    () => availableAdditionalProducts.filter((item) => item.chargeMethod === 'per_room'),
+    [availableAdditionalProducts],
+  )
 
   const roomTypeOptions = useMemo(() => {
     const types = Object.keys(roomData || {}).filter((key) => roomData[key])
@@ -511,9 +533,28 @@ export default function Step3TouristInfo({
     return map
   }, [roomGroups, roomData])
 
+  const additionalTotal = useMemo(() => {
+    const productMap = new Map(availableAdditionalProducts.map((item) => [item.id, item]))
+    return roomGroups.reduce((total, room) => {
+      const roomIds = new Set([
+        ...room.additionalProductIds,
+        ...roomAdditionalProducts.filter((item) => item.required).map((item) => item.id),
+      ])
+      const roomAmount = [...roomIds].reduce((sum, id) => sum + (productMap.get(id)?.amount ?? 0), 0)
+      const guestAmount = room.guests.reduce((sum, guest) => {
+        const ids = new Set([
+          ...guest.comboProducts,
+          ...personAdditionalProducts.filter((item) => item.required).map((item) => item.id),
+        ])
+        return sum + [...ids].reduce((subtotal, id) => subtotal + (productMap.get(id)?.amount ?? 0), 0)
+      }, 0)
+      return total + roomAmount + guestAmount
+    }, 0)
+  }, [availableAdditionalProducts, personAdditionalProducts, roomAdditionalProducts, roomGroups])
+
   const orderTotal = useMemo(
-    () => roomGroups.reduce((sum, room) => sum + (roomPriceMap.get(room.id)?.total ?? 0), 0),
-    [roomGroups, roomPriceMap],
+    () => roomGroups.reduce((sum, room) => sum + (roomPriceMap.get(room.id)?.total ?? 0), 0) + additionalTotal,
+    [additionalTotal, roomGroups, roomPriceMap],
   )
 
   useEffect(() => {
@@ -526,6 +567,20 @@ export default function Step3TouristInfo({
       }
     }
   }, [roomData, roomGroups.length, teams.length, initialGroupName])
+
+  useEffect(() => {
+    const mandatoryPersonIds = personAdditionalProducts.filter((item) => item.required).map((item) => item.id)
+    const mandatoryRoomIds = roomAdditionalProducts.filter((item) => item.required).map((item) => item.id)
+    if (mandatoryPersonIds.length === 0 && mandatoryRoomIds.length === 0) return
+    setRoomGroups((current) => current.map((room) => ({
+      ...room,
+      additionalProductIds: [...new Set([...(room.additionalProductIds ?? []), ...mandatoryRoomIds])],
+      guests: room.guests.map((guest) => ({
+        ...guest,
+        comboProducts: [...new Set([...guest.comboProducts, ...mandatoryPersonIds])],
+      })),
+    })))
+  }, [personAdditionalProducts, roomAdditionalProducts, roomGroups.length, touristList.length])
 
   const rowOffsets = useMemo(() => {
     let offset = 0
@@ -576,10 +631,11 @@ export default function Step3TouristInfo({
   }
 
   const addGuestToRoom = (roomId: string) => {
+    const mandatoryIds = personAdditionalProducts.filter((item) => item.required).map((item) => item.id)
     setRoomGroups((prev) =>
       prev.map((room) =>
         room.id === roomId
-          ? { ...room, guests: [...room.guests, createGuest(Date.now(), defaultStayType(room.roomType))] }
+          ? { ...room, guests: [...room.guests, { ...createGuest(Date.now(), defaultStayType(room.roomType)), comboProducts: mandatoryIds }] }
           : room,
       ),
     )
@@ -725,6 +781,20 @@ export default function Step3TouristInfo({
     )
   }
 
+  const toggleRoomAdditionalProduct = (roomId: string, product: AdditionalProduct) => {
+    if (product.required) return
+    setRoomGroups((prev) => prev.map((room) => {
+      if (room.id !== roomId) return room
+      const currentIds = room.additionalProductIds ?? []
+      return {
+        ...room,
+        additionalProductIds: currentIds.includes(product.id)
+          ? currentIds.filter((id) => id !== product.id)
+          : [...currentIds, product.id],
+      }
+    }))
+  }
+
   const addEscortTicket = () => {
     if (escortTickets.length >= 2) return
     setEscortTickets((prev) => [
@@ -822,6 +892,7 @@ export default function Step3TouristInfo({
             <>
               <span className="mx-2 text-gray-300">|</span>
               订单合计 <strong className="mx-1 text-red-500">¥{orderTotal.toLocaleString()}</strong>
+              {additionalTotal > 0 && <span className="text-xs text-gray-400">（附加 ¥{additionalTotal.toLocaleString()}）</span>}
             </>
           )}
         </div>
@@ -926,6 +997,27 @@ export default function Step3TouristInfo({
                   <span className="text-xs text-gray-500">{room.guests.length} 人</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  {roomAdditionalProducts.length > 0 && (
+                    <div className="relative">
+                      <button type="button" onClick={() => setRoomAdditionalOpenKey(roomAdditionalOpenKey === room.id ? null : room.id)} className="inline-flex h-8 items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-3 text-xs text-violet-700 hover:bg-violet-100">
+                        按房附加产品
+                        <span className="rounded bg-white px-1 text-[10px]">{roomAdditionalProducts.filter((item) => item.required || room.additionalProductIds?.includes(item.id)).length}</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                      {roomAdditionalOpenKey === room.id && (
+                        <div className="absolute right-0 top-9 z-20 w-72 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+                          <div className="mb-1 px-2 py-1 text-[11px] text-gray-400">每间房仅收取一次</div>
+                          {roomAdditionalProducts.map((item) => (
+                            <label key={item.id} className="flex cursor-pointer items-start gap-2 rounded p-2 text-xs hover:bg-gray-50">
+                              <input type="checkbox" checked={item.required || room.additionalProductIds?.includes(item.id)} disabled={item.required} onChange={() => toggleRoomAdditionalProduct(room.id, item)} className="mt-0.5 rounded text-blue-600" />
+                              <span className="min-w-0 flex-1"><span className="block font-medium text-gray-800">{item.name}{item.required && <span className="ml-1 text-red-500">必收</span>}</span><span className="mt-0.5 block text-gray-400">{getAdditionalCategoryPath(item.categoryId)}</span></span>
+                              <span className="font-medium tabular-nums text-gray-700">{formatCurrency(item.amount)}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => addGuestToRoom(room.id)}
@@ -959,7 +1051,7 @@ export default function Step3TouristInfo({
                       <th className="w-24 px-3 py-3 text-right text-gray-400">票价</th>
                       <th className="w-20 px-3 py-3 text-gray-400">价格类型</th>
                       <th className="w-28 px-3 py-3">手机号</th>
-                      <th className="w-32 px-3 py-3">组合产品</th>
+                      <th className="w-36 px-3 py-3">按人附加产品</th>
                       <th className="w-12 px-3 py-3 text-center">操作</th>
                     </tr>
                   </thead>
@@ -1075,18 +1167,20 @@ export default function Step3TouristInfo({
                             </div>
                             {comboOpenKey === comboKey && (
                               <div
-                                className="absolute right-0 top-10 z-10 w-40 rounded-md border border-gray-200 bg-white p-1 shadow-lg"
+                                className="absolute right-0 top-10 z-10 w-64 rounded-md border border-gray-200 bg-white p-1 shadow-lg"
                                 onMouseLeave={() => setComboOpenKey(null)}
                               >
-                                {comboOptions.map((opt) => (
-                                  <label key={opt} className="flex cursor-pointer items-center gap-2 p-1.5 text-xs hover:bg-gray-50">
+                                {personAdditionalProducts.length === 0 && <div className="p-2 text-xs text-gray-400">当前产品暂无按人项目</div>}
+                                {personAdditionalProducts.map((item) => (
+                                  <label key={item.id} className="flex cursor-pointer items-start gap-2 p-1.5 text-xs hover:bg-gray-50">
                                     <input
                                       type="checkbox"
-                                      checked={guest.comboProducts.includes(opt)}
-                                      onChange={() => toggleComboProduct(room.id, guest.id, opt)}
+                                      checked={item.required || guest.comboProducts.includes(item.id)}
+                                      disabled={item.required}
+                                      onChange={() => toggleComboProduct(room.id, guest.id, item.id)}
                                       className="rounded"
                                     />
-                                    {opt}
+                                    <span className="min-w-0 flex-1"><span className="block truncate">{item.name}{item.required && <span className="ml-1 text-red-500">必收</span>}</span><span className="text-gray-400">{formatCurrency(item.amount)}/人</span></span>
                                   </label>
                                 ))}
                               </div>

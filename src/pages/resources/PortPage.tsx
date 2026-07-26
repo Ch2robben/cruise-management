@@ -37,8 +37,6 @@ const emptyForm: PortForm = {
   sort: 1,
   riverReach: '',
   mileageKm: 0,
-  prevPierUpstreamMin: 0,
-  nextPierDownstreamMin: 0,
 }
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm'
@@ -128,8 +126,6 @@ export default function PortPage() {
       sort: record.sort,
       riverReach: record.riverReach || '',
       mileageKm: record.mileageKm ?? 0,
-      prevPierUpstreamMin: record.prevPierUpstreamMin ?? 0,
-      nextPierDownstreamMin: record.nextPierDownstreamMin ?? 0,
     })
     setFormOpen(true)
   }
@@ -296,34 +292,6 @@ export default function PortPage() {
                 </select>
               </div>
               <div><label className="mb-1 block text-sm text-gray-700">段内里程(km)</label><input type="number" value={form.mileageKm} onChange={(event) => setForm({ ...form, mileageKm: Number(event.target.value) })} className={inputClass} /></div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">上个码头上水时间</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.prevPierUpstreamMin || ''}
-                    onChange={(event) => setForm({ ...form, prevPierUpstreamMin: Number(event.target.value) })}
-                    placeholder="请输入"
-                    className={`${inputClass} pr-12`}
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">hh:mm</span>
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">下个码头下水时间</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.nextPierDownstreamMin || ''}
-                    onChange={(event) => setForm({ ...form, nextPierDownstreamMin: Number(event.target.value) })}
-                    placeholder="请输入"
-                    className={`${inputClass} pr-12`}
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">hh:mm</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -347,8 +315,6 @@ export default function PortPage() {
             <DetailRow label="经纬度" value={`${detail.longitude || '-'}, ${detail.latitude || '-'}`} />
             <DetailRow label="江段" value={detail.riverReach ? RIVER_REACH_LABEL[detail.riverReach] : '-'} />
             <DetailRow label="段内里程" value={detail.mileageKm != null ? `${detail.mileageKm} km` : '-'} />
-            <DetailRow label="上个码头上水时间" value={formatDurationMinutes(detail.prevPierUpstreamMin)} />
-            <DetailRow label="下个码头下水时间" value={formatDurationMinutes(detail.nextPierDownstreamMin)} />
             <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
           </DetailCard>
           <DetailCard title="关联景点">

@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, ChevronDown, ChevronRight, RotateCcw, X } from 'lucide-react'
+import { Plus, RotateCcw, X } from 'lucide-react'
 import { productApi } from '@/mock/api'
-import { ports, ships, tickets } from '@/mock/data'
-import { getItineraryPlanById, listItineraryPlans } from '@/mock/itineraryPlanStore'
+import { routes, ships, tickets } from '@/mock/data'
 import { productInventories } from '@/mock/data'
 import type { Product, ProductSegment, PricingRow, PaginatedResult, SearchParams, ProductInventory } from '@/types'
 import { formatDateTime } from '@/utils/format'
-import { getItineraryPlanAutoFill } from '@/utils/itineraryPlanProduct'
+import { getRouteProductAutoFill } from '@/utils/itineraryPlanProduct'
 import { getEnabledSellRoomTypesByShip } from '@/mock/sellRoomTypeConfig'
 import { pickProductVoyageConfig, buildProductSegmentOptions, formatSegmentKeyLabel } from '@/utils/productVoyageConfig'
 import ProductVoyageConfigPanel, { emptyProductVoyageConfig, type ProductVoyageConfigValue } from '@/components/resources/ProductVoyageConfigPanel'
@@ -21,13 +20,12 @@ import RichTextEditor, { RichTextContent } from '@/components/common/RichTextEdi
 
 // ========== 常量 ==========
 const shipLevels = [...new Set(ships.map((s) => s.level))]
-const itineraryPlanOptions = listItineraryPlans()
 const productCategoryOptions = ['三峡游轮', '长江游轮', '海洋游轮', '短线游轮', '定制游轮']
 
 type ProductForm = {
   name: string
   category: string
-  itineraryPlanId: string
+  routeId: string
   shipId: string
   icon: string
   images: string[]
@@ -46,7 +44,7 @@ interface ProductTicketConfig {
 }
 
 const emptyForm: ProductForm = {
-  name: '', category: '三峡游轮', itineraryPlanId: '', shipId: '', icon: '', images: [], description: '',
+  name: '', category: '三峡游轮', routeId: '', shipId: '', icon: '', images: [], description: '',
 }
 
 const cabinTypeLabels: Record<string, string> = { suite: '套房', balcony: '阳台房', window: '海景房', inside: '内舱房' }
@@ -100,13 +98,6 @@ function flattenRoomTickets(roomTickets: Record<string, string[]>) {
 }
 
 // ========== 工具函数 ==========
-function getProductItineraryName(product: Product): string {
-  if (product.itineraryPlanId) {
-    return getItineraryPlanById(product.itineraryPlanId)?.name || product.routeName
-  }
-  return product.routeName
-}
-
 function getProductCategory(product: Product): string {
   if (product.category) return product.category
   if (product.name.includes('三峡') || product.routeName.includes('三峡')) return '三峡游轮'
@@ -125,14 +116,11 @@ export default function ProductPage() {
   const [keyword, setKeyword] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [shipLevel, setShipLevel] = useState('all')
-  const [itineraryPlanFilter, setItineraryPlanFilter] = useState('all')
+  const [routeFilter, setRouteFilter] = useState('all')
   const [routeType, setRouteType] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [minMileage, setMinMileage] = useState('')
   const [maxMileage, setMaxMileage] = useState('')
-
-  // 展开行
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   // 表单状态
   const [formOpen, setFormOpen] = useState(false)
@@ -168,15 +156,13 @@ export default function ProductPage() {
   const shipLevelOptions = ['all', ...shipLevels]
   const shipLevelLabels: Record<string, string> = { all: '全部', ...Object.fromEntries(shipLevels.map((l) => [l, l])) }
 
-  const portMap = useMemo(() => new Map(ports.map((port) => [port.id, port])), [])
-
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     if (keyword.trim()) params.keyword = keyword.trim()
     if (categoryFilter !== 'all') params.category = categoryFilter
     if (shipLevel !== 'all') params.shipLevel = shipLevel
-    if (itineraryPlanFilter !== 'all') params.itineraryPlanId = itineraryPlanFilter
+    if (routeFilter !== 'all') params.routeId = routeFilter
     if (routeType !== 'all') params.routeType = routeType
     if (statusFilter !== 'all') params.status = statusFilter
     if (minMileage.trim()) params.minMileage = minMileage
@@ -184,54 +170,44 @@ export default function ProductPage() {
     const result = await productApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, categoryFilter, shipLevel, itineraryPlanFilter, routeType, statusFilter, minMileage, maxMileage])
+  }, [keyword, categoryFilter, shipLevel, routeFilter, routeType, statusFilter, minMileage, maxMileage])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const handleSearch = () => fetchData(1)
   const handleReset = () => {
-    setKeyword(''); setCategoryFilter('all'); setShipLevel('all'); setItineraryPlanFilter('all'); setRouteType('all')
+    setKeyword(''); setCategoryFilter('all'); setShipLevel('all'); setRouteFilter('all'); setRouteType('all')
     setStatusFilter('all'); setMinMileage(''); setMaxMileage('')
   }
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
   // ========== 表单逻辑 ==========
-  const getPlanAutoFill = (planId: string) => {
-    const plan = getItineraryPlanById(planId)
-    if (!plan) return null
-    return getItineraryPlanAutoFill(plan, portMap)
+  const getRouteAutoFill = (routeId: string) => {
+    const route = routes.find((item) => item.id === routeId)
+    return route ? getRouteProductAutoFill(route) : null
   }
 
-  const onItineraryPlanChange = (planId: string) => {
-    setForm((prev) => ({ ...prev, itineraryPlanId: planId }))
-    if (!planId) {
+  const onRouteChange = (routeId: string) => {
+    setForm((prev) => ({ ...prev, routeId }))
+    if (!routeId) {
       setSegments([])
       return
     }
-    const autoFill = getPlanAutoFill(planId)
+    const autoFill = getRouteAutoFill(routeId)
     if (!autoFill) return
     setSegments(autoFill.productSegments)
   }
 
   const resetSegments = () => {
-    if (!form.itineraryPlanId) return
-    onItineraryPlanChange(form.itineraryPlanId)
+    if (!form.routeId) return
+    onRouteChange(form.routeId)
   }
 
   const openCreate = (defaults?: Partial<ProductForm>) => {
     setEditingId(null)
-    const planId = defaults?.itineraryPlanId || ''
-    setForm({ ...emptyForm, ...defaults, itineraryPlanId: planId })
-    if (planId) {
-      const autoFill = getPlanAutoFill(planId)
+    const routeId = defaults?.routeId || ''
+    setForm({ ...emptyForm, ...defaults, routeId })
+    if (routeId) {
+      const autoFill = getRouteAutoFill(routeId)
       setSegments(autoFill ? autoFill.productSegments : [])
     } else {
       setSegments([])
@@ -243,7 +219,7 @@ export default function ProductPage() {
     if (searchParams.get('create') !== '1') return
     openCreate({
       name: searchParams.get('name') || '',
-      itineraryPlanId: searchParams.get('itineraryPlanId') || '',
+      routeId: searchParams.get('routeId') || '',
     })
     setSearchParams({}, { replace: true })
   }, [searchParams, setSearchParams])
@@ -253,7 +229,7 @@ export default function ProductPage() {
     setForm({
       name: record.name,
       category: getProductCategory(record),
-      itineraryPlanId: record.itineraryPlanId || '',
+      routeId: record.routeId || '',
       shipId: record.shipId,
       icon: record.icon,
       images: record.images,
@@ -310,12 +286,12 @@ export default function ProductPage() {
   }
 
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.itineraryPlanId || !form.shipId) return
+    if (!form.name.trim() || !form.routeId || !form.shipId) return
     setFormLoading(true)
-    const plan = getItineraryPlanById(form.itineraryPlanId)
+    const route = routes.find((item) => item.id === form.routeId)
     const ship = ships.find((s) => s.id === form.shipId)
-    const autoFill = getPlanAutoFill(form.itineraryPlanId)
-    if (!plan || !ship || !autoFill) { setFormLoading(false); return }
+    const autoFill = getRouteAutoFill(form.routeId)
+    if (!route || !ship || !autoFill) { setFormLoading(false); return }
 
     // Generate fresh pricing based on current segments and ship cabin types
     const newPricing: PricingRow[] = []
@@ -340,8 +316,8 @@ export default function ProductPage() {
     const productData = {
       name: form.name,
       category: form.category,
-      routeId: existing?.routeId || '',
-      routeName: plan.name,
+      routeId: route.id,
+      routeName: route.name,
       routeType: autoFill.routeType,
       shipId: form.shipId,
       shipName: ship.name,
@@ -357,7 +333,7 @@ export default function ProductPage() {
       description: form.description,
       segments: segments.map((s, i) => ({ ...s, id: `seg_${i}` })) as ProductSegment[],
       pricing: newPricing,
-      itineraryPlanId: form.itineraryPlanId,
+      itineraryPlanId: undefined,
       ...voyageConfig,
       status: 'enabled' as const,
       updatedBy: '当前用户',
@@ -495,32 +471,32 @@ export default function ProductPage() {
     setForm({ ...form, images: form.images.filter((_, i) => i !== idx) })
   }
 
-  // ========== 树形表格列定义（父子行共用） ==========
-  const treeColumns = [
-    { key: 'id', title: '产品ID', parent: (r: Product) => r.id, child: () => '' },
-    { key: 'name', title: '产品名称', parent: (r: Product) => r.name, child: () => '' },
-    { key: 'category', title: '产品分类', parent: (r: Product) => getProductCategory(r), child: () => '' },
-    { key: 'routeName', title: '行程', parent: (r: Product) => getProductItineraryName(r), child: () => '' },
-    { key: 'routeType', title: '上下水', parent: (r: Product) => (
+  // ========== 列表列定义 ==========
+  const columns = [
+    { key: 'id', title: '产品ID', render: (r: Product) => r.id },
+    { key: 'name', title: '产品名称', render: (r: Product) => r.name },
+    { key: 'category', title: '产品分类', render: (r: Product) => getProductCategory(r) },
+    { key: 'routeName', title: '航线', render: (r: Product) => r.routeName },
+    { key: 'routeType', title: '上下水', render: (r: Product) => (
       <span className={r.routeType === 'upstream' ? 'text-blue-600' : 'text-green-600'}>
         {r.routeType === 'upstream' ? '上水' : '下水'}
       </span>
-    ), child: () => '' },
-    { key: 'shipName', title: '游轮', parent: (r: Product) => r.shipName, child: () => '' },
-    { key: 'startPort', title: '起港', parent: (r: Product) => r.startPort, child: (s: ProductSegment) => s.startPort },
-    { key: 'endPort', title: '止港', parent: (r: Product) => r.endPort, child: (s: ProductSegment) => s.endPort },
-    { key: 'duration', title: '航行时长', parent: (r: Product) => r.duration, child: (s: ProductSegment) => `${s.days}天` },
-    { key: 'mileage', title: '航行里程', parent: (r: Product) => `${r.mileage} nmi`, child: (s: ProductSegment) => `${s.mileage} nmi` },
-    { key: 'approval', title: '审批状态', parent: (r: Product) => (
+    ) },
+    { key: 'shipName', title: '游轮', render: (r: Product) => r.shipName },
+    { key: 'startPort', title: '起港', render: (r: Product) => r.startPort },
+    { key: 'endPort', title: '止港', render: (r: Product) => r.endPort },
+    { key: 'duration', title: '航行时长', render: (r: Product) => r.duration },
+    { key: 'mileage', title: '航行里程', render: (r: Product) => `${r.mileage} nmi` },
+    { key: 'approval', title: '审批状态', render: (r: Product) => (
       <button onClick={() => { setApprovalTimeline(r.approvalTimeline || []); setApprovalOpen(true) }} className={`text-xs hover:underline ${(r.approvalStatus || '已审批') === '已审批' ? 'text-green-600' : 'text-yellow-600'}`}>{r.approvalStatus || '-'}</button>
-    ), child: () => '' },
-    { key: 'publish', title: '发布状态', parent: (r: Product) => (
+    ) },
+    { key: 'publish', title: '发布状态', render: (r: Product) => (
       <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${r.publishStatus === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{r.publishStatus === 'published' ? '已发布' : '未发布'}</span>
-    ), child: () => '' },
-    { key: 'status', title: '状态', parent: (r: Product) => <StatusBadge status={r.status} />, child: (s: ProductSegment) => <StatusBadge status={s.status} /> },
-    { key: 'updatedBy', title: '操作人', parent: (r: Product) => r.updatedBy, child: (_s: ProductSegment, p: Product) => p.updatedBy },
-    { key: 'updatedAt', title: '操作时间', parent: (r: Product) => formatDateTime(r.updatedAt), child: (_s: ProductSegment, p: Product) => formatDateTime(p.updatedAt) },
-    { key: 'actions', title: '操作', width: '340px', parent: (r: Product) => (
+    ) },
+    { key: 'status', title: '状态', render: (r: Product) => <StatusBadge status={r.status} /> },
+    { key: 'updatedBy', title: '操作人', render: (r: Product) => r.updatedBy },
+    { key: 'updatedAt', title: '操作时间', render: (r: Product) => formatDateTime(r.updatedAt) },
+    { key: 'actions', title: '操作', width: '340px', render: (r: Product) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">编辑</button>
@@ -531,16 +507,16 @@ export default function ProductPage() {
         </button>
         <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded">删除</button>
       </div>
-    ), child: () => '' },
+    ) },
   ]
 
   // ========== 渲染 ==========
-  const itineraryFill = getPlanAutoFill(form.itineraryPlanId)
+  const routeFill = getRouteAutoFill(form.routeId)
   const selectedShip = ships.find((s) => s.id === form.shipId)
 
   return (
     <div>
-      <PageHeader title="产品管理" description="管理游轮产品信息、航段及行程/定金/销售规则/小费/房型/礼遇配置" />
+      <PageHeader title="产品管理" description="产品只关联航线；航次行程由开航日期自动匹配航线下的生效行程。" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -568,11 +544,11 @@ export default function ProductPage() {
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">行程</label>
-          <select value={itineraryPlanFilter} onChange={(e) => setItineraryPlanFilter(e.target.value)}
+          <label className="text-xs text-gray-500">航线</label>
+          <select value={routeFilter} onChange={(e) => setRouteFilter(e.target.value)}
             className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
             <option value="all">全部</option>
-            {itineraryPlanOptions.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+            {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -616,53 +592,31 @@ export default function ProductPage() {
         </button>
       </div>
 
-      {/* 树形表格（父子行共用列头） */}
+      {/* 产品列表 */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="w-10 px-2 py-3" />
-                {treeColumns.map((col) => (
+                {columns.map((col) => (
                   <th key={col.key} className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" style={col.width ? { width: col.width } : undefined}>{col.title}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={treeColumns.length + 1} className="px-4 py-16 text-center text-sm text-gray-400">加载中...</td></tr>
+                <tr><td colSpan={columns.length} className="px-4 py-16 text-center text-sm text-gray-400">加载中...</td></tr>
               ) : data.data.length === 0 ? (
-                <tr><td colSpan={treeColumns.length + 1} className="px-4 py-16 text-center text-sm text-gray-400">暂无数据</td></tr>
+                <tr><td colSpan={columns.length} className="px-4 py-16 text-center text-sm text-gray-400">暂无数据</td></tr>
               ) : (
                 data.data.map((record) => (
-                  <>
-                    {/* 父行 */}
-                    <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-2 py-2.5">
-                        <button onClick={() => toggleExpand(record.id)} className="p-1 text-gray-400 hover:text-gray-600">
-                          {expanded.has(record.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        </button>
+                  <tr key={record.id} className="hover:bg-gray-50 transition-colors">
+                    {columns.map((col) => (
+                      <td key={col.key} className="px-4 py-2.5 text-sm text-gray-700 whitespace-nowrap">
+                        {col.render(record)}
                       </td>
-                      {treeColumns.map((col) => (
-                        <td key={col.key} className="px-4 py-2.5 text-sm text-gray-700 whitespace-nowrap">
-                          {col.parent(record)}
-                        </td>
-                      ))}
-                    </tr>
-                    {/* 子行（展开时显示，与父行共用列头） */}
-                    {expanded.has(record.id) && record.segments.map((seg) => (
-                      <tr key={`${record.id}-${seg.id}`} className="bg-blue-50/30">
-                        <td className="px-2 py-2">
-                          <span className="block w-4 ml-2 border-l-2 border-b-2 border-blue-300 h-3" />
-                        </td>
-                        {treeColumns.map((col) => (
-                          <td key={col.key} className="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">
-                            {col.child(seg, record)}
-                          </td>
-                        ))}
-                      </tr>
                     ))}
-                  </>
+                  </tr>
                 ))
               )}
             </tbody>
@@ -703,16 +657,16 @@ export default function ProductPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-700 mb-1">行程 <span className="text-red-500">*</span></label>
-                <select value={form.itineraryPlanId} onChange={(e) => onItineraryPlanChange(e.target.value)}
+                <label className="block text-sm text-gray-700 mb-1">航线 <span className="text-red-500">*</span></label>
+                <select value={form.routeId} onChange={(e) => onRouteChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
-                  <option value="">请选择行程</option>
-                  {itineraryPlanOptions.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+                  <option value="">请选择航线</option>
+                  {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">上下水类型</label>
-                <input value={itineraryFill ? (itineraryFill.routeType === 'upstream' ? '上水' : '下水') : '-'} disabled
+                <input value={routeFill ? (routeFill.routeType === 'upstream' ? '上水' : '下水') : '-'} disabled
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
               </div>
               <div>
@@ -725,12 +679,12 @@ export default function ProductPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">航行时长</label>
-                <input value={itineraryFill?.duration || '-'} disabled
+                <input value={routeFill?.duration || '-'} disabled
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">航行里程(nmi)</label>
-                <input value={itineraryFill ? `${itineraryFill.mileage} nmi` : '-'} disabled
+                <input value={routeFill ? `${routeFill.mileage} nmi` : '-'} disabled
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500" />
               </div>
               <div className="col-span-2">
@@ -809,7 +763,7 @@ export default function ProductPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-gray-400 mt-1">共 {segments.length} 个可售航段，由行程编排自动生成；行程中勾选「上下客」的码头为航段断点，不可删除</p>
+              <p className="text-xs text-gray-400 mt-1">共 {segments.length} 个可售航段，由所选航线的停靠码头自动生成，不可删除</p>
             </div>
           )}
         </div>
@@ -823,7 +777,7 @@ export default function ProductPage() {
               <DetailRow label="产品名称" value={detail.name} />
               <DetailRow label="产品ID" value={detail.id} mono />
               <DetailRow label="产品分类" value={getProductCategory(detail)} />
-              <DetailRow label="行程" value={getProductItineraryName(detail)} />
+              <DetailRow label="航线" value={detail.routeName} />
               <DetailRow label="上下水" value={<span className={detail.routeType === 'upstream' ? 'text-blue-600' : 'text-green-600'}>{detail.routeType === 'upstream' ? '上水' : '下水'}</span>} />
               <DetailRow label="游轮" value={`${detail.shipName}（${detail.shipLevel}）`} />
               <DetailRow label="起港" value={detail.startPort} />

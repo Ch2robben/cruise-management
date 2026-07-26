@@ -129,6 +129,8 @@ export default function ItineraryManagementPage() {
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
   const [draftRouteId, setDraftRouteId] = useState('')
+  const [draftEffectiveStart, setDraftEffectiveStart] = useState('')
+  const [draftEffectiveEnd, setDraftEffectiveEnd] = useState('')
   const [draftSegments, setDraftSegments] = useState<ItinerarySegment[]>([])
   const [keyword, setKeyword] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
@@ -239,6 +241,8 @@ export default function ItineraryManagementPage() {
     setEditingPlanId(null)
     setDraftName('新建行程方案')
     setDraftRouteId('')
+    setDraftEffectiveStart('2026-01-01')
+    setDraftEffectiveEnd('2026-12-31')
     setDraftSegments([])
     setEditorStep(1)
   }
@@ -248,6 +252,8 @@ export default function ItineraryManagementPage() {
     setEditingPlanId(plan.id)
     setDraftName(plan.name)
     setDraftRouteId(plan.routeId || '')
+    setDraftEffectiveStart(plan.effectiveStart)
+    setDraftEffectiveEnd(plan.effectiveEnd)
     setDraftSegments(plan.segments.map((segment, index) => ({
       ...segment,
       passengerOnOff: segment.passengerOnOff ?? false,
@@ -262,6 +268,8 @@ export default function ItineraryManagementPage() {
     setEditingPlanId(null)
     setDraftName('')
     setDraftRouteId('')
+    setDraftEffectiveStart('')
+    setDraftEffectiveEnd('')
     setDraftSegments([])
     setEditorStep(1)
   }
@@ -272,7 +280,21 @@ export default function ItineraryManagementPage() {
   }
 
   const saveDraft = () => {
-    if (!draftRouteId || draftSegments.length === 0) return
+    if (!draftRouteId || !draftEffectiveStart || !draftEffectiveEnd || draftSegments.length === 0) return
+    if (draftEffectiveStart > draftEffectiveEnd) {
+      window.alert('生效开始日期不能晚于结束日期')
+      return
+    }
+    const overlappingPlan = plans.find((plan) => (
+      plan.id !== editingPlanId
+      && plan.routeId === draftRouteId
+      && draftEffectiveStart <= plan.effectiveEnd
+      && draftEffectiveEnd >= plan.effectiveStart
+    ))
+    if (overlappingPlan) {
+      window.alert(`与同航线行程「${overlappingPlan.name}」的生效时间重叠，请调整后再保存`)
+      return
+    }
     const now = new Date().toISOString()
     const schedule = flattenSegmentActivities(draftSegments)
     if (editingPlanId) {
@@ -281,6 +303,8 @@ export default function ItineraryManagementPage() {
           ...plan,
           name: draftName || plan.name,
           routeId: draftRouteId,
+          effectiveStart: draftEffectiveStart,
+          effectiveEnd: draftEffectiveEnd,
           segments: draftSegments,
           schedule,
           updatedAt: now,
@@ -293,6 +317,8 @@ export default function ItineraryManagementPage() {
         code: `ITN-${new Date().getTime().toString().slice(-8)}`,
         name: draftName || '新建行程方案',
         routeId: draftRouteId,
+        effectiveStart: draftEffectiveStart,
+        effectiveEnd: draftEffectiveEnd,
         segments: draftSegments,
         schedule,
         updatedAt: now,
@@ -307,10 +333,10 @@ export default function ItineraryManagementPage() {
     setDeletePlanId('')
   }
 
-  const goCreateProduct = (name?: string, itineraryPlanId?: string) => {
+  const goCreateProduct = (name?: string, routeId?: string) => {
     const params = new URLSearchParams({ create: '1' })
     if (name?.trim()) params.set('name', name.trim())
-    if (itineraryPlanId) params.set('itineraryPlanId', itineraryPlanId)
+    if (routeId) params.set('routeId', routeId)
     navigate(`/resources/products?${params.toString()}`)
   }
 
@@ -329,7 +355,7 @@ export default function ItineraryManagementPage() {
     if (!generationPlan || generationTargets.length === 0) return
     const name = generationPlan.name.trim()
     setGenerationPlan(null)
-    goCreateProduct(name, generationPlan.id)
+    goCreateProduct(name, generationPlan.routeId)
   }
 
   const updateSegment = (id: string, patch: Partial<ItinerarySegment>) => {
@@ -490,6 +516,9 @@ export default function ItineraryManagementPage() {
     { key: 'route', title: '关联航线', width: '180px', render: (plan: ItineraryPlan) => (
       <span className="text-sm text-gray-700">{routeMap.get(plan.routeId || '')?.name || '-'}</span>
     ) },
+    { key: 'effectiveRange', title: '生效时间', width: '210px', render: (plan: ItineraryPlan) => (
+      <span className="text-sm text-gray-700">{plan.effectiveStart} ~ {plan.effectiveEnd}</span>
+    ) },
     { key: 'ports', title: '起止码头', render: (plan: ItineraryPlan) => {
       const firstSegment = plan.segments[0]
       const lastSegment = plan.segments[plan.segments.length - 1]
@@ -549,7 +578,7 @@ export default function ItineraryManagementPage() {
               <button onClick={() => exportPdf(draftName || '行程方案', draftMetrics, flattenSegmentActivities(draftSegments))} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
                 <Download className="h-4 w-4" /> 导出PDF文档
               </button>
-              <button onClick={() => goCreateProduct(draftName || '新建行程方案', editingPlanId || undefined)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
+              <button onClick={() => goCreateProduct(draftName || '新建行程方案', draftRouteId || undefined)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50">
                 <Package className="h-4 w-4" /> 生成产品
               </button>
               <button onClick={saveDraft} disabled={!draftRouteId || draftSegments.length === 0} className="inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50">保存</button>
@@ -761,6 +790,17 @@ export default function ItineraryManagementPage() {
                 </div>
               )}
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 block text-sm text-gray-700">生效开始日期 <span className="text-red-500">*</span></label>
+                <input type="date" value={draftEffectiveStart} onChange={(event) => setDraftEffectiveStart(event.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-gray-700">生效结束日期 <span className="text-red-500">*</span></label>
+                <input type="date" value={draftEffectiveEnd} onChange={(event) => setDraftEffectiveEnd(event.target.value)} className={inputClass} />
+              </div>
+              <p className="col-span-2 text-xs text-gray-500">同一航线可维护多个行程，生效时间不得重叠；航次将按开航日期自动命中行程。</p>
+            </div>
           </div>
           <div className="mt-8 flex justify-between">
             <button onClick={closeEditor} className="rounded border border-gray-300 bg-white px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
@@ -768,7 +808,7 @@ export default function ItineraryManagementPage() {
             </button>
             <button
               onClick={() => setEditorStep(2)}
-              disabled={!draftName.trim() || !draftRouteId || draftSegments.length === 0}
+              disabled={!draftName.trim() || !draftRouteId || !draftEffectiveStart || !draftEffectiveEnd || draftSegments.length === 0}
               className="rounded bg-gray-900 px-6 py-2.5 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一步：行程编排
@@ -789,7 +829,7 @@ export default function ItineraryManagementPage() {
 
   return (
     <div>
-      <PageHeader title="行程管理" description="基于已有航线配置各航段航速、关联景点与活动，支持生成产品。" />
+      <PageHeader title="行程管理" description="每条航线可维护多个带生效时间的行程，航次按开航日期自动匹配。" />
 
       <SearchPanel onSearch={() => setAppliedKeyword(keyword)} onReset={() => { setKeyword(''); setAppliedKeyword(''); setReachFilter('all') }}>
         <div className="flex flex-col gap-1.5">
@@ -843,6 +883,10 @@ export default function ItineraryManagementPage() {
                   <div className="rounded-lg bg-gray-50 px-4 py-3">
                     <p className="text-xs text-gray-500">关联航线</p>
                     <p className="mt-1 text-sm font-semibold text-gray-900">{routeMap.get(viewPlan.routeId || '')?.name || '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">生效时间</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">{viewPlan.effectiveStart} ~ {viewPlan.effectiveEnd}</p>
                   </div>
                   <div className="rounded-lg bg-gray-50 px-4 py-3">
                     <p className="text-xs text-gray-500">途经江段</p>

@@ -10,6 +10,7 @@ import {
 import { defaultRoomReserveData } from '@/mock/data'
 import { resolveGuestPriceInfo } from '@/components/dealer/booking/guestPricingUtils'
 import { formatCurrency } from '@/utils/format'
+import { getAdditionalCategoryPath, getAdditionalProductsForProduct } from '@/mock/additionalProducts'
 
 function FieldItem({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
@@ -55,6 +56,7 @@ interface TouristGuestLike {
   idType: string
   idNum: string
   guestType: string
+  comboProducts?: string[]
 }
 
 interface RoomGroupLike {
@@ -63,6 +65,7 @@ interface RoomGroupLike {
   roomType: string
   teamId?: string
   segmentLabel: string
+  additionalProductIds?: string[]
   guests: TouristGuestLike[]
 }
 
@@ -132,7 +135,7 @@ export default function Step4OrderConfirm({
 
   const totalRooms = hasCart ? cart.reduce((sum, line) => sum + line.count, 0) : 3
   const totalPax = hasCart ? cart.reduce((sum, line) => sum + cartLinePax(line.roomType, line.count), 0) : 5
-  const totalAmount = hasCart
+  const baseAmount = hasCart
     ? cart.reduce((sum, line) => sum + line.price * line.count, 0)
     : defaultFeeRows.reduce((sum, row) => sum + row.subtotal, 0)
   const deposit = hasCart ? cart.reduce((sum, line) => sum + cartLineDeposit(line), 0) : 3900
@@ -153,6 +156,35 @@ export default function Step4OrderConfirm({
         subtotal: line.price * line.count,
       }))
     : defaultFeeRows
+
+  const availableAdditionalProducts = useMemo(
+    () => getAdditionalProductsForProduct(data?.productId ?? 'prod01'),
+    [data?.productId],
+  )
+
+  const additionalFeeRows = useMemo(() => {
+    const byId = new Map(availableAdditionalProducts.map((item) => [item.id, item]))
+    return roomGroups.flatMap((room) => {
+      const mandatoryRoomIds = availableAdditionalProducts.filter((item) => item.required && item.chargeMethod === 'per_room').map((item) => item.id)
+      const roomIds = [...new Set([...(room.additionalProductIds ?? []), ...mandatoryRoomIds])]
+      const roomRows = roomIds.flatMap((id) => {
+        const item = byId.get(id)
+        return item ? [{ key: `${room.id}-${id}`, target: `房间 ${room.roomSeq}`, product: item }] : []
+      })
+      const mandatoryPersonIds = availableAdditionalProducts.filter((item) => item.required && item.chargeMethod === 'per_person').map((item) => item.id)
+      const guestRows = room.guests.flatMap((guest, guestIndex) => {
+        const ids = [...new Set([...(guest.comboProducts ?? []), ...mandatoryPersonIds])]
+        return ids.flatMap((id) => {
+          const item = byId.get(id)
+          return item ? [{ key: `${room.id}-${guest.id}-${id}`, target: guest.name || `房间 ${room.roomSeq} 游客${guestIndex + 1}`, product: item }] : []
+        })
+      })
+      return [...roomRows, ...guestRows]
+    })
+  }, [availableAdditionalProducts, roomGroups])
+
+  const additionalTotal = additionalFeeRows.reduce((sum, row) => sum + row.product.amount, 0)
+  const totalAmount = baseAmount + additionalTotal
 
   const priceGuestRows = useMemo<PriceGuestRow[]>(() => {
     const teamMap = new Map(teams.map((team) => [team.id, team.name]))
@@ -427,6 +459,16 @@ export default function Step4OrderConfirm({
                 <span className="tabular-nums">-{formatCurrency(totalDiscount)}</span>
               </div>
             )}
+            <div className="flex items-center justify-between text-gray-600">
+              <span>船票费用</span>
+              <span className="tabular-nums">{formatCurrency(baseAmount)}</span>
+            </div>
+            {additionalTotal > 0 && (
+              <div className="flex items-center justify-between text-violet-700">
+                <span>附加产品</span>
+                <span className="tabular-nums">+{formatCurrency(additionalTotal)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-gray-600">订单总计</span>
               <span className="text-lg font-semibold tabular-nums text-gray-900">{formatCurrency(totalAmount)}</span>
@@ -438,6 +480,35 @@ export default function Step4OrderConfirm({
           </div>
         </div>
       </div>
+
+      {additionalFeeRows.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-violet-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 bg-violet-50 px-5 py-3">
+            <div>
+              <h3 className="text-sm font-semibold text-violet-900">附加产品费用</h3>
+              <p className="mt-0.5 text-xs text-violet-700">按具体游客或房间收取，必收项目已自动计入。</p>
+            </div>
+            <span className="text-sm font-semibold tabular-nums text-violet-800">合计 {formatCurrency(additionalTotal)}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead><tr className="border-b border-gray-100 bg-white">{['分类', '附加产品', '收取方式', '收取对象', '属性', '金额'].map((col) => <th key={col} className={`px-4 py-3 text-xs font-medium text-gray-500 ${col === '金额' ? 'text-right' : 'text-left'}`}>{col}</th>)}</tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {additionalFeeRows.map((row) => (
+                  <tr key={row.key} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-600">{getAdditionalCategoryPath(row.product.categoryId)}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{row.product.name}</td>
+                    <td className="px-4 py-3 text-gray-700">{row.product.chargeMethod === 'per_person' ? '按人' : '按房'}</td>
+                    <td className="px-4 py-3 text-gray-700">{row.target}</td>
+                    <td className="px-4 py-3"><span className={`rounded px-2 py-0.5 text-xs ${row.product.required ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{row.product.required ? '必收' : '可选'}</span></td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums text-gray-900">{formatCurrency(row.product.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {priceRosterRows.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">

@@ -20,9 +20,27 @@ let plans: ItineraryPlan[] = [
     code: 'ITN-20260515-CQYC',
     name: '重庆至宜昌三峡示例行程',
     routeId: 'r01',
+    effectiveStart: '2026-01-01',
+    effectiveEnd: '2026-05-31',
     segments: demoSegments,
     schedule: demoSchedule.map((item) => ({ ...item })),
     updatedAt: '2026-05-01T09:30:00',
+    updatedBy: '系统管理员',
+  },
+  {
+    id: 'itn02',
+    code: 'ITN-20260601-CQYC',
+    name: '重庆至宜昌三峡夏季行程',
+    routeId: 'r01',
+    effectiveStart: '2026-06-01',
+    effectiveEnd: '2026-12-31',
+    segments: demoSegments.map((segment) => ({ ...segment })),
+    schedule: demoSchedule.map((item) => (
+      item.portName === '奉节'
+        ? { ...item, theme: '白帝城夏季专场', description: '夏季时间表游览白帝城' }
+        : { ...item }
+    )),
+    updatedAt: '2026-05-20T10:00:00',
     updatedBy: '系统管理员',
   },
 ]
@@ -43,6 +61,19 @@ export function getItineraryPlanById(id: string): ItineraryPlan | undefined {
     segments: plan.segments.map((segment) => ({ ...segment, attractionIds: [...segment.attractionIds] })),
     schedule: plan.schedule.map((item) => ({ ...item })),
   }
+}
+
+export function listItineraryPlansByRoute(routeId: string): ItineraryPlan[] {
+  return listItineraryPlans()
+    .filter((plan) => plan.routeId === routeId)
+    .sort((a, b) => a.effectiveStart.localeCompare(b.effectiveStart))
+}
+
+export function resolveItineraryPlanByRouteAndDate(routeId: string, departureDate: string): ItineraryPlan | undefined {
+  if (!routeId || !departureDate) return undefined
+  return listItineraryPlansByRoute(routeId)
+    .filter((plan) => plan.effectiveStart <= departureDate && plan.effectiveEnd >= departureDate)
+    .sort((a, b) => b.effectiveStart.localeCompare(a.effectiveStart))[0]
 }
 
 export function saveItineraryPlans(nextPlans: ItineraryPlan[]) {

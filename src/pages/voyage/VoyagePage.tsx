@@ -1,21 +1,34 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, X } from 'lucide-react'
+import { ArrowRightLeft, Plus, X } from 'lucide-react'
 import { voyageApi, priceApi } from '@/mock/api'
 import { dealers, products, voyageTemplates, voyages, routes, ships } from '@/mock/data'
 import type { Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, TemplateItinerary } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import { resolveTemplateItinerary } from '@/utils/productVoyageConfig'
+import { resolveRouteItinerarySchedule } from '@/utils/itinerarySchedule'
+import { resolveItineraryPlanByRouteAndDate } from '@/mock/itineraryPlanStore'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import ItineraryEditor from '@/components/voyage/ItineraryEditor'
+import VoyageTransferLaunchDialog from '@/components/voyage/VoyageTransferLaunchDialog'
+import {
+  createVoyageTransferCase,
+  getVoyageTransferCaseByVoyage,
+  type CreateVoyageTransferInput,
+} from '@/mock/voyageTransferStore'
 
 const statusLabels: Record<string, string> = { ticketing: '售票', suspended: '停航', chartered: '包租', deadhead: '空放', pending: '待定', transfer: '转船' }
 const statusColors: Record<string, string> = { ticketing: 'bg-green-100 text-green-700', suspended: 'bg-red-100 text-red-600', chartered: 'bg-purple-100 text-purple-700', deadhead: 'bg-gray-100 text-gray-500', pending: 'bg-yellow-100 text-yellow-700', transfer: 'bg-blue-100 text-blue-700' }
 const approvalColors: Record<string, string> = { '已审批': 'text-green-600', '审批中': 'text-yellow-600', '已驳回': 'text-red-600' }
+
+const getMatchedItineraryPlan = (voyage: Voyage) => {
+  const product = products.find((item) => item.id === voyage.productId)
+  return resolveItineraryPlanByRouteAndDate(product?.routeId || voyage.routeId, voyage.startDate)
+}
 const statusOptions = ['all', 'ticketing', 'suspended', 'chartered', 'deadhead', 'pending', 'transfer']
 export default function VoyagePage() {
   const navigate = useNavigate()
@@ -41,6 +54,8 @@ export default function VoyagePage() {
   const [detail, setDetail] = useState<Voyage | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
+  const [transferVoyage, setTransferVoyage] = useState<Voyage | null>(null)
+  const [transferLoading, setTransferLoading] = useState(false)
 
   // 生成航次
   const [genOpen, setGenOpen] = useState(false)
@@ -156,6 +171,21 @@ export default function VoyagePage() {
   const confirmDelete = async () => { await voyageApi.remove(confirmId); setConfirmOpen(false); fetchData(data.page) }
   const handleBatchStatus = async () => { if (selected.size === 0) return; await voyageApi.batchUpdateStatus([...selected], batchStatus); setBatchOpen(false); fetchData(data.page) }
 
+  const submitVoyageTransfer = async (input: CreateVoyageTransferInput) => {
+    setTransferLoading(true)
+    const transferCase = createVoyageTransferCase(input)
+    const selectedActions = new Set(input.selectedActions)
+    await voyageApi.update(input.voyage.id, {
+      ...(selectedActions.has('voyage_suspend') ? { status: 'suspended' as const } : {}),
+      ...(selectedActions.has('channel_inventory_zero') ? { availableCabins: 0 } : {}),
+      updatedBy: '当前用户',
+      updatedAt: new Date().toISOString(),
+    })
+    setTransferLoading(false)
+    setTransferVoyage(null)
+    navigate(`/voyage/transfers/${transferCase.id}`)
+  }
+
   const openTimeline = (v: Voyage) => { setTimeline(v.approvalTimeline || []); setTimelineOpen(true) }
   const openItinerary = (voyage: Voyage) => {
     const template = voyageTemplates.find(item => item.id === voyage.templateId)
@@ -163,7 +193,9 @@ export default function VoyagePage() {
       || voyageTemplates.find(item => item.productId === voyage.productId)
       || null
     const product = products.find((item) => item.id === voyage.productId)
-    const baseItinerary = template ? resolveTemplateItinerary(template, product) : []
+    const baseItinerary = template
+      ? resolveTemplateItinerary(template, product, voyage.startDate)
+      : resolveRouteItinerarySchedule(product?.routeId || voyage.routeId, voyage.startDate)
     setItineraryVoyage(voyage)
     setItineraryDraft(
       Array.isArray(voyage.itinerary) && voyage.itinerary.length
@@ -200,15 +232,24 @@ export default function VoyagePage() {
     setGenConflict(conflicts)
     if (conflicts.length === 0) {
       const days = Math.ceil((new Date(genEndDate).getTime() - new Date(genStartDate).getTime()) / 86400000)
+      const product = products.find((item) => item.id === tpl.productId)
+      const matchedPlan = resolveItineraryPlanByRouteAndDate(product?.routeId || '', genStartDate)
+      if (!matchedPlan) {
+        window.alert('当前产品航线在该开航日期未配置生效行程，请先到行程管理中补充')
+        return
+      }
       const newV: Omit<Voyage, 'id'> = {
         voyageNo: `CJ${genStartDate.replace(/-/g, '')}-${tpl.shipName?.slice(0, 2) || 'XX'}`, shipName: tpl.shipName || '',
-        routeName: '', productName: tpl.productName || '', templateName: tpl.name, templateId: tpl.id,
+        routeName: product?.routeName || '', productName: tpl.productName || '', templateName: tpl.name, templateId: tpl.id,
         days, startDate: genStartDate, endDate: genEndDate,
         status: 'pending', approvalStatus: '审批中', approvalTimeline: [
           { nodeName: '提交申请', approver: '运营经理', status: 'pending', duration: '', plan: '待审批', time: new Date().toISOString() },
         ],
-        direction: 'downstream', totalCabins: 0, soldCabins: 0, availableCabins: 0,
-        shipId: '', routeId: '', productId: tpl.productId,
+        direction: product?.routeType || 'downstream', totalCabins: 0, soldCabins: 0, availableCabins: 0,
+        shipId: product?.shipId || '', routeId: product?.routeId || '', productId: tpl.productId,
+        itineraryPlanId: matchedPlan?.id,
+        itineraryPlanName: matchedPlan?.name,
+        itinerary: matchedPlan ? resolveRouteItinerarySchedule(product?.routeId, genStartDate) : undefined,
         updatedBy: '当前用户', updatedAt: new Date().toISOString(), createdAt: new Date().toISOString(),
       }
       voyageApi.list().then(() => {
@@ -226,6 +267,10 @@ export default function VoyagePage() {
     { key: 'shipName', title: '游轮', dataIndex: 'shipName' as keyof Voyage },
     { key: 'routeName', title: '线路', dataIndex: 'routeName' as keyof Voyage },
     { key: 'productName', title: '产品名称', dataIndex: 'productName' as keyof Voyage },
+    { key: 'itineraryPlan', title: '命中行程', width: '190px', render: (r: Voyage) => {
+      const plan = getMatchedItineraryPlan(r)
+      return plan ? <div><p className="text-sm text-gray-700">{plan.name}</p><p className="mt-0.5 text-xs text-gray-400">{plan.effectiveStart} ~ {plan.effectiveEnd}</p></div> : <span className="text-amber-600">未匹配</span>
+    } },
     { key: 'templateName', title: '模板名称', render: (r: Voyage) => r.templateName ? (
       <button onClick={() => navigate(`/voyage/templates?keyword=${encodeURIComponent(r.templateName)}`)} className="text-blue-600 hover:text-blue-800 hover:underline text-xs">{r.templateName}</button>
     ) : '-' },
@@ -242,13 +287,27 @@ export default function VoyagePage() {
     )},
     { key: 'updatedBy', title: '修改人', render: (r: Voyage) => (r as any).updatedBy || '-' },
     { key: 'updatedAt', title: '修改时间', render: (r: Voyage) => (r as any).updatedAt ? formatDateTime((r as any).updatedAt) : '-' },
-    { key: 'actions', title: '操作', width: '220px', render: (r: Voyage) => (
+    { key: 'actions', title: '操作', width: '310px', render: (r: Voyage) => {
+      const existingCase = getVoyageTransferCaseByVoyage(r.id)
+      return (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openItinerary(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">行程</button>
+        {existingCase ? (
+          <button onClick={() => navigate(`/voyage/transfers/${existingCase.id}`)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">继续转船处置</button>
+        ) : (
+          <button
+            onClick={() => setTransferVoyage(r)}
+            disabled={r.status !== 'ticketing' && r.status !== 'pending'}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-300"
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />发起转船
+          </button>
+        )}
         <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
       </div>
-    )},
+      )
+    }},
   ]
 
   const timelineStepColors: Record<string, string> = { approved: 'bg-green-500', pending: 'bg-yellow-400', rejected: 'bg-red-500' }
@@ -296,7 +355,7 @@ export default function VoyagePage() {
 
       {/* Detail */}
       <DetailDrawer open={detailOpen} title="航次详情" onClose={() => setDetailOpen(false)}>{detail && (<>
-        <DetailCard title="基本信息"><DetailRow label="航次号" value={detail.voyageNo} mono /><DetailRow label="游轮" value={detail.shipName} /><DetailRow label="线路" value={detail.routeName} /><DetailRow label="产品" value={detail.productName} /><DetailRow label="模板" value={detail.templateName || '-'} /><DetailRow label="天数" value={`${detail.days}天`} /></DetailCard>
+        <DetailCard title="基本信息"><DetailRow label="航次号" value={detail.voyageNo} mono /><DetailRow label="游轮" value={detail.shipName} /><DetailRow label="线路" value={detail.routeName} /><DetailRow label="产品" value={detail.productName} /><DetailRow label="命中行程" value={getMatchedItineraryPlan(detail)?.name || '未匹配'} /><DetailRow label="模板" value={detail.templateName || '-'} /><DetailRow label="天数" value={`${detail.days}天`} /></DetailCard>
         <DetailCard title="时间"><DetailRow label="开航" value={detail.startDate} /><DetailRow label="终到" value={detail.endDate} /></DetailCard>
         <DetailCard title="数据"><DetailRow label="已投放" value={`${detail.totalCabins}间`} /><DetailRow label="已售" value={`${detail.soldCabins}间`} /><DetailRow label="可售" value={<span className="font-medium text-lg">{detail.availableCabins}间</span>} /></DetailCard>
         <DetailCard title="状态"><DetailRow label="航次状态" value={<span className={`px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[detail.status]}`}>{statusLabels[detail.status]}</span>} /><DetailRow label="审批状态" value={detail.approvalStatus || '-'} /></DetailCard>
@@ -310,7 +369,7 @@ export default function VoyagePage() {
               <div>
                 <h3 className="text-base font-semibold text-gray-900">编辑航次行程 · {itineraryVoyage.voyageNo}</h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  {itineraryVoyage.productName} · 基础行程在资源管理 → 行程管理中维护；此处保存为当前航次专属覆盖。
+                  {itineraryVoyage.productName} · 已按开航日期匹配「{getMatchedItineraryPlan(itineraryVoyage)?.name || '未匹配行程'}」；此处保存为当前航次专属覆盖。
                 </p>
               </div>
               <button onClick={closeItinerary} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
@@ -483,6 +542,14 @@ export default function VoyagePage() {
                 <button onClick={savePrices} className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800">保存定价</button></div></div>
           </div>
         </div>)})()}
+
+      <VoyageTransferLaunchDialog
+        open={!!transferVoyage}
+        voyage={transferVoyage}
+        loading={transferLoading}
+        onCancel={() => setTransferVoyage(null)}
+        onSubmit={submitVoyageTransfer}
+      />
 
       <ConfirmDialog open={confirmOpen} title="删除航次" message="确定要删除该航次吗？" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />
     </div>

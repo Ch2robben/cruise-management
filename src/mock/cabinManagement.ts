@@ -8,6 +8,7 @@ export type CabinRecord = {
   cabinCount: number
   guestCapacity: number
   bedCount: number
+  extraBedCount: number
   sortNo: number
   updatedBy: string
   updatedAt: string
@@ -30,6 +31,7 @@ export const initialCabinData: CabinRecord[] = [
     cabinCount: 500,
     guestCapacity: 3,
     bedCount: 2,
+    extraBedCount: 1,
     sortNo: 1,
     updatedBy: '彭琳',
     updatedAt: '2024-11-07 14:35:11',
@@ -48,6 +50,7 @@ export const initialCabinData: CabinRecord[] = [
     cabinCount: 500,
     guestCapacity: 3,
     bedCount: 2,
+    extraBedCount: 1,
     sortNo: 1,
     updatedBy: '赵昕玥',
     updatedAt: '2024-11-07 15:24:53',
@@ -63,6 +66,7 @@ export const initialCabinData: CabinRecord[] = [
     cabinCount: 6,
     guestCapacity: 3,
     bedCount: 2,
+    extraBedCount: 1,
     sortNo: 2,
     updatedBy: '彭琳',
     updatedAt: '2022-09-01 14:25:19',
@@ -78,6 +82,7 @@ export const initialCabinData: CabinRecord[] = [
     cabinCount: 2,
     guestCapacity: 3,
     bedCount: 2,
+    extraBedCount: 1,
     sortNo: 2,
     updatedBy: '彭琳',
     updatedAt: '2023-02-02 09:15:19',
@@ -92,6 +97,7 @@ export const initialCabinData: CabinRecord[] = [
     cabinCount: 4,
     guestCapacity: 3,
     bedCount: 2,
+    extraBedCount: 1,
     sortNo: 2,
     updatedBy: '彭琳',
     updatedAt: '2023-02-02 09:15:34',
@@ -106,8 +112,33 @@ export const initialCabinData: CabinRecord[] = [
     cabinCount: 2,
     guestCapacity: 3,
     bedCount: 2,
+    extraBedCount: 2,
     sortNo: 3,
     updatedBy: '彭琳',
     updatedAt: '2022-09-01 14:25:25',
   },
 ]
+
+let cabinRecords: CabinRecord[] = initialCabinData.map((record) => ({
+  ...record,
+  floors: [...record.floors],
+  photos: [...record.photos],
+  facilities: [...record.facilities],
+}))
+
+export function getCabinRecords(): CabinRecord[] {
+  return cabinRecords.map((record) => ({
+    ...record,
+    floors: [...record.floors],
+    photos: [...record.photos],
+    facilities: [...record.facilities],
+  }))
+}
+
+export function createCabinRecord(record: CabinRecord) {
+  cabinRecords = [record, ...cabinRecords]
+}
+
+export function updateCabinRecord(record: CabinRecord) {
+  cabinRecords = cabinRecords.map((item) => item.id === record.id ? record : item)
+}

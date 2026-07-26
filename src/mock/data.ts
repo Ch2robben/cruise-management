@@ -673,7 +673,6 @@ const baseProducts: BaseProduct[] = [
     shipId: 's01', shipName: '长江探索号', shipLevel: '五星级',
     startPort: '重庆港', endPort: '宜昌港', days: 4, nights: 3, mileage: 310, duration: '4天3晚',
     icon: '', images: [], description: '乘坐五星级长江探索号，顺流而下领略三峡壮美风光，途经丰都鬼城、白帝城、三峡大坝等世界级景点。',
-    itineraryPlanId: 'itn01',
     segments: genSegments([
       { name: '重庆港', day: 0, dist: 0 }, { name: '丰都', day: 1, dist: 120 }, { name: '奉节', day: 2, dist: 85 }, { name: '宜昌港', day: 4, dist: 105 },
     ]) as ProductSegment[],

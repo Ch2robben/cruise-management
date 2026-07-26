@@ -13,6 +13,14 @@ export interface BookingCartLine {
 }
 
 export interface DealerBookingDraft {
+  productId?: string
+  productName?: string
+  voyageSummary?: {
+    ship: string
+    route: string
+    date: string
+    days: string
+  }
   cart?: BookingCartLine[]
   rooms?: Record<string, { count?: number; price?: number; deposit?: number; bedType?: string }>
   segmentKey?: string

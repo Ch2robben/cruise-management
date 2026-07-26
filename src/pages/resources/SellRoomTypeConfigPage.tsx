@@ -467,15 +467,15 @@ export default function SellRoomTypeConfigPage() {
             </div>
 
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">计数维度</h4>
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">售卖单位</h4>
               <div className="grid gap-4 md:grid-cols-[240px_1fr]">
                 <select
                   value={editing.countDimension}
                   onChange={(e) => updateEditing({ countDimension: e.target.value as SellRoomTypeConfig['countDimension'] })}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 >
-                  <option value="room">按间计数</option>
-                  <option value="bed">按床计数</option>
+                  <option value="room">按房</option>
+                  <option value="bed">按床</option>
                 </select>
 
                 <div className="rounded-lg border border-gray-200 px-4 py-3">

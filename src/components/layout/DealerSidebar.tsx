@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Ship, ChevronDown, ChevronRight, ShoppingCart, Wallet, PieChart, FileText, Settings, Navigation } from 'lucide-react'
+import { BadgePercent, LayoutDashboard, Ship, ChevronDown, ChevronRight, ShoppingCart, Wallet, PieChart, FileText, Settings, Navigation } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -15,6 +15,9 @@ const menuItems: MenuItem[] = [
     key: 'dashboard', label: '工作台首页', icon: 'LayoutDashboard', path: '/dealer/home'
   },
   {
+    key: 'discount_policies', label: '优惠政策', icon: 'BadgePercent', path: '/dealer/policies'
+  },
+  {
     key: 'booking', label: '产品预定', icon: 'Navigation',
     children: [
       { key: 'cruise', label: '游轮预定', path: '/dealer/booking/cruise' },
@@ -27,8 +30,10 @@ const menuItems: MenuItem[] = [
   {
     key: 'orders', label: '订单管理', icon: 'ShoppingCart',
     children: [
-      { key: 'cruise_orders', label: '游轮订单', path: '/dealer/orders/cruise' },
-      { key: 'tourist_orders', label: '游客订单', path: '/dealer/orders/tourists' },
+      { key: 'cruise_orders', label: '游轮订单（订单维度）', path: '/dealer/orders/cruise' },
+      { key: 'cruise_group_orders', label: '游轮订单（团维度）', path: '/dealer/orders/cruise-group' },
+      { key: 'cruise_room_orders', label: '游轮订单（房维度）', path: '/dealer/orders/cruise-room' },
+      { key: 'cruise_tourist_orders', label: '游轮订单（游客维度）', path: '/dealer/orders/cruise-tourist' },
       { key: 'period_orders', label: '期票订单', path: '/dealer/orders/period' },
       { key: 'special_price_orders', label: '特价申请单', path: '/dealer/orders/special-price' },
       { key: 'boat_orders', label: '游船订单', path: '/dealer/orders/boat' },
@@ -69,6 +74,7 @@ const menuItems: MenuItem[] = [
 ]
 
 const iconMap: Record<string, React.ReactNode> = {
+  BadgePercent: <BadgePercent className="w-4 h-4" />,
   LayoutDashboard: <LayoutDashboard className="w-4 h-4" />,
   Navigation: <Navigation className="w-4 h-4" />,
   Ship: <Ship className="w-4 h-4" />,

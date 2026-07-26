@@ -1,6 +1,6 @@
 import type { ItineraryPlan, ItineraryPlanSegment, Port, TemplateItinerary } from '@/types'
 import { createTemplateItineraryItem } from '@/components/voyage/ItineraryEditor'
-import { getItineraryPlanById } from '@/mock/itineraryPlanStore'
+import { getItineraryPlanById, resolveItineraryPlanByRouteAndDate } from '@/mock/itineraryPlanStore'
 
 export function buildScheduleFromSegments(
   segments: ItineraryPlanSegment[],
@@ -53,4 +53,9 @@ export function resolveItinerarySchedule(plan?: Pick<ItineraryPlan, 'schedule' |
 export function resolveProductItinerarySchedule(itineraryPlanId?: string): TemplateItinerary[] {
   if (!itineraryPlanId) return []
   return resolveItinerarySchedule(getItineraryPlanById(itineraryPlanId))
+}
+
+export function resolveRouteItinerarySchedule(routeId?: string, departureDate?: string): TemplateItinerary[] {
+  if (!routeId || !departureDate) return []
+  return resolveItinerarySchedule(resolveItineraryPlanByRouteAndDate(routeId, departureDate))
 }

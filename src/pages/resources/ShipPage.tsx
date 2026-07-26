@@ -9,12 +9,14 @@ import SearchPanel from '@/components/common/SearchPanel'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import { getCabinRecords, updateCabinRecord, type CabinRecord } from '@/mock/cabinManagement'
 
 // ========== 常量 ==========
 const facilityOptions = ['餐厅', '咖啡厅', '酒吧', '健身房', 'SPA中心', '游泳池', '棋牌室', '电影院', 'KTV', '商店', '医务室', '儿童乐园', '洗衣房']
 const facilityHoursOptions = ['24小时', '06:00-22:00', '07:00-21:00', '08:00-20:00', '09:00-21:00', '10:00-22:00', '18:00-02:00']
 
-const STEP_LABELS = ['基本信息', '甲板信息', '舱房管理']
+const SUPPLEMENT_STEP_LABELS = ['甲板信息', '船舱关联']
+type FormMode = 'create' | 'edit' | 'supplement'
 
 const emptyForm: ShipForm = {
   name: '', nameEn: '', code: '', series: '', realNameId: '',
@@ -38,6 +40,7 @@ function emptyDeck(floorNum: number): ShipForm['decks'][number] {
 }
 
 export default function ShipPage() {
+  const cabinDefinitions = getCabinRecords()
   // 列表状态
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<PaginatedResult<Ship>>({ data: [], total: 0, page: 1, pageSize: 10 })
@@ -46,6 +49,7 @@ export default function ShipPage() {
   // 表单状态
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [formMode, setFormMode] = useState<FormMode>('create')
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<ShipForm>(emptyForm)
   const [formLoading, setFormLoading] = useState(false)
@@ -73,14 +77,13 @@ export default function ShipPage() {
   // ========== 表单操作 ==========
   const openCreate = () => {
     setEditingId(null)
+    setFormMode('create')
     setForm(emptyForm)
     setStep(0)
     setFormOpen(true)
   }
 
-  const openEdit = (record: Ship) => {
-    setEditingId(record.id)
-    setForm({
+  const buildFormFromShip = (record: Ship): ShipForm => ({
       name: record.name, nameEn: record.nameEn, code: record.code,
       series: record.series, realNameId: record.realNameId,
       capacity: record.capacity,
@@ -96,9 +99,50 @@ export default function ShipPage() {
         floorNum: d.floorNum, name: d.name, nameEn: d.nameEn,
         area: d.area, image: d.image, remark: d.remark,
         facilities: d.facilities.map((f) => ({ name: f.name, hours: f.hours, enabled: f.enabled })),
-        cabins: d.cabins.map((c) => ({ name: c.name, nameEn: c.nameEn, image: c.image, cabinCount: c.cabinCount, bedCount: c.bedCount, extraBed: c.extraBed, capacity: c.capacity, area: c.area, balconyArea: c.balconyArea, premiumDiff: c.premiumDiff, floorFee: c.floorFee, height: c.height, description: c.description, sort: c.sort, sellByRoom: c.sellByRoom, mergeTourPlan: c.mergeTourPlan })),
+        cabins: d.cabins.map((c) => {
+          const definition = cabinDefinitions.find((item) =>
+            item.shipName === record.name &&
+            (item.id === c.sourceCabinId || item.cabinName === c.name),
+          )
+          return {
+            sourceCabinId: definition?.id || '',
+            name: c.name,
+            nameEn: c.nameEn,
+            image: c.image,
+            cabinCount: c.cabinCount,
+            bedCount: c.bedCount,
+            extraBed: c.extraBed,
+            capacity: c.capacity,
+            area: c.area,
+            balconyArea: c.balconyArea,
+            premiumDiff: c.premiumDiff,
+            floorFee: c.floorFee,
+            height: c.height,
+            description: c.description,
+            sort: c.sort,
+            sellByRoom: c.sellByRoom,
+            mergeTourPlan: c.mergeTourPlan,
+          }
+        }),
       })),
     })
+
+  const openEdit = (record: Ship) => {
+    setEditingId(record.id)
+    setFormMode('edit')
+    setForm(buildFormFromShip(record))
+    setStep(0)
+    setFormOpen(true)
+  }
+
+  const openSupplement = (record: Ship) => {
+    const nextForm = buildFormFromShip(record)
+    const decks = Array.from({ length: nextForm.floors }, (_, index) =>
+      nextForm.decks.find((deck) => deck.floorNum === index + 1) || emptyDeck(index + 1),
+    )
+    setEditingId(record.id)
+    setFormMode('supplement')
+    setForm({ ...nextForm, decks })
     setStep(0)
     setFormOpen(true)
   }
@@ -111,7 +155,7 @@ export default function ShipPage() {
 
   // 步骤校验
   const canNext = (): boolean => {
-    if (step === 0) {
+    if (formMode !== 'supplement') {
       const warningValid =
         form.capacityWarningValue > 0 &&
         (form.capacityWarningType === 'ratio'
@@ -127,28 +171,15 @@ export default function ShipPage() {
         !!form.factoryDate.trim()
       )
     }
+    if (step === 1) {
+      return form.decks.every((deck) => deck.cabins.every((cabin) => !!cabin.sourceCabinId))
+    }
     return true
   }
 
   const nextStep = () => {
     if (!canNext()) return
-    if (step === 1 && form.floors > 0) autoInitDecks()
-    setStep((s) => Math.min(s + 1, 2))
-  }
-
-  const autoInitDecks = () => {
-    const current = form.decks || []
-    if (current.length === form.floors) return // 已匹配，不重置
-    const decks: ShipForm['decks'] = []
-    for (let i = 1; i <= form.floors; i++) {
-      const existing = current.find((d) => d.floorNum === i)
-      if (existing) {
-        decks.push(existing)
-      } else {
-        decks.push(emptyDeck(i))
-      }
-    }
-    setForm((f) => ({ ...f, decks }))
+    setStep((s) => Math.min(s + 1, 1))
   }
 
   // Deck 字段更新
@@ -193,12 +224,35 @@ export default function ShipPage() {
     })
   }
 
-  // Cabin helpers (step 3)
-  const updateCabin = (deckIdx: number, cabIdx: number, field: string, value: string | number | boolean) => {
+  // 补充信息：船舱关联
+  const currentShipCabins = cabinDefinitions.filter((item) => item.shipName === form.name)
+
+  const buildCabinAssociation = (definition?: CabinRecord): ShipForm['decks'][number]['cabins'][number] => ({
+    sourceCabinId: definition?.id || '',
+    name: definition?.cabinName || '',
+    nameEn: '',
+    image: definition?.photos[0] || '',
+    cabinCount: definition?.cabinCount || 0,
+    bedCount: definition?.bedCount || 0,
+    extraBed: definition?.extraBedCount || 0,
+    capacity: definition?.guestCapacity || 0,
+    area: 0,
+    balconyArea: 0,
+    premiumDiff: 0,
+    floorFee: 0,
+    height: 0,
+    description: definition ? `关联船舱定义：${definition.cabinName}` : '',
+    sort: definition?.sortNo || 0,
+    sellByRoom: definition?.countDimension !== 'bed',
+    mergeTourPlan: false,
+  })
+
+  const updateCabinAssociation = (deckIdx: number, cabIdx: number, sourceCabinId: string) => {
     setForm((f) => {
       const decks = [...(f.decks || [])]
       const cabins = [...decks[deckIdx].cabins]
-      cabins[cabIdx] = { ...cabins[cabIdx], [field]: value }
+      const definition = currentShipCabins.find((item) => item.id === sourceCabinId)
+      cabins[cabIdx] = buildCabinAssociation(definition)
       decks[deckIdx] = { ...decks[deckIdx], cabins }
       return { ...f, decks }
     })
@@ -206,11 +260,7 @@ export default function ShipPage() {
   const addCabin = (deckIdx: number) => {
     setForm((f) => {
       const decks = [...(f.decks || [])]
-      decks[deckIdx] = { ...decks[deckIdx], cabins: [...decks[deckIdx].cabins, {
-        name: '', nameEn: '', image: '', cabinCount: 0, bedCount: 0, extraBed: 0,
-        capacity: 0, area: 0, balconyArea: 0, premiumDiff: 0, floorFee: 0, height: 0,
-        description: '', sort: 0, sellByRoom: false, mergeTourPlan: false,
-      }]}
+      decks[deckIdx] = { ...decks[deckIdx], cabins: [...decks[deckIdx].cabins, buildCabinAssociation()] }
       return { ...f, decks }
     })
   }
@@ -222,35 +272,85 @@ export default function ShipPage() {
     })
   }
 
-  const handleSubmit = async () => {
+  const handleBasicSubmit = async () => {
     if (!canNext()) return
     setFormLoading(true)
     const now = new Date().toISOString()
-    // 计算总房型数
-    const cabinCount = form.decks.reduce((sum, d) => sum + d.facilities.length * 20, 0)
+    const { decks: _decks, ...basicForm } = form
+    if (editingId) {
+      await shipApi.update(editingId, {
+        ...basicForm,
+        updatedBy: '当前用户',
+        updatedAt: now,
+      })
+    } else {
+      await shipApi.create({
+        ...basicForm,
+        cabinCount: 0,
+        level: '',
+        cabinTypes: [],
+        decks: [],
+        status: 'enabled',
+        updatedBy: '当前用户',
+        updatedAt: now,
+        createdAt: now,
+      })
+    }
+    setFormLoading(false)
+    setFormOpen(false)
+    fetchData(editingId ? data.page : 1)
+  }
 
-    const shipData = {
-      ...form,
+  const handleSupplementSubmit = async () => {
+    if (!editingId || !canNext()) return
+    setFormLoading(true)
+    const now = new Date().toISOString()
+    const floorsByCabinId = new Map<string, Set<string>>()
+    form.decks.forEach((deck) => {
+      deck.cabins.forEach((cabin) => {
+        if (!cabin.sourceCabinId) return
+        const floors = floorsByCabinId.get(cabin.sourceCabinId) || new Set<string>()
+        floors.add(`${deck.floorNum}F`)
+        floorsByCabinId.set(cabin.sourceCabinId, floors)
+      })
+    })
+    const previousShip = data.data.find((ship) => ship.id === editingId)
+    const previouslyAssociatedCabinIds = previousShip?.decks.flatMap((deck) =>
+      deck.cabins
+        .map((cabin) => cabin.sourceCabinId)
+        .filter((id): id is string => Boolean(id)),
+    ) || []
+    const affectedCabinIds = new Set([...floorsByCabinId.keys(), ...previouslyAssociatedCabinIds])
+    const cabinCount = form.decks.reduce(
+      (sum, deck) => sum + deck.cabins.reduce((deckSum, cabin) => deckSum + cabin.cabinCount, 0),
+      0,
+    )
+    const cabinTypes = [...new Set(form.decks.flatMap((deck) => deck.cabins.map((cabin) => cabin.name).filter(Boolean)))]
+
+    const supplementData = {
       cabinCount,
-      level: '',
-      cabinTypes: ['suite', 'balcony', 'window', 'inside'],
+      cabinTypes,
       decks: form.decks.map((d) => ({
         ...d,
         id: generateId(),
         facilities: d.facilities.map((f) => ({ ...f, id: generateId() })),
+        cabins: d.cabins.map((cabin) => ({ ...cabin, id: generateId() })),
       })),
-      status: 'enabled' as const,
       updatedBy: '当前用户',
       updatedAt: now,
-      createdAt: editingId ? undefined : now,
     }
 
-    if (editingId) {
-      await shipApi.update(editingId, shipData as Partial<Ship>)
-    } else {
-      const { createdAt, ...rest } = shipData
-      await shipApi.create({ ...rest, createdAt: createdAt! } as Omit<Ship, 'id'>)
-    }
+    await shipApi.update(editingId, supplementData)
+    affectedCabinIds.forEach((cabinId) => {
+      const cabin = cabinDefinitions.find((item) => item.id === cabinId)
+      if (!cabin) return
+      updateCabinRecord({
+        ...cabin,
+        floors: [...(floorsByCabinId.get(cabinId) || [])].sort((left, right) => Number.parseInt(left) - Number.parseInt(right)),
+        updatedBy: '当前用户',
+        updatedAt: now.slice(0, 19).replace('T', ' '),
+      })
+    })
     setFormLoading(false)
     setFormOpen(false)
     fetchData(data.page)
@@ -281,17 +381,18 @@ export default function ShipPage() {
     { key: 'name', title: '游轮名称', dataIndex: 'name' as keyof Ship },
     { key: 'series', title: '游轮系列', dataIndex: 'series' as keyof Ship },
     { key: 'capacity', title: '载客量', render: (r: Ship) => `${r.capacity}人` },
-    { key: 'cabinCount', title: '房型数量', render: (r: Ship) => `${r.cabinCount}间` },
+    { key: 'cabinCount', title: '船舱总数', render: (r: Ship) => `${r.cabinCount}间` },
     { key: 'floors', title: '层数', render: (r: Ship) => `${r.floors}层` },
     { key: 'length', title: '长度', render: (r: Ship) => `${r.length}m` },
     { key: 'width', title: '型宽', render: (r: Ship) => `${r.width}m` },
     { key: 'updatedBy', title: '修改人', dataIndex: 'updatedBy' as keyof Ship },
     { key: 'updatedAt', title: '修改时间', render: (r: Ship) => formatDateTime(r.updatedAt) },
     { key: 'status', title: '状态', render: (r: Ship) => <StatusBadge status={r.status} /> },
-    { key: 'actions', title: '操作', width: '180px', render: (r: Ship) => (
+    { key: 'actions', title: '操作', width: '240px', render: (r: Ship) => (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">详情</button>
         <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">编辑</button>
+        <button onClick={() => openSupplement(r)} className="px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded">补充信息</button>
         <button onClick={() => handleToggleStatus(r.id)} className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
           {r.status === 'enabled' ? '禁用' : '启用'}
         </button>
@@ -380,7 +481,7 @@ export default function ShipPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">甲板信息（共 {form.floors} 层）</h4>
-        <span className="text-xs text-gray-400">层数由 Step2 确定，修改后需返回 Step2 调整</span>
+        <span className="text-xs text-gray-400">层数取自船舶基础信息，如需调整请先编辑基础信息</span>
       </div>
       {(form.decks || []).map((deck, dIdx) => {
         const facilityCount = deck.facilities.length
@@ -508,43 +609,57 @@ export default function ShipPage() {
 
   const renderStep2 = () => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">舱房管理</h4>
-        <span className="text-xs text-gray-400">按甲板分组管理房型配置</span>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">关联船舱</h4>
+          <p className="mt-1 text-xs text-gray-400">仅显示“{form.name}”下已在船舱管理中建立的船舱，此处无需再次选择所属船舶。</p>
+        </div>
+        <span className="shrink-0 rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">当前船舶：{form.name}</span>
       </div>
+      {currentShipCabins.length === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          当前船舶暂无可关联船舱，请先到“船舱管理”中新建该船舶的船舱。
+        </div>
+      )}
       {(form.decks || []).map((deck, dIdx) => (
         <div key={dIdx} className="border border-gray-200 rounded-lg overflow-hidden">
           <table className="w-full text-xs">
             <thead><tr className="bg-gray-100 border-b border-gray-200">
               <th className="px-2 py-1.5 text-left text-gray-600 w-14">层数</th><th className="px-2 py-1.5 text-left text-gray-600">甲板名称</th>
-              <th className="px-2 py-1.5 text-left text-gray-600">房型名称</th><th className="px-2 py-1.5 text-left text-gray-600">英文</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">数量</th>
-              <th className="px-2 py-1.5 text-left text-gray-600 w-14">床位</th><th className="px-2 py-1.5 text-left text-gray-600 w-14">加床数</th><th className="px-2 py-1.5 text-left text-gray-600 w-16">面积</th>
-              <th className="px-2 py-1.5 text-left text-gray-600 w-14">排序</th><th className="px-2 py-1.5 text-center text-gray-600 w-12">按间</th>
-              <th className="px-2 py-1.5 text-center text-gray-600 w-14">操作</th>
+              <th className="px-2 py-1.5 text-left text-gray-600 min-w-56">已有船舱</th>
+              <th className="px-2 py-1.5 text-right text-gray-600 w-20">船舱数量</th>
+              <th className="px-2 py-1.5 text-right text-gray-600 w-16">客容量</th><th className="px-2 py-1.5 text-right text-gray-600 w-16">床位数</th>
+              <th className="px-2 py-1.5 text-right text-gray-600 w-20">可加床数</th>
+              <th className="px-2 py-1.5 text-center text-gray-600 w-20">操作</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {deck.cabins.length === 0 ? (
-                <tr><td className="px-2 py-2 text-gray-700 font-medium">{deck.floorNum}层</td><td className="px-2 py-2 text-gray-700">{deck.name}</td><td colSpan={8} className="px-2 py-2 text-center text-gray-400">暂无舱房</td>
-                  <td className="px-2 py-2 text-center"><button type="button" onClick={() => addCabin(dIdx)} className="text-xs text-blue-600 hover:bg-blue-50 rounded px-1 py-0.5">+ 新增</button></td></tr>
-              ) : deck.cabins.map((cab, cIdx) => (
-                <tr key={cIdx}>
-                  {cIdx === 0 && <><td className="px-2 py-2 text-gray-700 font-medium bg-gray-50/50" rowSpan={deck.cabins.length}>{deck.floorNum}层</td><td className="px-2 py-2 text-gray-700 bg-gray-50/50" rowSpan={deck.cabins.length}>{deck.name}</td></>}
-                  <td className="px-2 py-2"><input value={cab.name} onChange={(e) => updateCabin(dIdx, cIdx, 'name', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" placeholder="名称" /></td>
-                  <td className="px-2 py-2"><input value={cab.nameEn} onChange={(e) => updateCabin(dIdx, cIdx, 'nameEn', e.target.value)} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" placeholder="英文" /></td>
-                  <td className="px-2 py-2"><input type="number" value={cab.cabinCount || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'cabinCount', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                  <td className="px-2 py-2"><input type="number" value={cab.bedCount || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'bedCount', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                  <td className="px-2 py-2"><input type="number" value={cab.extraBed || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'extraBed', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                  <td className="px-2 py-2"><input type="number" value={cab.area || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'area', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                  <td className="px-2 py-2"><input type="number" value={cab.sort || ''} onChange={(e) => updateCabin(dIdx, cIdx, 'sort', Number(e.target.value))} className="w-full px-1 py-1 border border-gray-300 rounded text-xs" /></td>
-                  <td className="px-2 py-2 text-center"><input type="checkbox" checked={cab.sellByRoom} onChange={(e) => updateCabin(dIdx, cIdx, 'sellByRoom', e.target.checked)} className="w-3 h-3 rounded border-gray-300 cursor-pointer" /></td>
-                  <td className="px-2 py-2 text-center">
-                    <div className="flex items-center gap-0.5 justify-center">
-                      <button type="button" onClick={() => addCabin(dIdx)} className="text-xs text-blue-500 hover:bg-blue-50 rounded px-1 py-0.5">+</button>
-                      <button type="button" onClick={() => removeCabin(dIdx, cIdx)} className="text-xs text-red-400 hover:bg-red-50 rounded px-1 py-0.5">×</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                <tr><td className="px-2 py-2 text-gray-700 font-medium">{deck.floorNum}层</td><td className="px-2 py-2 text-gray-700">{deck.name}</td><td colSpan={5} className="px-2 py-3 text-center text-gray-400">暂未关联船舱</td>
+                  <td className="px-2 py-2 text-center"><button type="button" onClick={() => addCabin(dIdx)} className="text-xs text-blue-600 hover:bg-blue-50 rounded px-1 py-0.5">+ 关联</button></td></tr>
+              ) : deck.cabins.map((cab, cIdx) => {
+                const definition = cabinDefinitions.find((item) => item.id === cab.sourceCabinId)
+                return (
+                  <tr key={cIdx}>
+                    {cIdx === 0 && <><td className="px-2 py-2 text-gray-700 font-medium bg-gray-50/50" rowSpan={deck.cabins.length}>{deck.floorNum}层</td><td className="px-2 py-2 text-gray-700 bg-gray-50/50" rowSpan={deck.cabins.length}>{deck.name}</td></>}
+                    <td className="px-2 py-2">
+                      <select data-testid={`ship-cabin-association-${dIdx}-${cIdx}`} value={cab.sourceCabinId || ''} onChange={(event) => updateCabinAssociation(dIdx, cIdx, event.target.value)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">
+                        <option value="">{!cab.sourceCabinId && cab.name ? `历史船舱：${cab.name}（请重新关联）` : '请选择已有船舱'}</option>
+                        {currentShipCabins.map((item) => <option key={item.id} value={item.id} disabled={deck.cabins.some((selected, index) => index !== cIdx && selected.sourceCabinId === item.id)}>{item.cabinName}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{definition?.cabinCount ?? cab.cabinCount ?? '-'}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{definition?.guestCapacity ?? cab.capacity ?? '-'}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{definition?.bedCount ?? cab.bedCount ?? '-'}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{definition?.extraBedCount ?? cab.extraBed ?? '-'}</td>
+                    <td className="px-2 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button type="button" onClick={() => addCabin(dIdx)} className="rounded px-1 py-0.5 text-xs text-blue-500 hover:bg-blue-50">+</button>
+                        <button type="button" onClick={() => removeCabin(dIdx, cIdx)} className="rounded px-1 py-0.5 text-xs text-red-400 hover:bg-red-50">移除</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -554,16 +669,15 @@ export default function ShipPage() {
 
   const renderStepContent = () => {
     switch (step) {
-      case 0: return renderStep0()
-      case 1: return renderStep1()
-      case 2: return renderStep2()
+      case 0: return renderStep1()
+      case 1: return renderStep2()
       default: return null
     }
   }
 
   return (
     <div>
-      <PageHeader title="游轮管理" description="管理执航游轮的基础信息、物理规格、设施配置与甲板规划" />
+      <PageHeader title="游轮管理" description="先建立游轮基础信息，再通过“补充信息”维护甲板与船舱关联" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -574,7 +688,7 @@ export default function ShipPage() {
       </SearchPanel>
       <div className="bg-white px-9 py-6">
         <button onClick={openCreate} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700">
-          <Plus className="w-4 h-4" />添加
+          <Plus className="w-4 h-4" />新增船舶
         </button>
       </div>
 
@@ -622,39 +736,46 @@ export default function ShipPage() {
         )}
       </div>
 
-      {/* 分步表单弹窗 */}
+      {/* 新增/编辑基础信息，以及补充信息分步弹窗 */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-[6vh]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setFormOpen(false)} />
           <div className="relative bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[88vh] flex flex-col">
             {/* 标题 */}
             <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 shrink-0">
-              <h3 className="text-base font-semibold text-gray-900">{editingId ? '编辑游轮' : '新增游轮'}</h3>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {formMode === 'create' ? '新增游轮' : formMode === 'edit' ? '编辑游轮' : `补充信息 · ${form.name}`}
+                </h3>
+                {formMode === 'supplement' && <p className="mt-0.5 text-xs text-gray-500">分步维护甲板信息和当前船舶的船舱关联</p>}
+              </div>
               <button onClick={() => setFormOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded"><X className="w-4 h-4" /></button>
             </div>
 
             {/* 步骤条 */}
-            <div className="flex items-center px-6 py-4 border-b border-gray-200 shrink-0 bg-gray-50/50">
-              {STEP_LABELS.map((label, i) => (
-                <div key={i} className="flex items-center">
-                  <div className={`flex items-center gap-1.5 ${i <= step ? '' : 'opacity-40'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                      i < step ? 'bg-gray-900 text-white' : i === step ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {i < step ? <Check className="w-3 h-3" /> : i + 1}
+            {formMode === 'supplement' && (
+              <div className="flex items-center px-6 py-4 border-b border-gray-200 shrink-0 bg-gray-50/50">
+                {SUPPLEMENT_STEP_LABELS.map((label, i) => (
+                  <div key={i} className="flex items-center">
+                    <div className={`flex items-center gap-1.5 ${i <= step ? '' : 'opacity-40'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        i <= step ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {i < step ? <Check className="w-3 h-3" /> : i + 1}
+                      </div>
+                      <span className={`text-xs font-medium ${i <= step ? 'text-gray-900' : 'text-gray-400'}`}>{label}</span>
                     </div>
-                    <span className={`text-xs font-medium ${i <= step ? 'text-gray-900' : 'text-gray-400'}`}>{label}</span>
+                    {i < SUPPLEMENT_STEP_LABELS.length - 1 && (
+                      <div className={`w-8 h-px mx-2 ${i < step ? 'bg-gray-900' : 'bg-gray-300'}`} />
+                    )}
                   </div>
-                  {i < STEP_LABELS.length - 1 && (
-                    <div className={`w-8 h-px mx-2 ${i < step ? 'bg-gray-900' : 'bg-gray-300'}`} />
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* 步骤内容 */}
             <div className="flex-1 overflow-y-auto px-6 py-5">
-              {renderStepContent()}
+              {formMode === 'supplement' ? renderStepContent() : renderStep0()}
             </div>
 
             {/* 底部操作 */}
@@ -662,21 +783,23 @@ export default function ShipPage() {
               <button onClick={() => setFormOpen(false)}
                 className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">取消</button>
               <div className="flex items-center gap-3">
-                {step > 0 && (
+                {formMode === 'supplement' && step > 0 && (
                   <button onClick={() => setStep((s) => s - 1)}
                     className="inline-flex items-center gap-1 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
                     <ChevronLeft className="w-4 h-4" />上一步
                   </button>
                 )}
-                {step < 2 ? (
+                {formMode === 'supplement' && step < 1 ? (
                   <button onClick={nextStep} disabled={!canNext()}
                     className="inline-flex items-center gap-1 px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40">
                     下一步<ChevronRight className="w-4 h-4" />
                   </button>
                 ) : (
-                  <button onClick={handleSubmit} disabled={formLoading}
+                  <button
+                    onClick={formMode === 'supplement' ? handleSupplementSubmit : handleBasicSubmit}
+                    disabled={formLoading || !canNext()}
                     className="px-6 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
-                    {formLoading ? '提交中...' : '提交'}
+                    {formLoading ? '保存中...' : '保存'}
                   </button>
                 )}
               </div>
@@ -713,7 +836,7 @@ export default function ShipPage() {
               <DetailRow label="长度" value={`${detail.length}m`} />
               <DetailRow label="型宽" value={`${detail.width}m`} />
               <DetailRow label="型深" value={`${detail.depth}m`} />
-              <DetailRow label="房型数量" value={`${detail.cabinCount}间`} />
+              <DetailRow label="船舱总数" value={`${detail.cabinCount}间`} />
             </DetailCard>
             <DetailCard title="设施与工程">
               <DetailRow label="电压" value={`${detail.voltage}V`} />

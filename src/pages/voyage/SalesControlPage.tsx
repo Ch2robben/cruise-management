@@ -146,7 +146,7 @@ const voyageHasOwnItinerary = Array.isArray(currentVoyage?.itinerary)
 const resolvedItinerary: TemplateItinerary[] =
   voyageHasOwnItinerary
     ? (currentVoyage.itinerary as TemplateItinerary[])
-    : (currentVoyageTemplate ? resolveTemplateItinerary(currentVoyageTemplate, currentProduct) : [])
+    : (currentVoyageTemplate ? resolveTemplateItinerary(currentVoyageTemplate, currentProduct, currentVoyage?.startDate) : [])
 
 const initialPolicyRows: PolicyRow[] = [
   { id: 'p-ota-1', name: '携程阶梯控售政策', type: 'ota', allowSales: 58, maxSales: 80, sold: 21 },

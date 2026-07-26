@@ -218,8 +218,6 @@ export interface PortForm {
   sort: number
   riverReach: RiverReach | ''
   mileageKm: number
-  prevPierUpstreamMin: number
-  nextPierDownstreamMin: number
 }
 
 // ========== 码头距离 ==========
@@ -367,6 +365,8 @@ export interface DeckFacility {
 // ========== 房型 ==========
 export interface Cabin {
   id: string
+  /** 关联的船舱管理定义 ID */
+  sourceCabinId?: string
   name: string
   nameEn: string
   image: string
@@ -497,7 +497,7 @@ export interface Product {
   description: string
   segments: ProductSegment[]
   pricing: PricingRow[]
-  /** 关联行程方案，航次停靠行程在行程管理中维护 */
+  /** @deprecated 旧数据兼容；新逻辑中产品只关联航线 */
   itineraryPlanId?: string
   deposits: TemplateDeposit[]
   tips: TemplateTip[]
@@ -527,6 +527,48 @@ export interface ProductForm {
   images: string[]
   description: string
   segments: Omit<ProductSegment, 'id'>[]
+}
+
+// ========== 附加产品 ==========
+export type AdditionalProductChargeMethod = 'per_person' | 'per_room'
+export type AdditionalProductSourceType = 'internal' | 'external'
+
+export interface AdditionalProductCategory {
+  id: string
+  name: string
+  parentId: string | null
+  level: 1 | 2
+  sort: number
+  status: Status
+}
+
+export interface AdditionalProduct {
+  id: string
+  categoryId: string
+  name: string
+  required: boolean
+  chargeMethod: AdditionalProductChargeMethod
+  amount: number
+  sourceType: AdditionalProductSourceType
+  sourceName: string
+  externalCode: string
+  relatedProductIds: string[]
+  status: Status
+  updatedBy: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface AdditionalProductForm {
+  categoryId: string
+  name: string
+  required: boolean
+  chargeMethod: AdditionalProductChargeMethod
+  amount: number
+  sourceType: AdditionalProductSourceType
+  sourceName: string
+  externalCode: string
+  relatedProductIds: string[]
 }
 
 // ========== 通用API类型 ==========
@@ -582,11 +624,101 @@ export interface Voyage {
   shipId: string
   routeId: string
   productId: string
+  /** 按产品航线与开航日期自动命中的行程快照 */
+  itineraryPlanId?: string
+  itineraryPlanName?: string
   /** 航次独立行程（已从模板剥离），若为 undefined 表示尚未剥离、仍继承模板 */
   itinerary?: TemplateItinerary[]
   updatedBy: string
   updatedAt: string
   createdAt: string
+}
+
+// ========== 航次外部转船处置 ==========
+export type VoyageTransferActionKey =
+  | 'voyage_suspend'
+  | 'sales_stop'
+  | 'channels_close'
+  | 'channel_inventory_zero'
+  | 'ship_schedule_block'
+  | 'orders_lock'
+  | 'pending_order_pause'
+  | 'room_inventory_snapshot'
+  | 'orders_generate'
+  | 'operation_log'
+
+export type VoyageTransferCaseStatus = 'processing' | 'partially_completed' | 'completed' | 'cancelled'
+export type VoyageTransferDisposition = 'external_transfer' | 'reschedule' | 'refund' | 'manual'
+export type VoyageTransferOrderStatus = 'pending' | 'pending_confirmation' | 'processing' | 'completed' | 'manual'
+export type VoyageTransferCustomerConfirmation =
+  | 'pending_contact'
+  | 'pending_reply'
+  | 'agreed'
+  | 'refused_reschedule'
+  | 'refused_refund'
+  | 'unreachable'
+
+export interface VoyageTransferActionResult {
+  key: VoyageTransferActionKey
+  selected: boolean
+  status: 'success' | 'skipped'
+  operatedAt?: string
+}
+
+export interface VoyageTransferOrder {
+  id: string
+  sourceOrderId: string
+  orderNo: string
+  groupName: string
+  dealer: string
+  channel: string
+  contactName: string
+  contactPhone: string
+  totalPeople: number
+  roomType: string
+  orderAmount: number
+  paidAmount: number
+  sourceOrderStatus: string
+  disposition: VoyageTransferDisposition
+  handlingStatus: VoyageTransferOrderStatus
+  customerConfirmation: VoyageTransferCustomerConfirmation
+  externalRoomType: string
+  targetVoyageNo: string
+  refundAmount: number
+  assignee: string
+  remark: string
+  updatedAt: string
+}
+
+export interface VoyageTransferCase {
+  id: string
+  caseNo: string
+  voyageId: string
+  voyageNo: string
+  originalShipName: string
+  routeName: string
+  productName: string
+  startDate: string
+  endDate: string
+  reason: string
+  externalCompany: string
+  externalShipName: string
+  externalSailDate: string
+  departurePort: string
+  arrivalPort: string
+  externalContact: string
+  externalPhone: string
+  confirmedCapacity: number
+  agreementNo: string
+  owner: string
+  remark: string
+  status: VoyageTransferCaseStatus
+  actionResults: VoyageTransferActionResult[]
+  orders: VoyageTransferOrder[]
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  logs: Array<{ time: string; operator: string; action: string; detail: string }>
 }
 
 // ========== 航次模板 ==========
@@ -638,6 +770,10 @@ export interface ItineraryPlan {
   name: string
   /** 关联航线，航段结构来源于航线 */
   routeId: string
+  /** 生效日期（含），同一航线下的行程区间不得重叠 */
+  effectiveStart: string
+  /** 失效日期（含） */
+  effectiveEnd: string
   segments: ItineraryPlanSegment[]
   schedule: TemplateItinerary[]
   updatedAt: string
