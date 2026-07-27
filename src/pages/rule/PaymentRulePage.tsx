@@ -11,6 +11,9 @@ import { products } from '@/mock/data'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
 
 type RuleStatus = 'enabled' | 'disabled'
+type PaymentFeeScope = 'cruiseFare' | 'orderTotal'
+type LateBookingPolicy = 'immediateFull' | 'withinHours' | 'manualReview'
+type PaymentOverdueAction = 'triggerPenalty' | 'manualReview' | 'cancelOrder'
 
 export interface PaymentConfigRow {
   id: string
@@ -21,13 +24,25 @@ export interface PaymentConfigRow {
   roomType: string
   sailingStart: string
   sailingEnd: string
-  deadlineDaysBeforeSail: number
+  collectionStartDaysBeforeSail: number
+  paymentDeadlineDaysBeforeSail: number
+  feeScope: PaymentFeeScope
+  deductDeposit: boolean
+  lateBookingPolicy: LateBookingPolicy
+  lateBookingHours: number
+  overdueAction: PaymentOverdueAction
 }
 
 interface PaymentConfigFields {
   sailingStart: string
   sailingEnd: string
-  deadlineDaysBeforeSail: number
+  collectionStartDaysBeforeSail: number
+  paymentDeadlineDaysBeforeSail: number
+  feeScope: PaymentFeeScope
+  deductDeposit: boolean
+  lateBookingPolicy: LateBookingPolicy
+  lateBookingHours: number
+  overdueAction: PaymentOverdueAction
 }
 
 interface DefaultPaymentRule extends PaymentConfigFields {
@@ -57,10 +72,33 @@ const statusOptions: { value: RuleStatus; label: string }[] = [
   { value: 'disabled', label: '关闭' },
 ]
 
+const feeScopeOptions: { value: PaymentFeeScope; label: string }[] = [
+  { value: 'cruiseFare', label: '仅船票金额' },
+  { value: 'orderTotal', label: '订单总额（含附加产品）' },
+]
+
+const lateBookingPolicyOptions: { value: LateBookingPolicy; label: string }[] = [
+  { value: 'immediateFull', label: '立即支付全款' },
+  { value: 'withinHours', label: '下单后限时付清' },
+  { value: 'manualReview', label: '转人工审核' },
+]
+
+const overdueActionOptions: { value: PaymentOverdueAction; label: string }[] = [
+  { value: 'triggerPenalty', label: '进入罚金处理' },
+  { value: 'manualReview', label: '转人工审核' },
+  { value: 'cancelOrder', label: '取消订单并释放库存' },
+]
+
 const defaultConfigFields: PaymentConfigFields = {
   sailingStart: '2025-06-01',
   sailingEnd: '2026-12-31',
-  deadlineDaysBeforeSail: 7,
+  collectionStartDaysBeforeSail: 30,
+  paymentDeadlineDaysBeforeSail: 7,
+  feeScope: 'cruiseFare',
+  deductDeposit: true,
+  lateBookingPolicy: 'withinHours',
+  lateBookingHours: 2,
+  overdueAction: 'triggerPenalty',
 }
 
 const initialDefaultRule: DefaultPaymentRule = {
@@ -115,22 +153,22 @@ const initialSpecialRules: PaymentRule[] = [
     name: '内宾巫山特殊船款',
     status: 'enabled',
     configRows: [
-      { ...createPaymentConfigRow('prod01', '套房')!, deadlineDaysBeforeSail: 7 },
-      { ...createPaymentConfigRow('prod01', '阳台房')!, deadlineDaysBeforeSail: 7 },
+      { ...createPaymentConfigRow('prod01', '套房')!, collectionStartDaysBeforeSail: 45, paymentDeadlineDaysBeforeSail: 10 },
+      { ...createPaymentConfigRow('prod01', '阳台房')!, collectionStartDaysBeforeSail: 30, paymentDeadlineDaysBeforeSail: 7 },
     ].filter(Boolean) as PaymentConfigRow[],
   }),
   createPaymentRule({
     name: '外宾日本旺季船款',
     status: 'enabled',
     configRows: [
-      { ...createPaymentConfigRow('prod02', '套房')!, sailingStart: '2025-07-01', deadlineDaysBeforeSail: 15 },
+      { ...createPaymentConfigRow('prod02', '套房')!, sailingStart: '2025-07-01', collectionStartDaysBeforeSail: 60, paymentDeadlineDaysBeforeSail: 15 },
     ].filter(Boolean) as PaymentConfigRow[],
   }),
   createPaymentRule({
     name: '外宾美国长线船款',
     status: 'enabled',
     configRows: [
-      { ...createPaymentConfigRow('prod03', '内舱房')!, deadlineDaysBeforeSail: 30 },
+      { ...createPaymentConfigRow('prod03', '内舱房')!, collectionStartDaysBeforeSail: 90, paymentDeadlineDaysBeforeSail: 30 },
     ].filter(Boolean) as PaymentConfigRow[],
   }),
 ]
@@ -145,8 +183,21 @@ function formatSailingPeriod(fields: PaymentConfigFields) {
   return `${formatDate(fields.sailingStart)} 至 ${formatDate(fields.sailingEnd)}`
 }
 
-function formatDeadline(fields: PaymentConfigFields) {
-  return `开船前 ${fields.deadlineDaysBeforeSail} 天`
+function getOptionLabel<T extends string>(options: { value: T; label: string }[], value: T) {
+  return options.find((item) => item.value === value)?.label || value
+}
+
+function formatCollectionStart(fields: PaymentConfigFields) {
+  return `开船前 ${fields.collectionStartDaysBeforeSail} 天`
+}
+
+function formatPaymentDeadline(fields: PaymentConfigFields) {
+  return `开船前 ${fields.paymentDeadlineDaysBeforeSail} 天`
+}
+
+function formatLateBookingPolicy(fields: PaymentConfigFields) {
+  if (fields.lateBookingPolicy === 'withinHours') return `下单后 ${fields.lateBookingHours} 小时内付清`
+  return getOptionLabel(lateBookingPolicyOptions, fields.lateBookingPolicy)
 }
 
 function PaymentConfigFieldsEditor({
@@ -157,7 +208,7 @@ function PaymentConfigFieldsEditor({
   onChange: <K extends keyof PaymentConfigFields>(field: K, value: PaymentConfigFields[K]) => void
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       <div>
         <label className="mb-1 block text-sm text-gray-700">船期开始 <span className="text-red-500">*</span></label>
         <input type="date" value={fields.sailingStart} onChange={(e) => onChange('sailingStart', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
@@ -167,18 +218,69 @@ function PaymentConfigFieldsEditor({
         <input type="date" value={fields.sailingEnd} onChange={(e) => onChange('sailingEnd', e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
       </div>
       <div>
-        <label className="mb-1 block text-sm text-gray-700">船款期限 <span className="text-red-500">*</span></label>
+        <label className="mb-1 block text-sm text-gray-700">开始收取船款 <span className="text-red-500">*</span></label>
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 text-sm text-gray-600">开船前</span>
+          <input
+            type="number"
+            min={fields.paymentDeadlineDaysBeforeSail}
+            value={fields.collectionStartDaysBeforeSail}
+            onChange={(e) => onChange('collectionStartDaysBeforeSail', Math.max(fields.paymentDeadlineDaysBeforeSail, Number(e.target.value) || 0))}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+          <span className="shrink-0 text-sm text-gray-600">天</span>
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-gray-700">最晚付清船款 <span className="text-red-500">*</span></label>
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-sm text-gray-600">开船前</span>
           <input
             type="number"
             min={0}
-            value={fields.deadlineDaysBeforeSail}
-            onChange={(e) => onChange('deadlineDaysBeforeSail', Math.max(0, Number(e.target.value) || 0))}
+            max={fields.collectionStartDaysBeforeSail}
+            value={fields.paymentDeadlineDaysBeforeSail}
+            onChange={(e) => onChange('paymentDeadlineDaysBeforeSail', Math.min(fields.collectionStartDaysBeforeSail, Math.max(0, Number(e.target.value) || 0)))}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
           <span className="shrink-0 text-sm text-gray-600">天</span>
         </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-gray-700">船款计价范围</label>
+        <select value={fields.feeScope} onChange={(e) => onChange('feeScope', e.target.value as PaymentFeeScope)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          {feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-gray-700">是否扣除已付定金</label>
+        <select value={fields.deductDeposit ? 'yes' : 'no'} onChange={(e) => onChange('deductDeposit', e.target.value === 'yes')} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          <option value="yes">是</option>
+          <option value="no">否</option>
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-gray-700">临近开航下单处理</label>
+        <select value={fields.lateBookingPolicy} onChange={(e) => onChange('lateBookingPolicy', e.target.value as LateBookingPolicy)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          {lateBookingPolicyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-gray-700">限时付清时长（小时）</label>
+        <input
+          type="number"
+          min={1}
+          disabled={fields.lateBookingPolicy !== 'withinHours'}
+          value={fields.lateBookingHours}
+          onChange={(e) => onChange('lateBookingHours', Math.max(1, Number(e.target.value) || 1))}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-gray-700">逾期未付处理</label>
+        <select value={fields.overdueAction} onChange={(e) => onChange('overdueAction', e.target.value as PaymentOverdueAction)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          {overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+        </select>
       </div>
     </div>
   )
@@ -199,7 +301,7 @@ function ConfigTable({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-[1000px] w-full text-sm">
+      <table className="min-w-[1900px] w-full text-sm">
         <thead>
           <tr className="border-b bg-gray-50">
             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">产品</th>
@@ -207,7 +309,12 @@ function ConfigTable({
             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">房型</th>
             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">船期开始</th>
             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">船期结束</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">船款期限</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">开始收取</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">最晚付清</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">计价范围</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">扣除定金</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">临近开航处理</th>
+            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">逾期处理</th>
             {showRemove && <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">操作</th>}
           </tr>
         </thead>
@@ -233,14 +340,73 @@ function ConfigTable({
                     <span className="text-xs text-gray-500">开船前</span>
                     <input
                       type="number"
-                      min={0}
-                      value={row.deadlineDaysBeforeSail}
-                      onChange={(e) => onUpdate!(row.id, 'deadlineDaysBeforeSail', Math.max(0, Number(e.target.value) || 0))}
+                      min={row.paymentDeadlineDaysBeforeSail}
+                      value={row.collectionStartDaysBeforeSail}
+                      onChange={(e) => onUpdate!(row.id, 'collectionStartDaysBeforeSail', Math.max(row.paymentDeadlineDaysBeforeSail, Number(e.target.value) || 0))}
                       className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs"
                     />
                     <span className="text-xs text-gray-500">天</span>
                   </div>
-                ) : formatDeadline(row)}
+                ) : formatCollectionStart(row)}
+              </td>
+              <td className="px-3 py-2">
+                {editable ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-500">开船前</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={row.collectionStartDaysBeforeSail}
+                      value={row.paymentDeadlineDaysBeforeSail}
+                      onChange={(e) => onUpdate!(row.id, 'paymentDeadlineDaysBeforeSail', Math.min(row.collectionStartDaysBeforeSail, Math.max(0, Number(e.target.value) || 0)))}
+                      className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                    />
+                    <span className="text-xs text-gray-500">天</span>
+                  </div>
+                ) : formatPaymentDeadline(row)}
+              </td>
+              <td className="px-3 py-2">
+                {editable ? (
+                  <select value={row.feeScope} onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as PaymentFeeScope)} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
+                    {feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                ) : getOptionLabel(feeScopeOptions, row.feeScope)}
+              </td>
+              <td className="px-3 py-2">
+                {editable ? (
+                  <select value={row.deductDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'deductDeposit', e.target.value === 'yes')} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
+                    <option value="yes">是</option>
+                    <option value="no">否</option>
+                  </select>
+                ) : row.deductDeposit ? '是' : '否'}
+              </td>
+              <td className="px-3 py-2">
+                {editable ? (
+                  <div className="flex items-center gap-1.5">
+                    <select value={row.lateBookingPolicy} onChange={(e) => onUpdate!(row.id, 'lateBookingPolicy', e.target.value as LateBookingPolicy)} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
+                      {lateBookingPolicyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    </select>
+                    {row.lateBookingPolicy === 'withinHours' && (
+                      <>
+                        <input
+                          type="number"
+                          min={1}
+                          value={row.lateBookingHours}
+                          onChange={(e) => onUpdate!(row.id, 'lateBookingHours', Math.max(1, Number(e.target.value) || 1))}
+                          className="w-14 rounded border border-gray-300 px-2 py-1.5 text-xs"
+                        />
+                        <span className="text-xs text-gray-500">小时</span>
+                      </>
+                    )}
+                  </div>
+                ) : formatLateBookingPolicy(row)}
+              </td>
+              <td className="px-3 py-2">
+                {editable ? (
+                  <select value={row.overdueAction} onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as PaymentOverdueAction)} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
+                    {overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                ) : getOptionLabel(overdueActionOptions, row.overdueAction)}
               </td>
               {showRemove && (
                 <td className="px-3 py-2 text-center">
@@ -426,7 +592,7 @@ export default function PaymentRulePage() {
 
   return (
     <div>
-      <PageHeader title="船款规则管理" description="系统仅有一条默认船款规则作为全局兜底；特殊规则按产品-航线-房型覆盖默认规则" />
+      <PageHeader title="船款规则管理" description="维护船款收取窗口、金额口径及逾期处理；默认规则兜底，特殊规则按产品-航线-房型覆盖" />
 
       <div className="mx-9 mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-4">
@@ -449,14 +615,34 @@ export default function PaymentRulePage() {
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           <div className="rounded-lg bg-gray-50 px-4 py-3">
             <div className="text-xs text-gray-500">船期</div>
             <div className="mt-1 text-sm font-medium text-gray-900">{formatSailingPeriod(defaultRule)}</div>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">船款期限</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{formatDeadline(defaultRule)}</div>
+            <div className="text-xs text-gray-500">开始收取</div>
+            <div className="mt-1 text-sm font-medium text-gray-900">{formatCollectionStart(defaultRule)}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <div className="text-xs text-gray-500">最晚付清</div>
+            <div className="mt-1 text-sm font-medium text-gray-900">{formatPaymentDeadline(defaultRule)}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <div className="text-xs text-gray-500">船款口径</div>
+            <div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(feeScopeOptions, defaultRule.feeScope)}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <div className="text-xs text-gray-500">扣除已付定金</div>
+            <div className="mt-1 text-sm font-medium text-gray-900">{defaultRule.deductDeposit ? '是' : '否'}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <div className="text-xs text-gray-500">临近开航处理</div>
+            <div className="mt-1 text-sm font-medium text-gray-900">{formatLateBookingPolicy(defaultRule)}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <div className="text-xs text-gray-500">逾期处理</div>
+            <div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(overdueActionOptions, defaultRule.overdueAction)}</div>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
             <div className="text-xs text-gray-500">审批状态</div>

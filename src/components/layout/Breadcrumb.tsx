@@ -32,6 +32,7 @@ const routeLabels: Record<string, string> = {
   '/rule/penalty-handling': '罚金处理规则',
   '/rule/dealer-cooperation': '申请合作规则',
   '/rule/price-type': '价格政策类型',
+  '/rule/policy-content': '规则/政策展示',
   '/rule/rebate': '返利政策管理',
   '/rule/rebate-targets': '返利任务指标',
   '/rule/tip': '小费标准管理',

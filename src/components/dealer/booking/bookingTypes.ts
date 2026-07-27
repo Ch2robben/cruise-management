@@ -10,12 +10,20 @@ export interface BookingCartLine {
   price: number
   deposit: number
   maxRooms: number
+  pricingSnapshot?: {
+    q: number
+    coefficient: number
+    formula: 'Q × 系数'
+    cabinPrice: number
+    capturedAt: string
+  }
 }
 
 export interface DealerBookingDraft {
   productId?: string
   productName?: string
   voyageSummary?: {
+    voyageKey: string
     ship: string
     route: string
     date: string

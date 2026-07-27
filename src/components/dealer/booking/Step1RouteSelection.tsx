@@ -19,7 +19,7 @@ function getVoyageRoomStock(cabin: VoyageCabin) {
   return cabin.totalRooms > 45 ? 99 : Math.max(1, Math.ceil(cabin.remainBeds / Math.max(cabin.maxGuests, 1)))
 }
 
-export default function Step1RouteSelection({ onNext }: { onNext: (data: { productId: string; productName: string; voyageSummary: { ship: string; route: string; date: string; days: string } }) => void }) {
+export default function Step1RouteSelection({ onNext }: { onNext: (data: { productId: string; productName: string; voyageSummary: { voyageKey: string; ship: string; route: string; date: string; days: string } }) => void }) {
   const [searchParams, setSearchParams] = useState({
     depPort: '',
     arrPort: '',
@@ -245,7 +245,13 @@ export default function Step1RouteSelection({ onNext }: { onNext: (data: { produ
                             onNext({
                               productId: matchedProduct?.id ?? 'prod01',
                               productName: matchedProduct?.name ?? '三峡经典下水之旅',
-                              voyageSummary: { ship: voyage.ship, route: voyage.route, date: voyage.date, days: voyage.days },
+                              voyageSummary: {
+                                voyageKey: `${voyage.ship}-${voyage.date}`,
+                                ship: voyage.ship,
+                                route: voyage.route,
+                                date: voyage.date,
+                                days: voyage.days,
+                              },
                             })
                           }}
                           className="flex h-full min-h-[88px] w-full items-center justify-center rounded-lg border border-blue-300 bg-blue-50 px-3 text-base font-medium text-blue-700 shadow-sm transition hover:border-blue-500 hover:bg-blue-100"

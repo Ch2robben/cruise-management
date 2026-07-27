@@ -68,7 +68,7 @@ export function formatGuestCoefficientFormula(coeff: GuestPriceCoefficient): str
   const parts: string[] = []
   if (coeff.p !== 0) parts.push(`${formatCoeff(coeff.p)}P`)
   if (coeff.s !== 0) parts.push(`${formatCoeff(coeff.s)}S`)
-  if (coeff.x !== 0) parts.push(`${formatCoeff(coeff.x)}X`)
+  if (coeff.q !== 0) parts.push(`${formatCoeff(coeff.q)}Q`)
   return parts.length > 0 ? parts.join(' + ') : '0'
 }
 
@@ -85,11 +85,11 @@ export function formatFormulaFromCoefficients(pCoeffs: number[], s: number): str
 }
 
 function legacyCoefficientsToGuest(pCoeffs: number[], s: number): GuestPriceCoefficient[] {
-  if (pCoeffs.length === 0) return [{ p: 1, s: 0, x: 0 }]
+  if (pCoeffs.length === 0) return [{ p: 1, s: 0, q: 0 }]
   return pCoeffs.map((p, index) => ({
     p,
     s: index === 0 ? s : 0,
-    x: 0,
+    q: 0,
   }))
 }
 
@@ -126,7 +126,7 @@ function resizeGuestCoefficients(coefficients: GuestPriceCoefficient[], ticketCl
   if (coefficients.length > target) return coefficients.slice(0, target).map((item) => ({ ...item }))
   return [
     ...coefficients.map((item) => ({ ...item })),
-    ...Array.from({ length: target - coefficients.length }, () => ({ p: 1, s: 0, x: 0 })),
+    ...Array.from({ length: target - coefficients.length }, () => ({ p: 1, s: 0, q: 0 })),
   ]
 }
 
@@ -289,7 +289,7 @@ export function createEmptyFormulaRule(ticketClassId = 'tc-2adult'): FormulaPric
     scenarioName: template?.name || '新规则',
     ticketClassId,
     templateId: template?.id,
-    guestCoefficients: template?.guestCoefficients.map((item) => ({ ...item })) || getDefaultPCoefficients(ticketClassId).map((p) => ({ p, s: 0, x: 0 })),
+    guestCoefficients: template?.guestCoefficients.map((item) => ({ ...item })) || getDefaultPCoefficients(ticketClassId).map((p) => ({ p, s: 0, q: 0 })),
     formula: '',
     enabled: true,
   })

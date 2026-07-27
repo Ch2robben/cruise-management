@@ -91,6 +91,7 @@ import CloseRulePage from '@/pages/rule/CloseRulePage'
 import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
 import RebateRulePage from '@/pages/rule/RebateRulePage'
 import PricePolicyTypePage from '@/pages/rule/PriceTypeRulePage'
+import RulePolicyContentPage from '@/pages/rule/RulePolicyContentPage'
 
 function LegacyTemplatePriceRedirect() {
   const { id } = useParams()
@@ -206,6 +207,7 @@ export const router = createHashRouter([
       { path: '/rule/performance', element: <PerformanceRulePage /> },
       { path: '/rule/rebate', element: <RebateRulePage /> },
       { path: '/rule/rebate-targets', element: <RebateTargetIndicatorPage /> },
+      { path: '/rule/policy-content', element: <RulePolicyContentPage /> },
     ],
   },
   {

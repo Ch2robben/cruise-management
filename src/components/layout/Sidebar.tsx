@@ -128,6 +128,7 @@ const menuItems: MenuItem[] = [
       { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
       // { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
       { key: 'price_policy_type', label: '价格政策类型', path: '/rule/price-type' },
+      { key: 'policy_content', label: '规则/政策展示', path: '/rule/policy-content' },
       { key: 'rebate_rule', label: '返利政策管理', path: '/rule/rebate' },
       { key: 'rebate_target', label: '返利任务指标', path: '/rule/rebate-targets' },
       { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },

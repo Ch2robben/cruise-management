@@ -319,17 +319,78 @@ export default function Step4OrderConfirm({
             <h3 className="text-sm font-semibold text-gray-800">航次信息</h3>
           </div>
           <div className="grid gap-x-10 px-5 py-2 sm:grid-cols-2 lg:grid-cols-4">
-            <FieldItem label="游轮" value="长江叁号" />
-            <FieldItem label="航次号" value="V20260615" mono />
-            <FieldItem label="航线" value="重庆 → 宜昌" />
+            <FieldItem label="游轮" value={data?.voyageSummary?.ship ?? '长江叁号'} />
+            <FieldItem label="航次标识" value={data?.voyageSummary?.voyageKey ?? '长江叁号-2026-06-15'} mono />
+            <FieldItem label="航线" value={data?.voyageSummary?.route ?? '重庆 → 宜昌'} />
             <FieldItem label="预订航段" value={bookedSegments.join('、')} />
-            <FieldItem label="行程天数" value="4 天 3 晚" />
+            <FieldItem label="行程天数" value={data?.voyageSummary?.days ?? '4 天 3 晚'} />
             <FieldItem label="出发港" value="重庆" />
             <FieldItem label="终到港" value="宜昌" />
-            <FieldItem label="开船日期" value="2026-06-15" />
+            <FieldItem label="开船日期" value={data?.voyageSummary?.date ?? '2026-06-15'} />
             <FieldItem label="离船日期" value="2026-06-18" />
           </div>
         </div>
+
+        {hasCart && (
+          <div className="overflow-hidden rounded-lg border border-blue-200 bg-white lg:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 bg-blue-50 px-5 py-3">
+              <div>
+                <h3 className="text-sm font-semibold text-blue-900">舱房定价快照</h3>
+                <p className="mt-0.5 text-xs text-blue-700">订单创建时固化 Q、房型系数和计算结果，后续配置调整不回写本订单。</p>
+              </div>
+              <span className="rounded bg-white px-2 py-1 text-xs font-medium text-blue-700">计算口径：舱房价格 = Q × 系数</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-white">
+                    {['航段', '房型', 'Q 快照', '系数快照', '计算公式', '舱房单价', '数量', '小计', '快照时间'].map((col) => (
+                      <th
+                        key={col}
+                        className={`px-4 py-3 text-xs font-medium text-gray-500 ${
+                          ['Q 快照', '系数快照', '舱房单价', '数量', '小计'].includes(col) ? 'text-right' : 'text-left'
+                        }`}
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {cart.map((line) => {
+                    const snapshot = line.pricingSnapshot
+                    const cabinPrice = snapshot?.cabinPrice ?? line.price
+                    return (
+                      <tr key={`snapshot-${line.id}`} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-700">{line.segmentLabel}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{line.roomType}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                          {snapshot ? formatCurrency(snapshot.q) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                          {snapshot ? snapshot.coefficient.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono text-xs text-gray-500">
+                          {snapshot ? `Q × ${snapshot.coefficient.toFixed(2)}` : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-blue-600">
+                          {formatCurrency(cabinPrice)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">{line.count}</td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums text-gray-900">
+                          {formatCurrency(cabinPrice * line.count)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                          {snapshot?.capturedAt ?? '-'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white lg:col-span-2">
           <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">

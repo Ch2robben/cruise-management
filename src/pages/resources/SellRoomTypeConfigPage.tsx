@@ -24,6 +24,10 @@ import {
   createDefaultPricingRule,
   type CabinPricingRule,
 } from '@/utils/cabinPriceCoefficient'
+import {
+  getDefaultRoomCoefficient,
+  saveDefaultRoomCoefficient,
+} from '@/mock/qPricing'
 import type { HierarchicalDictOption } from '@/utils/hierarchicalDict'
 import { loadHierarchicalDictOptions } from '@/utils/hierarchicalDict'
 
@@ -96,6 +100,7 @@ export default function SellRoomTypeConfigPage() {
   const openEdit = (record: SellRoomTypeConfig) => {
     setEditing({
       ...record,
+      defaultPriceCoefficient: record.defaultPriceCoefficient ?? getDefaultRoomCoefficient(record.sellRoomTypeName),
       privileges: [...(record.privileges || [])],
       mappings: record.mappings.map((item) => ({ ...item })),
       floorPrices: (record.floorPrices || []).map((item) => ({ ...item })),
@@ -129,9 +134,11 @@ export default function SellRoomTypeConfigPage() {
 
   const saveRecord = () => {
     if (!editing || !editing.sellRoomTypeName.trim()) return
+    const defaultPriceCoefficient = Math.max(0, editing.defaultPriceCoefficient ?? 1)
+    saveDefaultRoomCoefficient(editing.sellRoomTypeName, defaultPriceCoefficient)
     setRecords((prev) => {
       const exists = prev.some((item) => item.id === editing.id)
-      const normalized = syncFloorPrices(editing, initialCabinData)
+      const normalized = syncFloorPrices({ ...editing, defaultPriceCoefficient }, initialCabinData)
       const nextRecord = {
         ...normalized,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -215,6 +222,16 @@ export default function SellRoomTypeConfigPage() {
     { key: 'sellRoomTypeName', title: '房型名称', dataIndex: 'sellRoomTypeName' as keyof SellRoomTypeConfig, width: '120px' },
     { key: 'sellRoomTypeCode', title: '房型编码', dataIndex: 'sellRoomTypeCode' as keyof SellRoomTypeConfig, width: '120px' },
     {
+      key: 'defaultPriceCoefficient',
+      title: '默认系数',
+      width: '100px',
+      render: (record: SellRoomTypeConfig) => (
+        <span className="font-medium tabular-nums text-gray-900">
+          {(record.defaultPriceCoefficient ?? getDefaultRoomCoefficient(record.sellRoomTypeName)).toFixed(2)}
+        </span>
+      ),
+    },
+    {
       key: 'mappings',
       title: '关联物理船舱',
       render: (record: SellRoomTypeConfig) => (
@@ -223,8 +240,8 @@ export default function SellRoomTypeConfigPage() {
     },
     {
       key: 'ruleStatus',
-      title: '价格系数',
-      width: '100px',
+      title: '入住系数规则',
+      width: '120px',
       render: (record: SellRoomTypeConfig) => {
         const count = pricingRulesBySellRoomType[record.id]?.length || 0
         return (
@@ -398,6 +415,20 @@ export default function SellRoomTypeConfigPage() {
                   onChange={(e) => updateEditing({ sortNo: Number(e.target.value) })}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">
+                  默认价格系数 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={editing.defaultPriceCoefficient ?? getDefaultRoomCoefficient(editing.sellRoomTypeName)}
+                  onChange={(e) => updateEditing({ defaultPriceCoefficient: Math.max(0, Number(e.target.value)) })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-400">舱房基础价格 = 航次 Q × 默认价格系数。</p>
               </div>
               <div>
                 <label className="mb-1 block text-sm text-gray-700">状态</label>

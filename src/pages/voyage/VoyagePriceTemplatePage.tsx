@@ -162,7 +162,7 @@ export default function VoyagePriceTemplatePage() {
     <div>
       <PageHeader
         title="航次价格配置"
-        description="按航次模板维护各房型、各航段的基础变量与入住组合价格公式。"
+        description="按房型、航段维护 P、S、Q 基础变量与入住组合价格公式。"
       />
 
       <SearchPanel

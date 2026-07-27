@@ -117,7 +117,9 @@ export default function CruiseBookingPage() {
 
       <div>
         {currentStep === 0 && <Step1RouteSelection onNext={handleNext} />}
-        {currentStep === 1 && <Step2RoomReserve onNext={handleNext} onPrev={handlePrev} />}
+        {currentStep === 1 && (
+          <Step2RoomReserve voyageSummary={bookingDraft.voyageSummary} onNext={handleNext} onPrev={handlePrev} />
+        )}
         {currentStep === 2 && (
           <Step3TouristInfo roomData={bookingDraft.rooms ?? {}} productId={bookingDraft.productId} onNext={handleNext} onPrev={handlePrev} />
         )}

@@ -3,7 +3,7 @@ import type { FormulaRuleKey } from '@/utils/cabinPriceCoefficient'
 export type GuestPriceCoefficient = {
   p: number
   s: number
-  x: number
+  q: number
 }
 
 export type OccupancyFormulaTemplate = {
@@ -15,7 +15,7 @@ export type OccupancyFormulaTemplate = {
   description?: string
 }
 
-/** 入住组合价格公式模板：系数按入住人配置，第一人 = XP + XS + X */
+/** 入住组合价格公式模板：系数按入住人配置，第一人 = aP + bS + cQ */
 export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
   {
     id: 'tpl-standard-2adult',
@@ -23,17 +23,17 @@ export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
     scenario: 'standard',
     ticketClassId: 'tc-2adult',
     guestCoefficients: [
-      { p: 1, s: 0, x: 0 },
-      { p: 1, s: 0, x: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 1, s: 0, q: 0 },
     ],
-    description: '双成人同价，按人累加 P/S/X 系数',
+    description: '双成人同价，按人累加 P/S/Q 系数',
   },
   {
     id: 'tpl-single',
     name: '单间',
     scenario: 'singleRoom',
     ticketClassId: 'tc-single',
-    guestCoefficients: [{ p: 1.75, s: 0, x: 0 }],
+    guestCoefficients: [{ p: 1.75, s: 0, q: 0 }],
   },
   {
     id: 'tpl-1adult-1child',
@@ -41,8 +41,8 @@ export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
     scenario: 'oneAdultOneChild',
     ticketClassId: 'tc-1adult-1child',
     guestCoefficients: [
-      { p: 1, s: 0, x: 0 },
-      { p: 0.7, s: 0, x: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 0.7, s: 0, q: 0 },
     ],
   },
   {
@@ -51,9 +51,9 @@ export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
     scenario: 'twoAdultsOneBaby',
     ticketClassId: 'tc-2adult-baby',
     guestCoefficients: [
-      { p: 1, s: 0, x: 0 },
-      { p: 1, s: 0, x: 0 },
-      { p: 0.1, s: 0, x: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 0.1, s: 0, q: 0 },
     ],
   },
   {
@@ -62,9 +62,9 @@ export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
     scenario: 'thirdChildNoBed',
     ticketClassId: 'tc-third-child-nobed',
     guestCoefficients: [
-      { p: 1, s: 0, x: 0 },
-      { p: 1, s: 0, x: 0 },
-      { p: 0.5, s: 0, x: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 0.5, s: 0, q: 0 },
     ],
   },
   {
@@ -73,9 +73,9 @@ export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
     scenario: 'thirdChildExtraBed',
     ticketClassId: 'tc-third-child-bed',
     guestCoefficients: [
-      { p: 1, s: 0, x: 0 },
-      { p: 1, s: 0, x: 0 },
-      { p: 0.6, s: 0, x: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 0.6, s: 0, q: 0 },
     ],
   },
   {
@@ -84,9 +84,9 @@ export const occupancyFormulaTemplates: OccupancyFormulaTemplate[] = [
     scenario: 'thirdAdultExtraBed',
     ticketClassId: 'tc-3adult',
     guestCoefficients: [
-      { p: 1, s: 0, x: 0 },
-      { p: 1, s: 0, x: 0 },
-      { p: 1, s: 0, x: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 1, s: 0, q: 0 },
+      { p: 1, s: 0, q: 0 },
     ],
   },
 ]
@@ -114,7 +114,7 @@ export function formatGuestCoefficientFormula(coeff: GuestPriceCoefficient): str
   const parts: string[] = []
   if (coeff.p !== 0) parts.push(coeff.p === 1 ? 'P' : `${coeff.p}P`)
   if (coeff.s !== 0) parts.push(coeff.s === 1 ? 'S' : `${coeff.s}S`)
-  if (coeff.x !== 0) parts.push(coeff.x === 1 ? 'X' : `${coeff.x}X`)
+  if (coeff.q !== 0) parts.push(coeff.q === 1 ? 'Q' : `${coeff.q}Q`)
   return parts.length > 0 ? parts.join(' + ') : '0'
 }
 

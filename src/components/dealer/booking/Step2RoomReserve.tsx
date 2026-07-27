@@ -2,6 +2,12 @@ import { useMemo, useState } from 'react'
 import { bookingSegmentOptions, defaultRoomReserveData } from '@/mock/data'
 import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
+import type { DealerBookingDraft } from '@/components/dealer/booking/bookingTypes'
+import {
+  calculateCabinPrice,
+  getDefaultRoomCoefficient,
+  getVoyageSegmentQ,
+} from '@/mock/qPricing'
 
 interface RoomCatalogItem {
   maxRooms: number
@@ -21,13 +27,13 @@ interface CartLine {
   price: number
   deposit: number
   maxRooms: number
-}
-
-const voyageSummary = {
-  ship: '长江叁号',
-  route: '重庆 → 宜昌',
-  sailDate: '2026-06-15',
-  duration: '4天3晚',
+  pricingSnapshot: {
+    q: number
+    coefficient: number
+    formula: 'Q × 系数'
+    cabinPrice: number
+    capturedAt: string
+  }
 }
 
 const roomCatalog = defaultRoomReserveData as Record<string, RoomCatalogItem>
@@ -49,16 +55,33 @@ const defaultWholeSegmentId = bookingSegmentOptions.find((segment) => segment.is
   ?? bookingSegmentOptions[0]?.id
   ?? null
 
-export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: any) => void; onPrev: () => void }) {
+export default function Step2RoomReserve({
+  voyageSummary,
+  onNext,
+  onPrev,
+}: {
+  voyageSummary?: DealerBookingDraft['voyageSummary']
+  onNext: (data: any) => void
+  onPrev: () => void
+}) {
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(defaultWholeSegmentId)
   const [cart, setCart] = useState<CartLine[]>([])
   const [pendingQty, setPendingQty] = useState<Record<string, number>>({})
   const [stockTip, setStockTip] = useState('')
-
+  const activeVoyage = voyageSummary ?? {
+    voyageKey: '长江叁号-2026-06-15',
+    ship: '长江叁号',
+    route: '重庆 → 宜昌',
+    date: '2026-06-15',
+    days: '4天3晚',
+  }
   const selectedSegment = useMemo(
     () => bookingSegmentOptions.find((segment) => segment.id === selectedSegmentId) ?? null,
     [selectedSegmentId],
   )
+  const selectedSegmentQ = selectedSegment
+    ? getVoyageSegmentQ(activeVoyage.voyageKey, selectedSegment.id)
+    : 0
 
   const cartCountInSegment = (segmentId: string, roomType: string) =>
     cart.filter((line) => line.segmentId === segmentId && line.roomType === roomType).reduce((sum, line) => sum + line.count, 0)
@@ -108,6 +131,8 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
       entries.forEach(([roomType, qty]) => {
         const catalog = roomCatalog[roomType]
         if (!catalog) return
+        const coefficient = getDefaultRoomCoefficient(roomType)
+        const cabinPrice = calculateCabinPrice(selectedSegmentQ, coefficient)
 
         const lineId = `${selectedSegment.id}-${roomType}`
         const existing = next.find((line) => line.id === lineId)
@@ -121,9 +146,16 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
             roomType,
             bedType: catalog.bedType,
             count: qty,
-            price: catalog.price,
+            price: cabinPrice,
             deposit: catalog.deposit,
             maxRooms: catalog.maxRooms,
+            pricingSnapshot: {
+              q: selectedSegmentQ,
+              coefficient,
+              formula: 'Q × 系数',
+              cabinPrice,
+              capturedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            },
           })
         }
       })
@@ -179,6 +211,7 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
     cart.forEach((line) => {
       if (aggregatedRooms[line.roomType]) {
         aggregatedRooms[line.roomType].count += line.count
+        aggregatedRooms[line.roomType].price = line.price
       }
     })
 
@@ -203,19 +236,19 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
         <div className="grid gap-x-8 gap-y-2 px-5 py-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex gap-2">
             <span className="text-gray-500">游轮</span>
-            <span className="text-gray-900">{voyageSummary.ship}</span>
+            <span className="text-gray-900">{activeVoyage.ship}</span>
           </div>
           <div className="flex gap-2">
             <span className="text-gray-500">航线</span>
-            <span className="text-gray-900">{voyageSummary.route}</span>
+            <span className="text-gray-900">{activeVoyage.route}</span>
           </div>
           <div className="flex gap-2">
             <span className="text-gray-500">开航日期</span>
-            <span className="text-gray-900">{voyageSummary.sailDate}</span>
+            <span className="text-gray-900">{activeVoyage.date}</span>
           </div>
           <div className="flex gap-2">
             <span className="text-gray-500">行程</span>
-            <span className="text-gray-900">{voyageSummary.duration}</span>
+            <span className="text-gray-900">{activeVoyage.days}</span>
           </div>
         </div>
       </div>
@@ -299,14 +332,14 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
             )}
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
+              <table className="w-full min-w-[780px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-white">
-                  {['房型', '床型', '可售库存', '定金单价', '占舱数量'].map((col) => (
+                  {['房型', '床型', '可售库存', '航段 Q', '默认系数', '舱房价', '定金单价', '占舱数量'].map((col) => (
                     <th
                       key={col}
                       className={`px-4 py-3 text-xs font-medium text-gray-500 ${
-                        ['定金单价', '占舱数量'].includes(col) ? 'text-right' : 'text-left'
+                        ['航段 Q', '默认系数', '舱房价', '定金单价', '占舱数量'].includes(col) ? 'text-right' : 'text-left'
                       }`}
                     >
                       {col}
@@ -318,11 +351,16 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
                 {Object.entries(roomCatalog).map(([roomType, room]) => {
                   const available = getAvailableStock(selectedSegment.id, roomType)
                   const qty = pendingQty[roomType] || 0
+                  const coefficient = getDefaultRoomCoefficient(roomType)
+                  const cabinPrice = calculateCabinPrice(selectedSegmentQ, coefficient)
                   return (
                     <tr key={roomType} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{roomType}</td>
                       <td className="px-4 py-3 text-gray-700">{room.bedType}</td>
                       <td className="px-4 py-3 text-gray-700">{formatRoomStock(available)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(selectedSegmentQ)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{coefficient.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-600">{formatCurrency(cabinPrice)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                         {formatCurrency(room.deposit)}
                         <span className="text-xs text-gray-400">{roomType === '标准间' ? '/床' : '/间'}</span>
@@ -396,14 +434,14 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px] text-sm">
+              <table className="w-full min-w-[1080px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    {['航段', '房型', '床型', '数量', '定金小计', '操作'].map((col) => (
+                    {['航段', '房型', '床型', 'Q / 系数', '舱房单价', '数量', '舱房小计', '定金小计', '操作'].map((col) => (
                       <th
                         key={col}
                         className={`px-4 py-3 text-xs font-medium text-gray-500 ${
-                          ['数量', '定金小计', '操作'].includes(col) ? 'text-right' : 'text-left'
+                          ['Q / 系数', '舱房单价', '数量', '舱房小计', '定金小计', '操作'].includes(col) ? 'text-right' : 'text-left'
                         }`}
                       >
                         {col}
@@ -417,6 +455,14 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
                       <td className="px-4 py-3 text-gray-800">{line.segmentLabel}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{line.roomType}</td>
                       <td className="px-4 py-3 text-gray-700">{line.bedType}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="font-mono text-xs text-gray-700">
+                          {line.pricingSnapshot.q.toLocaleString()} × {line.pricingSnapshot.coefficient.toFixed(2)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-600">
+                        {formatCurrency(line.pricingSnapshot.cabinPrice)}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="ml-auto flex w-fit items-center">
                           <button
@@ -437,6 +483,9 @@ export default function Step2RoomReserve({ onNext, onPrev }: { onNext: (data: an
                             <Plus className="h-3 w-3 text-gray-600" />
                           </button>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
+                        {formatCurrency(line.pricingSnapshot.cabinPrice * line.count)}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
                         {formatCurrency(cartLineDeposit(line))}

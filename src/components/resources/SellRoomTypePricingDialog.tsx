@@ -455,7 +455,7 @@ export default function SellRoomTypePricingDialog({
           <div className="mb-3 flex items-center gap-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
             <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600">
-              系数配置到人：第一人=XP+XS+X；P/S/X 变量取值在航次价格配置中维护
+              系数配置到人：第一人=aP+bS+cQ；P/S/Q 变量取值在航次价格配置中维护
             </span>
           </div>
           {localSellRoomType.sellByFloor && (
@@ -551,9 +551,10 @@ export default function SellRoomTypePricingDialog({
                               <span className="text-xs font-mono text-gray-500">S</span>
                               <span className="text-xs text-gray-400">+</span>
                               <CoefficientStepper
-                                value={guestCoeff.x}
-                                onChange={(value) => updateGuestCoefficient(index, guestIndex, 'x', value)}
+                                value={guestCoeff.q}
+                                onChange={(value) => updateGuestCoefficient(index, guestIndex, 'q', value)}
                               />
+                              <span className="text-xs font-mono text-gray-500">Q</span>
                             </div>
                           ))}
                         </div>

@@ -28,6 +28,8 @@ export interface SellRoomTypeConfig {
   sellByFloor: boolean
   specifyFloorSelectable: boolean
   floorPrices: SellRoomTypeFloorPrice[]
+  /** Q 定价中的房型默认系数 */
+  defaultPriceCoefficient?: number
   countDimension: 'room' | 'bed'
   alertEnabled: boolean
   alertType: 'percentage' | 'quantity'
@@ -457,6 +459,7 @@ export function createEmptySellRoomTypeConfig(shipName: string): SellRoomTypeCon
     sellByFloor: false,
     specifyFloorSelectable: false,
     floorPrices: [],
+    defaultPriceCoefficient: 1,
     countDimension: 'room',
     alertEnabled: false,
     alertType: 'percentage',

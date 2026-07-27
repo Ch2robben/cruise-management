@@ -1,20 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Save } from 'lucide-react'
 import { templateApi } from '@/mock/api'
 import { products, dictionaries } from '@/mock/data'
+import CoefficientStepper from '@/components/common/CoefficientStepper'
 import {
   evaluateTemplateFormula,
   getTemplateCabinTypes,
   getTemplateSegmentsCount,
   loadTemplatePriceRules,
   saveTemplatePriceRules,
+  templateDeckOptions,
   templateVariableLabels,
   type TemplateCabinPricingRule,
-  type TemplateFloorPricingRule,
-  type TemplateFormulaPricingRule,
   type TemplatePricingVariableKey,
 } from '@/mock/templatePriceRules'
+import {
+  getOccupancyFormulaTemplate,
+  occupancyFormulaTemplates,
+} from '@/mock/occupancyFormulaTemplates'
+import { getTicketClassById } from '@/mock/ticketClasses'
+import {
+  createEmptyFormulaRule,
+  formatFormulaFromGuestCoefficients,
+  normalizeFormulaRule,
+  type FormulaPricingRule,
+  type GuestPriceCoefficient,
+} from '@/utils/cabinPriceCoefficient'
 import type { VoyageTemplate } from '@/types'
 
 function VariableToken({ code }: { code: TemplatePricingVariableKey }) {
@@ -29,6 +41,50 @@ function VariableToken({ code }: { code: TemplatePricingVariableKey }) {
       <span className="ml-0.5 font-sans text-[10px] leading-none text-gray-500">{suffix}</span>
     </>
   )
+}
+
+const variableRows: Array<{
+  key: TemplatePricingVariableKey
+  category: 'P' | 'S' | 'Q'
+  rowSpan: number
+}> = [
+  { key: 'P', category: 'P', rowSpan: 3 },
+  { key: 'P_AREA', category: 'P', rowSpan: 0 },
+  { key: 'K', category: 'P', rowSpan: 0 },
+  { key: 'S1F', category: 'S', rowSpan: 3 },
+  { key: 'S2F', category: 'S', rowSpan: 0 },
+  { key: 'S3F', category: 'S', rowSpan: 0 },
+  { key: 'Q', category: 'Q', rowSpan: 1 },
+]
+
+function formatCoefficientTerm(coefficient: number, variable: string) {
+  if (coefficient === 0) return ''
+  if (coefficient === 1) return variable
+  return `${parseFloat(coefficient.toFixed(4))}${variable}`
+}
+
+function getFloorSVariable(floor: string) {
+  if (floor === '1F') return 'S1F'
+  if (floor === '2F') return 'S2F'
+  if (floor === '3F') return 'S3F'
+  return 'S2F'
+}
+
+function buildVoyageFormula(rule: FormulaPricingRule) {
+  const totals = rule.guestCoefficients.reduce(
+    (sum, coefficient) => ({
+      p: sum.p + coefficient.p,
+      s: sum.s + coefficient.s,
+      q: sum.q + coefficient.q,
+    }),
+    { p: 0, s: 0, q: 0 },
+  )
+  const parts = [
+    formatCoefficientTerm(totals.p, 'P'),
+    formatCoefficientTerm(totals.s, getFloorSVariable(rule.floor)),
+    formatCoefficientTerm(totals.q, 'Q'),
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' + ') : '0'
 }
 
 export default function TemplatePricePage() {
@@ -90,49 +146,88 @@ export default function TemplatePricePage() {
     })
   }
 
-  const updateFloorRule = (index: number, field: keyof TemplateFloorPricingRule, value: string | number) => {
-    setPriceRules((prev) => {
-      const current = prev[activeCabin]
-      if (!current) return prev
-      const floorRules = [...current.floorRules]
-      floorRules[index] = { ...floorRules[index], [field]: value }
-      return { ...prev, [activeCabin]: { ...current, floorRules } }
-    })
-  }
-
   const updateFormulaRule = (
     index: number,
-    field: keyof Pick<TemplateFormulaPricingRule, 'formula' | 'enabled' | 'floor' | 'scenarioName'>,
+    field: keyof Pick<FormulaPricingRule, 'enabled' | 'floor' | 'scenarioName' | 'ticketClassId' | 'templateId'>,
     value: string | boolean,
   ) => {
     setPriceRules((prev) => {
       const current = prev[activeCabin]
       if (!current) return prev
       const formulaRules = [...current.formulaRules]
-      formulaRules[index] = { ...formulaRules[index], [field]: value }
+      const row = formulaRules[index]
+
+      if (field === 'ticketClassId' && typeof value === 'string') {
+        const formulaTemplate = occupancyFormulaTemplates.find((item) => item.ticketClassId === value)
+        formulaRules[index] = normalizeFormulaRule({
+          ...row,
+          ticketClassId: value,
+          templateId: formulaTemplate?.id,
+          scenario: formulaTemplate?.scenario || row.scenario,
+          scenarioName: formulaTemplate?.name || row.scenarioName,
+          guestCoefficients:
+            formulaTemplate?.guestCoefficients.map((coefficient) => ({ ...coefficient }))
+            || row.guestCoefficients,
+        })
+      } else if (field === 'templateId' && typeof value === 'string') {
+        const formulaTemplate = getOccupancyFormulaTemplate(value)
+        formulaRules[index] = normalizeFormulaRule({
+          ...row,
+          templateId: value,
+          scenario: formulaTemplate?.scenario || row.scenario,
+          scenarioName: formulaTemplate?.name || row.scenarioName,
+          ticketClassId: formulaTemplate?.ticketClassId || row.ticketClassId,
+          guestCoefficients:
+            formulaTemplate?.guestCoefficients.map((coefficient) => ({ ...coefficient }))
+            || row.guestCoefficients,
+        })
+      } else {
+        formulaRules[index] = normalizeFormulaRule({ ...row, [field]: value })
+      }
+
       return { ...prev, [activeCabin]: { ...current, formulaRules } }
     })
   }
 
-  const addFormulaRule = () => {
+  const updateGuestCoefficient = (
+    index: number,
+    guestIndex: number,
+    field: keyof GuestPriceCoefficient,
+    value: number,
+  ) => {
     setPriceRules((prev) => {
       const current = prev[activeCabin]
       if (!current) return prev
+      const formulaRules = [...current.formulaRules]
+      const row = formulaRules[index]
+      const guestCoefficients = row.guestCoefficients.map((coefficient, coefficientIndex) =>
+        coefficientIndex === guestIndex ? { ...coefficient, [field]: value } : coefficient,
+      )
+      formulaRules[index] = normalizeFormulaRule({ ...row, guestCoefficients })
+      return { ...prev, [activeCabin]: { ...current, formulaRules } }
+    })
+  }
+
+  const addFormulaRule = (templateId?: string) => {
+    setPriceRules((prev) => {
+      const current = prev[activeCabin]
+      if (!current) return prev
+      const formulaTemplate = templateId ? getOccupancyFormulaTemplate(templateId) : undefined
+      const nextRule = formulaTemplate
+        ? normalizeFormulaRule({
+            ...createEmptyFormulaRule(formulaTemplate.ticketClassId),
+            floor: '全部',
+            scenario: formulaTemplate.scenario,
+            scenarioName: formulaTemplate.name,
+            templateId: formulaTemplate.id,
+            guestCoefficients: formulaTemplate.guestCoefficients.map((coefficient) => ({ ...coefficient })),
+          })
+        : createEmptyFormulaRule()
       return {
         ...prev,
         [activeCabin]: {
           ...current,
-          formulaRules: [
-            ...current.formulaRules,
-            {
-              id: 'custom-' + Date.now(),
-              floor: '全部',
-              scenario: 'custom' as const,
-              scenarioName: '新规则',
-              formula: 'P',
-              enabled: true,
-            },
-          ],
+          formulaRules: [...current.formulaRules, nextRule],
         },
       }
     })
@@ -146,7 +241,7 @@ export default function TemplatePricePage() {
         ...prev,
         [activeCabin]: {
           ...current,
-          formulaRules: current.formulaRules.filter((r) => r.id !== ruleId),
+          formulaRules: current.formulaRules.filter((rule) => rule.id !== ruleId),
         },
       }
     })
@@ -254,22 +349,14 @@ export default function TemplatePricePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {(Object.keys(priceRule.variables) as TemplatePricingVariableKey[]).map((key, idx) => (
+                  {variableRows.map(({ key, category, rowSpan }) => (
                     <tr key={key} className="hover:bg-gray-50/50">
-                      {idx === 0 && (
+                      {rowSpan > 0 && (
                         <td
-                          rowSpan={3}
+                          rowSpan={rowSpan}
                           className="sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-3 text-center align-middle shadow-[1px_0_0_0_#f3f4f6]"
                         >
-                          <span className="text-2xl font-bold text-gray-900">P</span>
-                        </td>
-                      )}
-                      {idx === 3 && (
-                        <td
-                          rowSpan={3}
-                          className="sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-3 text-center align-middle shadow-[1px_0_0_0_#f3f4f6]"
-                        >
-                          <span className="text-2xl font-bold text-gray-900">S</span>
+                          <span className="text-2xl font-bold text-gray-900">{category}</span>
                         </td>
                       )}
                       <td className="sticky left-16 z-10 whitespace-nowrap border-r border-gray-100 bg-white px-4 py-3 shadow-[1px_0_0_0_#f3f4f6]">
@@ -281,7 +368,7 @@ export default function TemplatePricePage() {
                                 <span className="ml-0.5 font-sans text-xs">口岸</span>
                               </>
                             )}
-                            {key === 'Q' && (
+                            {key === 'P_AREA' && (
                               <>
                                 <span className="text-lg font-bold">P</span>
                                 <span className="ml-0.5 font-sans text-xs">区域</span>
@@ -293,7 +380,15 @@ export default function TemplatePricePage() {
                                 <span className="ml-0.5 font-sans text-xs">标准</span>
                               </>
                             )}
-                            {key !== 'P' && key !== 'Q' && key !== 'K' && <VariableToken code={key} />}
+                            {key === 'Q' && (
+                              <>
+                                <span className="text-lg font-bold">Q</span>
+                                <span className="ml-1 font-sans text-xs">常数</span>
+                              </>
+                            )}
+                            {key !== 'P' && key !== 'P_AREA' && key !== 'Q' && key !== 'K' && (
+                              <VariableToken code={key} />
+                            )}
                           </span>
                           <span className="mt-0.5 font-sans text-xs text-gray-400">{templateVariableLabels[key]}</span>
                         </div>
@@ -324,114 +419,191 @@ export default function TemplatePricePage() {
         </div>
 
         <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">入住组合公式</h4>
+              <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600">
+                与房型管理一致：按入住人分别配置 P、S、Q 系数
+              </span>
+            </div>
             {editMode && (
               <button
-                onClick={addFormulaRule}
+                type="button"
+                onClick={() => addFormulaRule()}
                 className="text-sm font-medium text-blue-600 hover:text-blue-700"
               >
-                + 新增规则
+                + 新增自定义规则
               </button>
             )}
           </div>
           <div className="overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[600px] text-sm">
+            <table className="w-full min-w-[1180px] text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b bg-gray-50/80">
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">甲板层</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">入住组合</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">公式</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium whitespace-nowrap text-gray-500">计算结果(全程)</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">状态</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">公式模板</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">按人系数</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">航次计算公式</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-medium text-gray-500">计算结果（航段0）</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">启用</th>
                   {editMode && <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">操作</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {priceRule.formulaRules.map((row, index) => (
-                  <tr key={row.id} className="hover:bg-gray-50/50">
-                    <td className="whitespace-nowrap px-4 py-3">
-                      {editMode ? (
-                        <input
-                          value={row.floor}
-                          onChange={(e) => updateFormulaRule(index, 'floor', e.target.value)}
-                          className="rounded border border-gray-300 px-2 py-1 text-xs"
-                        />
-                      ) : (
-                        <span className="rounded bg-gray-50 px-2 py-1 text-sm font-medium text-gray-600">
-                          {row.floor}
-                        </span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
-                      {editMode ? (
-                        <input
-                          value={row.scenarioName}
-                          onChange={(e) => updateFormulaRule(index, 'scenarioName', e.target.value)}
-                          className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
-                        />
-                      ) : (
-                        row.scenarioName
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {editMode ? (
-                        <input
-                          value={row.formula}
-                          onChange={(e) => updateFormulaRule(index, 'formula', e.target.value)}
-                          className="w-full rounded border border-gray-300 px-2 py-1.5 font-mono text-xs"
-                        />
-                      ) : (
-                        <span className="rounded bg-gray-50 px-2 py-1 font-mono text-sm text-gray-700">{row.formula}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-blue-600">
-                      ¥
-                      {evaluateTemplateFormula(
-                        row.formula,
-                        {
-                          P: priceRule.variables.P[0] ?? 0,
-                          Q: priceRule.variables.Q[0] ?? 0,
-                          K: priceRule.variables.K[0] ?? 0,
-                          S1F: priceRule.variables.S1F[0] ?? 0,
-                          S2F: priceRule.variables.S2F[0] ?? 0,
-                          S3F: priceRule.variables.S3F[0] ?? 0,
-                        },
-                      ).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {editMode ? (
-                        <input
-                          type="checkbox"
-                          checked={row.enabled}
-                          onChange={(e) => updateFormulaRule(index, 'enabled', e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                      ) : (
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                            row.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          {row.enabled ? '已启用' : '已停用'}
-                        </span>
-                      )}
-                    </td>
-                    {editMode && (
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => removeFormulaRule(row.id)}
-                          className="text-xs text-red-500 hover:text-red-600"
-                        >
-                          删除
-                        </button>
+                {priceRule.formulaRules.map((row, index) => {
+                  const formula = buildVoyageFormula(row)
+                  const ticketClass = getTicketClassById(row.ticketClassId)
+                  const guestLabels =
+                    ticketClass?.types.map((type) => type.label)
+                    || row.guestCoefficients.map((_, guestIndex) => `第${guestIndex + 1}人`)
+                  return (
+                    <tr key={row.id} className="hover:bg-gray-50/50">
+                      <td className="whitespace-nowrap px-4 py-3 align-top">
+                        {editMode ? (
+                          <select
+                            value={row.floor}
+                            onChange={(event) => updateFormulaRule(index, 'floor', event.target.value)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                          >
+                            {templateDeckOptions.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="rounded bg-gray-50 px-2 py-1 text-sm font-medium text-gray-600">
+                            {row.floor}
+                          </span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="whitespace-nowrap px-4 py-3 align-top">
+                        {editMode ? (
+                          <select
+                            value={row.templateId || ''}
+                            onChange={(event) => updateFormulaRule(index, 'templateId', event.target.value)}
+                            className="max-w-[170px] rounded border border-gray-300 px-2 py-1 text-xs"
+                          >
+                            <option value="">自定义</option>
+                            {occupancyFormulaTemplates.map((formulaTemplate) => (
+                              <option key={formulaTemplate.id} value={formulaTemplate.id}>
+                                {formulaTemplate.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-600">
+                            {getOccupancyFormulaTemplate(row.templateId || '')?.name || '自定义'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="min-w-[380px] px-4 py-3 align-top">
+                        <div className="mb-2">
+                          {editMode ? (
+                            <input
+                              value={row.scenarioName}
+                              onChange={(event) => updateFormulaRule(index, 'scenarioName', event.target.value)}
+                              className="w-full max-w-[220px] rounded border border-gray-300 px-2 py-1 text-xs"
+                            />
+                          ) : (
+                            <span className="font-medium text-gray-900">{row.scenarioName}</span>
+                          )}
+                          <div className="mt-1 text-[11px] text-gray-400">{ticketClass?.name || '-'}</div>
+                        </div>
+                        {editMode ? (
+                          <div className="space-y-2">
+                            {row.guestCoefficients.map((guestCoefficient, guestIndex) => (
+                              <div key={`${row.id}-guest-${guestIndex}`} className="flex flex-wrap items-center gap-1.5">
+                                <span className="w-12 shrink-0 text-[11px] text-gray-500">
+                                  {guestLabels[guestIndex]}
+                                </span>
+                                <CoefficientStepper
+                                  value={guestCoefficient.p}
+                                  onChange={(value) => updateGuestCoefficient(index, guestIndex, 'p', value)}
+                                />
+                                <span className="font-mono text-xs text-gray-500">P</span>
+                                <span className="text-xs text-gray-400">+</span>
+                                <CoefficientStepper
+                                  value={guestCoefficient.s}
+                                  onChange={(value) => updateGuestCoefficient(index, guestIndex, 's', value)}
+                                />
+                                <span className="font-mono text-xs text-gray-500">S</span>
+                                <span className="text-xs text-gray-400">+</span>
+                                <CoefficientStepper
+                                  value={guestCoefficient.q}
+                                  onChange={(value) => updateGuestCoefficient(index, guestIndex, 'q', value)}
+                                />
+                                <span className="font-mono text-xs text-gray-500">Q</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs leading-5 text-gray-700">
+                            {formatFormulaFromGuestCoefficients(row.guestCoefficients)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className="rounded bg-gray-50 px-2 py-1 font-mono text-sm text-gray-700">
+                          {formula}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right align-top font-semibold text-blue-600">
+                        ¥
+                        {evaluateTemplateFormula(
+                          formula,
+                          {
+                            P: priceRule.variables.P[0] ?? 0,
+                            P_AREA: priceRule.variables.P_AREA[0] ?? 0,
+                            Q: priceRule.variables.Q[0] ?? 0,
+                            K: priceRule.variables.K[0] ?? 0,
+                            S1F: priceRule.variables.S1F[0] ?? 0,
+                            S2F: priceRule.variables.S2F[0] ?? 0,
+                            S3F: priceRule.variables.S3F[0] ?? 0,
+                          },
+                        ).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-center align-top">
+                        {editMode ? (
+                          <input
+                            type="checkbox"
+                            checked={row.enabled}
+                            onChange={(event) => updateFormulaRule(index, 'enabled', event.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                        ) : (
+                          <span className={`inline-block h-2 w-2 rounded-full ${row.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                        )}
+                      </td>
+                      {editMode && (
+                        <td className="px-4 py-3 text-center align-top">
+                          <button
+                            type="button"
+                            onClick={() => removeFormulaRule(row.id)}
+                            className="text-xs text-red-500 hover:text-red-600"
+                          >
+                            删除
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
+          {editMode && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {occupancyFormulaTemplates.map((formulaTemplate) => (
+                <button
+                  key={formulaTemplate.id}
+                  type="button"
+                  onClick={() => addFormulaRule(formulaTemplate.id)}
+                  className="rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-100"
+                >
+                  + {formulaTemplate.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

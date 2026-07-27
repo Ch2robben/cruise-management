@@ -18,7 +18,12 @@ export default function SpecialPriceBookingPage() {
 
   const handleNext = (data?: unknown) => {
     if (data) {
-      if (currentStep === 1) {
+      if (currentStep === 0) {
+        setBookingDraft((prev) => ({
+          ...prev,
+          ...(data as Pick<DealerBookingDraft, 'productId' | 'productName' | 'voyageSummary'>),
+        }))
+      } else if (currentStep === 1) {
         const step2Data = data as DealerBookingDraft & { rooms?: DealerBookingDraft['rooms'] }
         const cart = step2Data.cart ?? []
         setBookingDraft((prev) => ({
@@ -111,7 +116,9 @@ export default function SpecialPriceBookingPage() {
 
       <div>
         {currentStep === 0 && <Step1RouteSelection onNext={handleNext} />}
-        {currentStep === 1 && <Step2RoomReserve onNext={handleNext} onPrev={handlePrev} />}
+        {currentStep === 1 && (
+          <Step2RoomReserve voyageSummary={bookingDraft.voyageSummary} onNext={handleNext} onPrev={handlePrev} />
+        )}
         {currentStep === 2 && (
           <Step3TouristInfo roomData={bookingDraft.rooms ?? {}} onNext={handleNext} onPrev={handlePrev} />
         )}
