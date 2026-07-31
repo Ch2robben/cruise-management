@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore'
 import { LogOut, User, Repeat } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { APP_UPDATED_AT, APP_VERSION } from '@/config/appMeta'
 
 export default function Header() {
   const { user, logout } = useAuthStore()
@@ -23,9 +24,14 @@ export default function Header() {
   }
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
-      <div className="text-sm text-gray-500">
-        欢迎回来，<span className="text-gray-900 font-medium">{user?.name}</span>
+    <header className="min-h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 py-2 shrink-0">
+      <div className="flex flex-col gap-0.5">
+        <div className="text-sm text-gray-500">
+          欢迎回来，<span className="text-gray-900 font-medium">{user?.name}</span>
+        </div>
+        <div className="text-[11px] leading-4 text-gray-400">
+          版本 {APP_VERSION} · 更新时间 {APP_UPDATED_AT}
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-sm text-gray-500">
