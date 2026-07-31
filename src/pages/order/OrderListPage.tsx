@@ -11,6 +11,9 @@ import { matchOrderGroupName, syncOrderFromFeeItems, type CruiseOrder, type Orde
 import { getOrders, updateOrder } from '@/mock/orderStore'
 import { appendOrderLog, nowLogTime } from '@/mock/orderLogStore'
 import { formatCurrency } from '@/utils/format'
+import InitiateRefundDialog from '@/components/order/InitiateRefundDialog'
+import { createRefundOrder } from '@/mock/refundOrderStore'
+import type { CreateRefundOrderForm } from '@/components/order/refundOrderTypes'
 
 const statusColor: Record<OrderStatus, string> = {
   取消: 'bg-red-100 text-red-700',
@@ -179,6 +182,7 @@ export default function OrderListPage() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<CruiseOrder | null>(null)
   const [priceTarget, setPriceTarget] = useState<CruiseOrder | null>(null)
+  const [refundTarget, setRefundTarget] = useState<CruiseOrder | null>(null)
   const [logTarget, setLogTarget] = useState<CruiseOrder | null>(null)
   const [dialogLoading, setDialogLoading] = useState(false)
 
@@ -262,6 +266,28 @@ export default function OrderListPage() {
     } else {
       window.alert('改价完成。')
     }
+  }
+
+  const handleRefundSubmit = async (form: CreateRefundOrderForm) => {
+    if (!refundTarget) return
+    setDialogLoading(true)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const refundOrder = createRefundOrder(form)
+    appendOrderLog(appendOrderLogFromOrder(refundTarget, {
+      action: '发起退款申请',
+      operator: ORDER_LOG_OPERATOR,
+      operatedAt: nowLogTime(),
+    changes: [
+      `退款单号: ${refundOrder.refundNo}`,
+      `退款状态: ${refundTarget.refundStatus || '无退款'} -> 退款处理中`,
+      `申请退款金额: ${formatCurrency(form.applyRefundAmount)}`,
+    ],
+    }))
+    refreshOrders()
+    setDialogLoading(false)
+    const targetNo = refundTarget.orderNo
+    setRefundTarget(null)
+    window.alert(`订单 ${targetNo} 已成功提交退款申请 (退款单号: ${refundOrder.refundNo})！该单据已同步至【订单管理 -> 退款单管理】待审核。`)
   }
 
   if (logTarget) {
@@ -404,6 +430,15 @@ export default function OrderListPage() {
                           >
                             改价
                           </button>
+                          {order.orderStatus !== '取消' && (
+                            <button
+                              type="button"
+                              onClick={() => setRefundTarget(order)}
+                              className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            >
+                              发起退款
+                            </button>
+                          )}
                         </div>
                       ) : column.key === 'history' ? (
                         <button
@@ -455,6 +490,14 @@ export default function OrderListPage() {
         loading={dialogLoading}
         onCancel={() => setPriceTarget(null)}
         onSubmit={handlePriceSubmit}
+      />
+
+      <InitiateRefundDialog
+        open={!!refundTarget}
+        order={refundTarget}
+        loading={dialogLoading}
+        onCancel={() => setRefundTarget(null)}
+        onSubmit={handleRefundSubmit}
       />
     </div>
   )

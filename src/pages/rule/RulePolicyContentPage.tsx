@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Eye, Plus } from 'lucide-react'
+import { Eye, Plus, ExternalLink } from 'lucide-react'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import DataTable from '@/components/common/DataTable'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
@@ -8,110 +8,22 @@ import PageHeader from '@/components/common/PageHeader'
 import RichTextEditor, { RichTextContent } from '@/components/common/RichTextEditor'
 import SearchPanel from '@/components/common/SearchPanel'
 import StatusBadge from '@/components/common/StatusBadge'
-import { formatDateTime, generateId } from '@/utils/format'
-
-type PolicyContentCategory = 'booking_rule' | 'change_refund_rule' | 'new_route' | 'new_product'
-type PolicyContentStatus = 'draft' | 'published' | 'disabled'
-
-interface PolicyContent {
-  id: string
-  title: string
-  category: PolicyContentCategory
-  summary: string
-  content: string
-  status: PolicyContentStatus
-  sort: number
-  updatedBy: string
-  updatedAt: string
-  publishedAt: string
-}
-
-type PolicyContentForm = Pick<
-  PolicyContent,
-  'title' | 'category' | 'summary' | 'content' | 'status' | 'sort'
->
-
-const categoryOptions: Array<{ value: PolicyContentCategory; label: string }> = [
-  { value: 'booking_rule', label: '预订规则' },
-  { value: 'change_refund_rule', label: '退改规则' },
-  { value: 'new_route', label: '新航线' },
-  { value: 'new_product', label: '新产品介绍' },
-]
-
-const categoryClass: Record<PolicyContentCategory, string> = {
-  booking_rule: 'bg-blue-50 text-blue-700',
-  change_refund_rule: 'bg-orange-50 text-orange-700',
-  new_route: 'bg-teal-50 text-teal-700',
-  new_product: 'bg-purple-50 text-purple-700',
-}
-
-const initialContents: PolicyContent[] = [
-  {
-    id: 'policy-content-001',
-    title: '长江游轮产品预订须知',
-    category: 'booking_rule',
-    summary: '说明预订信息填写、舱房选择、定金支付及订单保留要求。',
-    content:
-      '<p><b>预订前请确认航次、房型及入住人数。</b></p><ol><li>旅客姓名和证件信息须与有效证件一致。</li><li>提交订单后，请在订单有效期内完成定金支付。</li><li>儿童、婴儿及加床需求以对应票类和房型规则为准。</li></ol>',
-    status: 'published',
-    sort: 10,
-    updatedBy: '系统管理员',
-    updatedAt: '2026-07-26T09:30:00',
-    publishedAt: '2026-07-20T10:00:00',
-  },
-  {
-    id: 'policy-content-002',
-    title: '订单退改及取消说明',
-    category: 'change_refund_rule',
-    summary: '展示订单退改申请入口、费用计算口径及审核结果说明。',
-    content:
-      '<p>订单退改费用以提交申请时匹配到的有效规则为准。</p><ul><li>已支付订单需先提交退改申请。</li><li>涉及旅客、房型或航次变更时，系统将重新校验库存及价格。</li><li>最终费用和退款金额以审核结果为准。</li></ul>',
-    status: 'published',
-    sort: 20,
-    updatedBy: '彭琳',
-    updatedAt: '2026-07-25T16:20:00',
-    publishedAt: '2026-07-22T11:15:00',
-  },
-  {
-    id: 'policy-content-003',
-    title: '重庆—宜昌精品航线发布',
-    category: 'new_route',
-    summary: '介绍重庆至宜昌航线的主要停靠港和产品特色。',
-    content:
-      '<p><b>重庆—宜昌精品航线即将开放预订。</b></p><p>航线覆盖丰都、奉节、宜昌等主要停靠港，具体航次日期与行程安排以上架产品为准。</p>',
-    status: 'draft',
-    sort: 30,
-    updatedBy: '赵昕玥',
-    updatedAt: '2026-07-26T14:10:00',
-    publishedAt: '',
-  },
-  {
-    id: 'policy-content-004',
-    title: '长江探索号全新套房产品介绍',
-    category: 'new_product',
-    summary: '展示长江探索号套房产品定位、入住组合及预订提示。',
-    content:
-      '<p>长江探索号套房产品现已开放销售。</p><ul><li>支持标准双人入住及单间入住。</li><li>儿童、婴儿和加床价格以航次价格配置为准。</li><li>房型数量有限，实际可售状态以下单页面为准。</li></ul>',
-    status: 'published',
-    sort: 40,
-    updatedBy: '彭琳',
-    updatedAt: '2026-07-24T11:45:00',
-    publishedAt: '2026-07-24T11:45:00',
-  },
-  {
-    id: 'policy-content-005',
-    title: '特殊旅客预订信息填写说明',
-    category: 'booking_rule',
-    summary: '说明儿童、婴儿及其他特殊旅客的预订信息填写要求。',
-    content:
-      '<p>特殊旅客下单时须选择正确票类，并按页面要求填写出生日期、证件信息和监护人信息。</p>',
-    status: 'disabled',
-    sort: 50,
-    updatedBy: '系统管理员',
-    updatedAt: '2026-07-18T09:00:00',
-    publishedAt: '2026-07-10T09:00:00',
-  },
-]
+import { formatDateTime } from '@/utils/format'
+import {
+  getPolicyContents,
+  addPolicyContent,
+  updatePolicyContent,
+  togglePolicyPublishStatus,
+  deletePolicyContent,
+  getCategoryLabel,
+  getPlainText,
+  categoryOptions,
+  categoryClass,
+  type PolicyContent,
+  type PolicyContentCategory,
+  type PolicyContentForm,
+  type PolicyContentStatus,
+} from '@/mock/policyContentStore'
 
 const emptyForm: PolicyContentForm = {
   title: '',
@@ -120,29 +32,19 @@ const emptyForm: PolicyContentForm = {
   content: '',
   status: 'draft',
   sort: 0,
-}
-
-function getCategoryLabel(category: PolicyContentCategory) {
-  return categoryOptions.find((item) => item.value === category)?.label || category
+  pinned: false,
 }
 
 function CategoryTag({ category }: { category: PolicyContentCategory }) {
   return (
-    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${categoryClass[category]}`}>
+    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium border ${categoryClass[category]}`}>
       {getCategoryLabel(category)}
     </span>
   )
 }
 
-function getPlainText(html: string) {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .trim()
-}
-
 export default function RulePolicyContentPage() {
-  const [records, setRecords] = useState<PolicyContent[]>(initialContents)
+  const [records, setRecords] = useState<PolicyContent[]>(() => getPolicyContents())
   const [keyword, setKeyword] = useState('')
   const [category, setCategory] = useState<'all' | PolicyContentCategory>('all')
   const [status, setStatus] = useState<'all' | PolicyContentStatus>('all')
@@ -161,6 +63,10 @@ export default function RulePolicyContentPage() {
   const [preview, setPreview] = useState<PolicyContent | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<PolicyContent | null>(null)
   const [toast, setToast] = useState('')
+
+  const refreshRecords = () => {
+    setRecords([...getPolicyContents()])
+  }
 
   const filteredRecords = useMemo(() => {
     const normalizedKeyword = query.keyword.trim().toLowerCase()
@@ -214,6 +120,7 @@ export default function RulePolicyContentPage() {
       content: record.content,
       status: record.status,
       sort: record.sort,
+      pinned: record.pinned ?? false,
     })
     setErrors({})
     setFormOpen(true)
@@ -234,67 +141,33 @@ export default function RulePolicyContentPage() {
 
   const submitForm = () => {
     if (!validateForm()) return
-    const now = new Date().toISOString()
 
     if (editingId) {
-      setRecords((previous) =>
-        previous.map((item) =>
-          item.id === editingId
-            ? {
-                ...item,
-                ...form,
-                title: form.title.trim(),
-                summary: form.summary.trim(),
-                updatedBy: '当前用户',
-                updatedAt: now,
-                publishedAt: form.status === 'published' ? item.publishedAt || now : item.publishedAt,
-              }
-            : item,
-        ),
-      )
+      updatePolicyContent(editingId, form)
+      refreshRecords()
       showToast('内容已更新')
     } else {
-      setRecords((previous) => [
-        {
-          id: generateId(),
-          ...form,
-          title: form.title.trim(),
-          summary: form.summary.trim(),
-          updatedBy: '当前用户',
-          updatedAt: now,
-          publishedAt: form.status === 'published' ? now : '',
-        },
-        ...previous,
-      ])
+      addPolicyContent(form)
+      refreshRecords()
       setPage(1)
-      showToast(form.status === 'published' ? '内容已新增并发布' : '内容草稿已保存')
+      showToast(form.status === 'published' ? '内容已新增并发布，分销台已同步显示' : '内容草稿已保存')
     }
 
     setFormOpen(false)
   }
 
-  const togglePublishStatus = (record: PolicyContent) => {
-    const nextStatus: PolicyContentStatus = record.status === 'published' ? 'disabled' : 'published'
-    const now = new Date().toISOString()
-    setRecords((previous) =>
-      previous.map((item) =>
-        item.id === record.id
-          ? {
-              ...item,
-              status: nextStatus,
-              updatedBy: '当前用户',
-              updatedAt: now,
-              publishedAt: nextStatus === 'published' ? item.publishedAt || now : item.publishedAt,
-            }
-          : item,
-      ),
-    )
-    showToast(nextStatus === 'published' ? '内容已发布' : '内容已下架')
+  const handleTogglePublishStatus = (record: PolicyContent) => {
+    const updated = togglePolicyPublishStatus(record.id)
+    refreshRecords()
+    if (updated) {
+      showToast(updated.status === 'published' ? '内容已发布，分销台已同步展示' : '内容已下架，分销台已隐藏')
+    }
   }
 
   const confirmDelete = () => {
     if (!deleteTarget) return
-    setRecords((previous) => previous.filter((item) => item.id !== deleteTarget.id))
+    deletePolicyContent(deleteTarget.id)
+    refreshRecords()
     setDeleteTarget(null)
     showToast('内容已删除')
   }
@@ -362,7 +235,7 @@ export default function RulePolicyContentPage() {
           </button>
           <button
             type="button"
-            onClick={() => togglePublishStatus(record)}
+            onClick={() => handleTogglePublishStatus(record)}
             className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
           >
             {record.status === 'published' ? '下架' : '发布'}
@@ -381,16 +254,45 @@ export default function RulePolicyContentPage() {
     },
   ]
 
+  const stats = useMemo(() => {
+    return {
+      total: records.length,
+      published: records.filter((r) => r.status === 'published').length,
+      draft: records.filter((r) => r.status === 'draft').length,
+      disabled: records.filter((r) => r.status === 'disabled').length,
+    }
+  }, [records])
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="规则/政策展示"
         description="维护面向 B 端展示的预订规则、退改规则、新航线和新产品介绍内容"
       />
 
+      {/* Metric Overview */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-gray-500">规则/政策总数</div>
+          <div className="mt-2 text-2xl font-bold font-mono text-gray-900">{stats.total} <span className="text-xs font-normal text-gray-400">条记录</span></div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-gray-500">已发布 (分销台可见)</div>
+          <div className="mt-2 text-2xl font-bold font-mono text-blue-600">{stats.published} <span className="text-xs font-normal text-gray-400">同步展示中</span></div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-gray-500">草稿箱 (编辑中)</div>
+          <div className="mt-2 text-2xl font-bold font-mono text-orange-600">{stats.draft} <span className="text-xs font-normal text-gray-400">待发布</span></div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-gray-500">已下架 (暂停展示)</div>
+          <div className="mt-2 text-2xl font-bold font-mono text-gray-400">{stats.disabled} <span className="text-xs font-normal text-gray-400">项隐藏</span></div>
+        </div>
+      </div>
+
       <SearchPanel onSearch={submitSearch} onReset={resetSearch}>
         <label className="w-64 text-sm text-gray-600">
-          <span className="mb-1.5 block">关键词</span>
+          <span className="mb-1.5 block font-medium">关键词</span>
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
@@ -400,13 +302,13 @@ export default function RulePolicyContentPage() {
           />
         </label>
         <label className="w-44 text-sm text-gray-600">
-          <span className="mb-1.5 block">内容分类</span>
+          <span className="mb-1.5 block font-medium">内容分类</span>
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value as 'all' | PolicyContentCategory)}
             className="h-12 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-blue-500"
           >
-            <option value="all">全部</option>
+            <option value="all">全部分类</option>
             {categoryOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -415,13 +317,13 @@ export default function RulePolicyContentPage() {
           </select>
         </label>
         <label className="w-36 text-sm text-gray-600">
-          <span className="mb-1.5 block">状态</span>
+          <span className="mb-1.5 block font-medium">发布状态</span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as 'all' | PolicyContentStatus)}
             className="h-12 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-blue-500"
           >
-            <option value="all">全部</option>
+            <option value="all">全部状态</option>
             <option value="draft">草稿</option>
             <option value="published">已发布</option>
             <option value="disabled">已停用</option>
@@ -429,15 +331,25 @@ export default function RulePolicyContentPage() {
         </label>
       </SearchPanel>
 
-      <div className="bg-white px-9 py-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm flex items-center justify-between">
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"
+          className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
         >
           <Plus className="h-4 w-4" />
           新增内容
         </button>
+
+        <a
+          href="#/dealer/rules"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition shadow-sm"
+        >
+          <ExternalLink className="h-3.5 w-3.5 text-blue-600" />
+          前往分销台（经销商端）同步预览展示 ➔
+        </a>
       </div>
 
       <DataTable<PolicyContent>

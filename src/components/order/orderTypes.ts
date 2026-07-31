@@ -112,6 +112,7 @@ export interface CruiseOrder {
   voucherApprovalStatus: string
   shareCenterStatus: string
   pushTime: string
+  refundStatus?: '无退款' | '退款处理中' | '已退款' | '退款被拒'
   invoiceRequired: string
   miniProgramChannel: string
   advanceAccount: string

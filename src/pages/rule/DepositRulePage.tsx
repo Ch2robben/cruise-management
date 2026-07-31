@@ -349,6 +349,38 @@ function ConfigTable({
 }) {
   const editable = Boolean(onUpdate)
 
+  if (editable) {
+    return (
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-4 flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
+              <div className="min-w-0 text-sm text-gray-700">
+                <span className="font-medium text-gray-900">{row.productName}</span>
+                <span className="mx-2 text-gray-300">/</span>
+                <span>{row.routeName}</span>
+                <span className="mx-2 text-gray-300">/</span>
+                <span>{row.roomType}</span>
+              </div>
+              {showRemove && <button type="button" onClick={() => onRemove?.(row.id)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" />移除</button>}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div><label className="mb-1 block text-xs text-gray-500">是否收取</label><select value={row.chargeDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'chargeDeposit', e.target.value === 'yes')} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs"><option value="yes">是</option><option value="no">否</option></select></div>
+              <div><label className="mb-1 block text-xs text-gray-500">计算方式</label><select value={row.calculationType} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'calculationType', e.target.value as DepositCalculationType)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{calculationTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+              <div><label className="mb-1 block text-xs text-gray-500">维度</label><select value={row.dimension} disabled={!row.chargeDeposit || row.calculationType === 'percent'} onChange={(e) => onUpdate!(row.id, 'dimension', e.target.value as DepositDimension)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{dimensionOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+              <div><label className="mb-1 block text-xs text-gray-500">定金标准</label><NumberStepper value={row.amount} min={0} max={row.calculationType === 'percent' ? 100 : undefined} step={row.calculationType === 'percent' ? 1 : 10} disabled={!row.chargeDeposit} onChange={(value) => onUpdate!(row.id, 'amount', value)} /></div>
+              <div><label className="mb-1 block text-xs text-gray-500">计价范围</label><select value={row.feeScope} disabled={!row.chargeDeposit || row.calculationType === 'fixed'} onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as DepositFeeScope)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+              <div><label className="mb-1 block text-xs text-gray-500">支付触发点</label><select value={row.paymentTrigger} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'paymentTrigger', e.target.value as DepositTrigger)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{triggerOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+              <div className="sm:col-span-2"><label className="mb-1 block text-xs text-gray-500">支付期限</label><div className="flex flex-wrap items-center gap-1.5"><select value={row.deadlineType} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'deadlineType', e.target.value as DepositDeadlineType)} className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{deadlineTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><NumberStepper value={row.deadlineValue} min={0} step={1} disabled={!row.chargeDeposit} onChange={(value) => onUpdate!(row.id, 'deadlineValue', value)} compact /><select value={row.deadlineTimeUnit} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'deadlineTimeUnit', e.target.value as TimeUnit)} className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{timeUnitOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div></div>
+              <div><label className="mb-1 block text-xs text-gray-500">抵扣船款</label><select value={row.offsetPayment ? 'yes' : 'no'} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'offsetPayment', e.target.value === 'yes')} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100"><option value="yes">是</option><option value="no">否</option></select></div>
+              <div><label className="mb-1 block text-xs text-gray-500">逾期未付处理</label><select value={row.overdueAction} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as DepositOverdueAction)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
       <table className="min-w-[1900px] w-full text-sm">

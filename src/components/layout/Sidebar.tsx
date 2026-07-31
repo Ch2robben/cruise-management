@@ -50,6 +50,7 @@ const menuItems: MenuItem[] = [
     key: 'order', label: '订单管理', icon: 'ShoppingCart',
     children: [
       { key: 'order_list', label: '订单列表', path: '/orders/list' },
+      { key: 'refund_order', label: '退款单管理', path: '/orders/refunds' },
       { key: 'voyage_additional_products', label: '航次附加产品清单', path: '/orders/voyage-additional-products' },
       { key: 'voyage_passenger_room', label: '航次旅客房型管理', path: '/orders/voyage-passenger-rooms' },
     ],
@@ -61,7 +62,13 @@ const menuItems: MenuItem[] = [
     key: 'distribution', label: '分销中心', icon: 'Ship',
     children: [
       { key: 'cooperation', label: '合作管理', path: '/distribution/cooperation' },
+      { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
       { key: 'distribution_mgmt', label: '分销管理', path: '/distribution/distribution-mgmt' },
+      { key: 'deposit_rule', label: '定金规则管理', path: '/rule/deposit' },
+      { key: 'payment_rule', label: '船款规则管理', path: '/rule/payment' },
+      { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
+      { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
+      { key: 'price_policy_type', label: '价格政策类型', path: '/rule/price-type' },
       { key: 'ota', label: 'OTA平台分销', path: '/distribution/ota' },
       { key: 'discount_management', label: '优惠管理', path: '/distribution/discounts' },
     ],
@@ -121,13 +128,7 @@ const menuItems: MenuItem[] = [
   {
     key: 'rule', label: '规则中心', icon: 'ClipboardList',
     children: [
-      { key: 'deposit_rule', label: '定金规则管理', path: '/rule/deposit' },
-      { key: 'payment_rule', label: '船款规则管理', path: '/rule/payment' },
-      { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
-      { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
-      { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
       // { key: 'discount_rule', label: '内外宾优惠政策管理', path: '/rule/discount' },
-      { key: 'price_policy_type', label: '价格政策类型', path: '/rule/price-type' },
       { key: 'policy_content', label: '规则/政策展示', path: '/rule/policy-content' },
       { key: 'rebate_rule', label: '返利政策管理', path: '/rule/rebate' },
       { key: 'rebate_target', label: '返利任务指标', path: '/rule/rebate-targets' },

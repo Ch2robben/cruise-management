@@ -5,9 +5,13 @@ import PageHeader from '@/components/common/PageHeader'
 import DealerOrderRescheduleDialog, {
   type DealerRescheduleSubmitValue,
 } from '@/components/dealer/DealerOrderRescheduleDialog'
+import InitiateRefundDialog from '@/components/order/InitiateRefundDialog'
+import type { CreateRefundOrderForm } from '@/components/order/refundOrderTypes'
+import { createRefundOrder, getRefundOrdersByOrderId } from '@/mock/refundOrderStore'
 import { formatCurrency } from '@/utils/format'
 
 type OrderStatus = '取消' | '船款确认' | '已预订' | '已完成'
+type RefundStatus = '无退款' | '退款处理中' | '已退款' | '退款被拒'
 export type CruiseOrderDimension = 'order' | 'group' | 'room' | 'tourist'
 
 interface CruiseOrder {
@@ -51,6 +55,7 @@ interface CruiseOrder {
   voucherApprovalStatus: string
   shareCenterStatus: string
   pushTime: string
+  refundStatus?: RefundStatus
   invoiceRequired: string
   miniProgramChannel: string
   advanceAccount: string
@@ -140,6 +145,23 @@ const statusColor: Record<OrderStatus, string> = {
   已完成: 'bg-gray-100 text-gray-600',
 }
 
+const refundStatusColor: Record<RefundStatus, string> = {
+  无退款: 'bg-gray-100 text-gray-600',
+  退款处理中: 'bg-amber-100 text-amber-700',
+  已退款: 'bg-green-100 text-green-700',
+  退款被拒: 'bg-red-100 text-red-700',
+}
+
+const getDealerRefundOrderId = (orderId: string) => `dealer:${orderId}`
+
+function getLatestRefundStatus(order: CruiseOrder): RefundStatus {
+  const latestRefund = getRefundOrdersByOrderId(getDealerRefundOrderId(order.id))[0]
+  if (!latestRefund) return order.refundStatus || '无退款'
+  if (latestRefund.status === '已完成') return '已退款'
+  if (latestRefund.status === '已拒绝') return '退款被拒'
+  return '退款处理中'
+}
+
 const orders: CruiseOrder[] = [
   {
     id: '1',
@@ -148,7 +170,7 @@ const orders: CruiseOrder[] = [
     orderNo: '0000000H',
     groupName: 'ycwd20211007x',
     voyageNo: '212101',
-    orderStatus: '已预订',
+    orderStatus: '船款确认',
     route: '渝宜',
     ship: '长江壹号',
     sailDate: '2021-09-30',
@@ -166,8 +188,8 @@ const orders: CruiseOrder[] = [
     localFee: 0,
     combinedProduct: 0,
     totalAmount: 2300,
-    paidAmount: 0,
-    arrears: 2300,
+    paidAmount: 2300,
+    arrears: 0,
     depositAmount: 0,
     ticketBalance: 0,
     dealer: '宜昌趸多',
@@ -182,6 +204,7 @@ const orders: CruiseOrder[] = [
     voucherApprovalStatus: '待审核',
     shareCenterStatus: '暂存',
     pushTime: '',
+    refundStatus: '无退款',
     invoiceRequired: '否',
     miniProgramChannel: '',
     advanceAccount: '邓浪',
@@ -542,6 +565,7 @@ const dimensionMeta: Record<CruiseOrderDimension, { title: string; description: 
 const baseFilterFields: FilterField[] = [
   { key: 'keyword', label: '总单号/订单号', type: 'input', placeholder: '请输入' },
   { key: 'orderStatus', label: '订单状态', type: 'select', options: ['全部', '取消', '船款确认', '已预订', '已完成'] },
+  { key: 'refundStatus', label: '退款状态', type: 'select', options: ['全部', '无退款', '退款处理中', '已退款', '退款被拒'] },
   { key: 'voyageNo', label: '航次号', type: 'input', placeholder: '请输入' },
   { key: 'voyageStatus', label: '航次状态', type: 'select', options: ['全部', '开放', '关闭'] },
   { key: 'marketCategory', label: '市场类别', type: 'select', options: ['全部', '内宾-巫山县', '内宾-奉节县', '内宾-云阳县', '外宾-日本', '外宾-美国'] },
@@ -596,6 +620,7 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'orderNo', title: '订单号', width: '110px' },
   { key: 'voyageNo', title: '航次', width: '88px' },
   { key: 'orderStatus', title: '订单状态', width: '96px', render: (record) => <span className={`rounded px-2 py-1 text-xs ${statusColor[record.orderStatus]}`}>{record.orderStatus}</span> },
+  { key: 'refundStatus', title: '退款状态', width: '110px', render: (record) => <RefundStatusPill status={record.refundStatus || '无退款'} /> },
   { key: 'route', title: '线路', width: '90px' },
   { key: 'ship', title: '游轮', width: '110px' },
   { key: 'sailDate', title: '开船日期', width: '110px' },
@@ -626,7 +651,7 @@ const tableColumns: { key: keyof CruiseOrder | 'actions'; title: string; width: 
   { key: 'invoiceRequired', title: '是否开票', width: '90px' },
   { key: 'advanceAccount', title: '预定账号', width: '120px' },
   { key: 'relatedOrderNo', title: '关联单号', width: '120px' },
-  { key: 'actions', title: '操作', width: '210px' },
+  { key: 'actions', title: '操作', width: '300px' },
 ]
 
 function getDimensionColumns(dimension: CruiseOrderDimension): DimensionColumn[] {
@@ -727,6 +752,14 @@ function createEmptyFilters(fields: FilterField[]) {
 function OrderStatusPill({ status }: { status: OrderStatus }) {
   return (
     <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${statusColor[status]}`}>
+      {status}
+    </span>
+  )
+}
+
+function RefundStatusPill({ status }: { status: RefundStatus }) {
+  return (
+    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${refundStatusColor[status]}`}>
       {status}
     </span>
   )
@@ -885,10 +918,31 @@ function AmountTable({ order }: { order: CruiseOrder }) {
   )
 }
 
+function getRefundActionState(order: CruiseOrder) {
+  if (order.orderStatus === '取消') {
+    return { enabled: false, label: '申请退款', title: '已取消订单不可再次发起退款' }
+  }
+  if (order.paidAmount <= 0) {
+    return { enabled: false, label: '申请退款', title: '订单暂无实收金额' }
+  }
+  if (order.refundStatus === '退款处理中') {
+    return { enabled: false, label: '退款审核中', title: '已有退款单正在审核，请勿重复提交' }
+  }
+  if (order.refundStatus === '已退款') {
+    return { enabled: false, label: '已退款', title: '订单退款已完成' }
+  }
+  if (order.refundStatus === '退款被拒') {
+    return { enabled: true, label: '再次申请退款', title: '上次申请被拒，可重新提交' }
+  }
+  return { enabled: true, label: '申请退款', title: '发起订单退款申请' }
+}
+
 export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimension?: CruiseOrderDimension }) {
   const navigate = useNavigate()
   const [orderOverrides, setOrderOverrides] = useState<Record<string, Partial<CruiseOrder>>>({})
   const [rescheduleRow, setRescheduleRow] = useState<DimensionRow | null>(null)
+  const [refundRow, setRefundRow] = useState<DimensionRow | null>(null)
+  const [refundLoading, setRefundLoading] = useState(false)
   const [toast, setToast] = useState('')
   const filterFields = useMemo(() => getFilterFields(dimension), [dimension])
   const primaryFilterKeys = useMemo(() => getPrimaryFilterKeys(dimension), [dimension])
@@ -900,13 +954,16 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
     () => filterFields.filter((field) => !primaryFilterKeys.includes(field.key)),
     [filterFields, primaryFilterKeys],
   )
-  const allRows = useMemo(
-    () => getRowsByDimension(dimension).map((row) => ({
+  const allRows = useMemo(() => getRowsByDimension(dimension).map((row) => {
+    const mergedOrder = { ...row.order, ...orderOverrides[row.order.id] }
+    return {
       ...row,
-      order: { ...row.order, ...orderOverrides[row.order.id] },
-    })),
-    [dimension, orderOverrides],
-  )
+      order: {
+        ...mergedOrder,
+        refundStatus: getLatestRefundStatus(mergedOrder),
+      },
+    }
+  }), [dimension, orderOverrides])
   const activeColumns = useMemo(() => getDimensionColumns(dimension), [dimension])
   const [filters, setFilters] = useState<Record<string, string>>(() => createEmptyFilters(getFilterFields(dimension)))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
@@ -922,6 +979,7 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
     setDetail(null)
     setSelectedIds([])
     setRescheduleRow(null)
+    setRefundRow(null)
   }, [dimension])
 
   useEffect(() => {
@@ -939,6 +997,7 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
       const matchedKeyword = !keyword || [order.orderNo, order.parentOrderNo, row.group?.groupName, row.room?.roomNo, row.tourist?.name]
         .some((value) => value?.toLowerCase().includes(keyword))
       const matchedStatus = !filters.orderStatus || filters.orderStatus === '全部' || order.orderStatus === filters.orderStatus
+      const matchedRefundStatus = !filters.refundStatus || filters.refundStatus === '全部' || order.refundStatus === filters.refundStatus
       const matchedMarket = !filters.marketCategory || filters.marketCategory === '全部' || order.marketCategory === filters.marketCategory
       const matchedVoyage = !filters.voyageNo || order.voyageNo.includes(filters.voyageNo)
       const matchedGroup = !filters.groupName || row.group?.groupName.includes(filters.groupName)
@@ -948,7 +1007,7 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
       const matchedRoomType = !filters.roomType || filters.roomType === '全部' || row.room?.roomType === filters.roomType
       const matchedTourist = !touristKeyword || row.tourist?.name.toLowerCase().includes(touristKeyword)
       const matchedIdNo = !idNo || row.tourist?.idNo.toLowerCase().includes(idNo)
-      return matchedKeyword && matchedStatus && matchedMarket && matchedVoyage && matchedGroup && matchedShip && matchedSailDate && matchedRoomNo && matchedRoomType && matchedTourist && matchedIdNo
+      return matchedKeyword && matchedStatus && matchedRefundStatus && matchedMarket && matchedVoyage && matchedGroup && matchedShip && matchedSailDate && matchedRoomNo && matchedRoomType && matchedTourist && matchedIdNo
     })
   }, [allRows, filters])
 
@@ -1021,6 +1080,57 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
     setToast(`订单 ${originalOrder.orderNo} 已改签至 ${target.voyageNo}，本次罚金 ¥0.00`)
   }
 
+  const handleOpenRefund = (row: DimensionRow) => {
+    const action = getRefundActionState(row.order)
+    if (!action.enabled) return
+    setRefundRow(row)
+  }
+
+  const handleRefundSubmit = (form: CreateRefundOrderForm) => {
+    if (!refundRow) return
+    const sourceOrder = refundRow.order
+    const action = getRefundActionState(sourceOrder)
+    if (!action.enabled) {
+      setRefundRow(null)
+      setToast(action.title)
+      return
+    }
+    if (form.applyRefundAmount <= 0 || form.applyRefundAmount > sourceOrder.paidAmount) {
+      window.alert(`申请退款金额应大于 0 且不超过实收金额 ${formatCurrency(sourceOrder.paidAmount)}`)
+      return
+    }
+
+    setRefundLoading(true)
+    try {
+      const refundOrder = createRefundOrder(
+        {
+          ...form,
+          orderId: getDealerRefundOrderId(sourceOrder.id),
+        },
+        sourceOrder.dealer,
+        {
+          orderNo: sourceOrder.orderNo,
+          dealer: sourceOrder.dealer,
+          voyageNo: sourceOrder.voyageNo,
+          groupName: sourceOrder.groupName,
+          totalAmount: sourceOrder.totalAmount,
+          paidAmount: sourceOrder.paidAmount,
+        },
+      )
+      setOrderOverrides((prev) => ({
+        ...prev,
+        [sourceOrder.id]: {
+          ...prev[sourceOrder.id],
+          refundStatus: '退款处理中',
+        },
+      }))
+      setRefundRow(null)
+      setToast(`退款申请 ${refundOrder.refundNo} 已提交，等待平台审核`)
+    } finally {
+      setRefundLoading(false)
+    }
+  }
+
   if (detail) {
     return (
       <div className="space-y-5">
@@ -1037,8 +1147,9 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
           </p>
 
           <DetailSection title="订单概览" className="mb-5">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
               <MetricItem label="订单状态" value={<OrderStatusPill status={detail.orderStatus} />} />
+              <MetricItem label="退款状态" value={<RefundStatusPill status={detail.refundStatus || '无退款'} />} />
               <MetricItem label="订单总额" value={formatCurrency(detail.totalAmount)} highlight />
               <MetricItem label="实收总额" value={formatCurrency(detail.paidAmount)} />
               <MetricItem label="欠款" value={formatCurrency(detail.arrears)} />
@@ -1271,6 +1382,15 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
                               >
                                 改签
                               </button>
+                              <button
+                                type="button"
+                                disabled={!getRefundActionState(row.order).enabled}
+                                title={getRefundActionState(row.order).title}
+                                onClick={() => handleOpenRefund(row)}
+                                className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
+                              >
+                                {getRefundActionState(row.order).label}
+                              </button>
                             </>
                           ) : (
                             <button type="button" onClick={() => setDetail(row)} className="rounded px-2 py-1 text-xs text-blue-700 hover:bg-blue-50">订单详情</button>
@@ -1314,6 +1434,13 @@ export default function DealerCruiseOrderPage({ dimension = 'order' }: { dimensi
         } : null}
         onCancel={() => setRescheduleRow(null)}
         onSubmit={handleReschedule}
+      />
+      <InitiateRefundDialog
+        open={Boolean(refundRow)}
+        order={refundRow?.order ?? null}
+        loading={refundLoading}
+        onCancel={() => setRefundRow(null)}
+        onSubmit={handleRefundSubmit}
       />
     </div>
   )

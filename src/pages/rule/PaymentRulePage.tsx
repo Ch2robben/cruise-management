@@ -299,6 +299,31 @@ function ConfigTable({
 }) {
   const editable = Boolean(onUpdate)
 
+  if (editable) {
+    return (
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-4 flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
+              <div className="min-w-0 text-sm text-gray-700"><span className="font-medium text-gray-900">{row.productName}</span><span className="mx-2 text-gray-300">/</span><span>{row.routeName}</span><span className="mx-2 text-gray-300">/</span><span>{row.roomType}</span></div>
+              {showRemove && <button type="button" onClick={() => onRemove?.(row.id)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" />移除</button>}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div><label className="mb-1 block text-xs text-gray-500">船期开始</label><input type="date" value={row.sailingStart} onChange={(e) => onUpdate!(row.id, 'sailingStart', e.target.value)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /></div>
+              <div><label className="mb-1 block text-xs text-gray-500">船期结束</label><input type="date" value={row.sailingEnd} onChange={(e) => onUpdate!(row.id, 'sailingEnd', e.target.value)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /></div>
+              <div><label className="mb-1 block text-xs text-gray-500">开始收取</label><div className="flex items-center gap-1.5"><span className="shrink-0 text-xs text-gray-500">开船前</span><input type="number" min={row.paymentDeadlineDaysBeforeSail} value={row.collectionStartDaysBeforeSail} onChange={(e) => onUpdate!(row.id, 'collectionStartDaysBeforeSail', Math.max(row.paymentDeadlineDaysBeforeSail, Number(e.target.value) || 0))} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /><span className="text-xs text-gray-500">天</span></div></div>
+              <div><label className="mb-1 block text-xs text-gray-500">最晚付清</label><div className="flex items-center gap-1.5"><span className="shrink-0 text-xs text-gray-500">开船前</span><input type="number" min={0} max={row.collectionStartDaysBeforeSail} value={row.paymentDeadlineDaysBeforeSail} onChange={(e) => onUpdate!(row.id, 'paymentDeadlineDaysBeforeSail', Math.min(row.collectionStartDaysBeforeSail, Math.max(0, Number(e.target.value) || 0)))} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /><span className="text-xs text-gray-500">天</span></div></div>
+              <div><label className="mb-1 block text-xs text-gray-500">计价范围</label><select value={row.feeScope} onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as PaymentFeeScope)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">{feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+              <div><label className="mb-1 block text-xs text-gray-500">扣除定金</label><select value={row.deductDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'deductDeposit', e.target.value === 'yes')} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs"><option value="yes">是</option><option value="no">否</option></select></div>
+              <div className="sm:col-span-2"><label className="mb-1 block text-xs text-gray-500">临近开航处理</label><div className="flex flex-wrap items-center gap-1.5"><select value={row.lateBookingPolicy} onChange={(e) => onUpdate!(row.id, 'lateBookingPolicy', e.target.value as LateBookingPolicy)} className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">{lateBookingPolicyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>{row.lateBookingPolicy === 'withinHours' && <><input type="number" min={1} value={row.lateBookingHours} onChange={(e) => onUpdate!(row.id, 'lateBookingHours', Math.max(1, Number(e.target.value) || 1))} className="w-20 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /><span className="text-xs text-gray-500">小时</span></>}</div></div>
+              <div><label className="mb-1 block text-xs text-gray-500">逾期处理</label><select value={row.overdueAction} onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as PaymentOverdueAction)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">{overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
       <table className="min-w-[1900px] w-full text-sm">

@@ -265,7 +265,7 @@ export function SalesControlWorkspace({
     ? [
       ...baseTabs,
       { key: 'tip' as const, label: `小费管理 · ${selectedSegmentLabel}` },
-      { key: 'gradient' as const, label: `调价梯度 · ${selectedSegmentLabel}` },
+      { key: 'gradient' as const, label: '调价梯度' },
     ]
     : baseTabs
   const resolvedVoyage = voyage || currentVoyage
@@ -350,7 +350,7 @@ export function SalesControlWorkspace({
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <VoyagePriceGradientPanel
               voyage={resolvedVoyage}
-              selectedSegmentKey={selectedSegmentKey}
+              segmentOptions={segmentOptions}
               embedded
             />
           </section>

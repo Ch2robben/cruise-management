@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, X, Plus, Search, Download, CreditCard, ChevronDown, Pencil, Copy, Trash2 } from 'lucide-react'
+import { Check, X, Plus, Search, Download, CreditCard, ChevronDown, Pencil, Copy, Trash2, ImagePlus } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 
 // ======================== Mock 数据 ========================
@@ -152,10 +152,15 @@ function DeleteGroupModal({ group, onClose, onDelete }: { group: DealerGroup; on
 }
 
 // 添加分销商弹窗
-function AddDealerModal({ groups, onClose, onSave }: { groups: DealerGroup[]; onClose: () => void; onSave: (d: Partial<Dealer>) => void }) {
+function AddDealerModal({ groups, onClose, onSave, onCreateGroup }: { groups: DealerGroup[]; onClose: () => void; onSave: (d: Partial<Dealer>) => void; onCreateGroup: () => void }) {
   const [mode, setMode] = useState<'search' | 'create'>('search')
   const [searchKw, setSearchKw] = useState('')
-  const [form, setForm] = useState({ name: '', type: '旅行社', contact: '', phone: '', groupId: groups[0]?.id ?? '', licenseNo: '' })
+  const [form, setForm] = useState({ accountType: '企业', name: '', phone: '', email: '', groupId: groups[0]?.id ?? '', subjectType: '旅行社', travelAgencyName: '', certificateType: '旅行社业务经营许可证编号', licenseNo: '', creditCode: '' })
+  const [licenseImage, setLicenseImage] = useState('')
+  const [businessLicenseImage, setBusinessLicenseImage] = useState('')
+  const isTravelAgency = form.subjectType === '旅行社'
+  const entityLabel = form.accountType === '企业' ? '企业名称' : '个人名称'
+  const canSubmit = Boolean(form.name && form.phone && form.groupId && form.creditCode && (!isTravelAgency || form.travelAgencyName))
 
   return (
     <Modal title="添加分销商" onClose={onClose} width="max-w-xl">
@@ -184,27 +189,43 @@ function AddDealerModal({ groups, onClose, onSave }: { groups: DealerGroup[]; on
         </div>
       ) : (
         <div>
-          <p className="mb-3 text-sm text-gray-500">为尚未注册的分销商创建账号，创建后自动成为下级分销商</p>
+          <p className="mb-3 text-sm text-gray-500">为尚未注册的分销商创建账号，创建后自动加入所选分组。</p>
           <div className="space-y-0">
-            <FormRow label="分销商名称" required><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="请输入企业全称" /></FormRow>
+            <FormRow label="个人/企业名称" required>
+              <div className="flex gap-2">
+                <select value={form.accountType} onChange={e => setForm(f => ({ ...f, accountType: e.target.value }))} className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option>企业</option><option>个人</option></select>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={`请输入${entityLabel}`} />
+              </div>
+            </FormRow>
+            <FormRow label="手机号"><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputCls} placeholder="请输入手机号" /></FormRow>
+            <FormRow label="电子邮箱"><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputCls} placeholder="请输入电子邮箱" /></FormRow>
+            <FormRow label="分组" required>
+              <div className="flex gap-2">
+                <select value={form.groupId} onChange={e => setForm(f => ({ ...f, groupId: e.target.value }))} className={selectCls}>
+                  <option value="" disabled>选择分组</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+                <button type="button" onClick={onCreateGroup} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"><Plus className="h-4 w-4" />新建分组</button>
+              </div>
+            </FormRow>
+            <div className="my-4 border-t border-gray-100 pt-4 text-sm font-medium text-gray-700">资质信息</div>
             <FormRow label="主体类型" required>
-              <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={selectCls}>
-                {['旅行社', '酒店', '民宿', '其他', '内部员工'].map(t => <option key={t}>{t}</option>)}
-              </select>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
+                {['旅行社', '酒店', '民宿', '其他'].map(type => <label key={type} className="inline-flex items-center gap-1.5 text-sm text-gray-700"><input type="radio" name="subjectType" checked={form.subjectType === type} onChange={() => setForm(f => ({ ...f, subjectType: type }))} />{type}</label>)}
+              </div>
             </FormRow>
-            <FormRow label="联系人" required><input value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} className={inputCls} placeholder="请输入联系人姓名" /></FormRow>
-            <FormRow label="联系电话" required><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputCls} placeholder="请输入手机号或座机" /></FormRow>
-            <FormRow label="加入分组">
-              <select value={form.groupId} onChange={e => setForm(f => ({ ...f, groupId: e.target.value }))} className={selectCls}>
-                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
-            </FormRow>
-            <FormRow label="执照号码"><input value={form.licenseNo} onChange={e => setForm(f => ({ ...f, licenseNo: e.target.value }))} className={inputCls} placeholder="统一社会信用代码或许可证号" /></FormRow>
+            {isTravelAgency && <>
+              <FormRow label="旅行社企业全称" required><input value={form.travelAgencyName} onChange={e => setForm(f => ({ ...f, travelAgencyName: e.target.value }))} className={inputCls} placeholder="请输入旅行社名称搜索客商" /></FormRow>
+              <FormRow label="证件类型" required><select value={form.certificateType} onChange={e => setForm(f => ({ ...f, certificateType: e.target.value }))} className={selectCls}><option>旅行社业务经营许可证编号</option></select></FormRow>
+              <FormRow label="旅行社业务经营许可证"><input value={form.licenseNo} onChange={e => setForm(f => ({ ...f, licenseNo: e.target.value }))} className={inputCls} placeholder="请输入内容" /></FormRow>
+              <FormRow label="许可证图片"><label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 bg-gray-50 text-xs text-blue-600 hover:border-blue-400"><ImagePlus className="h-5 w-5" />{licenseImage || '上传图片'}<input type="file" accept="image/*" className="hidden" onChange={e => setLicenseImage(e.target.files?.[0]?.name ?? '')} /></label></FormRow>
+            </>}
+            <FormRow label="统一社会信用代码" required><input value={form.creditCode} onChange={e => setForm(f => ({ ...f, creditCode: e.target.value }))} className={inputCls} placeholder="请输入内容" /></FormRow>
+            <FormRow label="营业执照图" required><label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 bg-gray-50 text-xs text-blue-600 hover:border-blue-400"><ImagePlus className="h-5 w-5" />{businessLicenseImage || '上传图片'}<input type="file" accept="image/*" className="hidden" onChange={e => setBusinessLicenseImage(e.target.files?.[0]?.name ?? '')} /></label></FormRow>
           </div>
-          <div className="mt-2 rounded-lg bg-yellow-50 px-3 py-2 text-xs text-yellow-700">创建成功后，请将生成的账号和初始密码复制并发送给分销商。</div>
           <div className="mt-4 flex justify-end gap-3">
             <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-            <button onClick={() => { if (form.name && form.contact) { onSave({ ...form, creditLimit: 0, usedCredit: 0, balance: 0, deposit: 0, status: '启用' }); onClose() } }} disabled={!form.name || !form.contact} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">创建并添加</button>
+            <button onClick={() => { if (canSubmit) { onSave({ name: form.name, type: form.subjectType, contact: form.name, phone: form.phone, groupId: form.groupId, licenseNo: form.licenseNo || form.creditCode, creditLimit: 0, usedCredit: 0, balance: 0, deposit: 0, status: '启用' }); onClose() } }} disabled={!canSubmit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">生成账号</button>
           </div>
         </div>
       )}
@@ -532,7 +553,7 @@ function TabDealers({ dealers, setDealers, setCreditRecords }: {
       </div>
 
       {/* 弹窗 */}
-      {showAdd && <AddDealerModal groups={groups} onClose={() => setShowAdd(false)} onSave={d => { setDealers(prev => [...prev, { id: `d${Date.now()}`, groupId: d.groupId ?? groups[0]?.id ?? '', name: d.name ?? '', type: d.type ?? '旅行社', contact: d.contact ?? '', phone: d.phone ?? '', creditLimit: 0, usedCredit: 0, balance: 0, deposit: 0, status: '启用', createdAt: new Date().toISOString().slice(0, 10), licenseNo: d.licenseNo ?? '' }]); showToast('分销商添加成功') }} />}
+      {showAdd && <AddDealerModal groups={groups} onClose={() => setShowAdd(false)} onCreateGroup={() => setGroupDialog({ mode: 'create' })} onSave={d => { setDealers(prev => [...prev, { id: `d${Date.now()}`, groupId: d.groupId ?? groups[0]?.id ?? '', name: d.name ?? '', type: d.type ?? '旅行社', contact: d.contact ?? '', phone: d.phone ?? '', creditLimit: 0, usedCredit: 0, balance: 0, deposit: 0, status: '启用', createdAt: new Date().toISOString().slice(0, 10), licenseNo: d.licenseNo ?? '' }]); showToast('分销商添加成功') }} />}
       {groupDialog && (
         <GroupModal
           mode={groupDialog.mode}

@@ -54,6 +54,7 @@ import RebateOrderStatisticsPage from '@/pages/report/RebateOrderStatisticsPage'
 import OrderListPage from '@/pages/order/OrderListPage'
 import VoyageAdditionalProductPage from '@/pages/order/VoyageAdditionalProductPage'
 import VoyagePassengerRoomPage from '@/pages/order/VoyagePassengerRoomPage'
+import RefundOrderPage from '@/pages/order/RefundOrderPage'
 import HolidayPage from '@/pages/basic/HolidayPage'
 import IdTypePage from '@/pages/basic/IdTypePage'
 import AgeGroupPage from '@/pages/basic/AgeGroupPage'
@@ -62,6 +63,7 @@ import ApprovalFlowPage from '@/pages/system/ApprovalFlowPage'
 
 import DealerHomePage from '@/pages/dealer/DealerHomePage'
 import DealerDiscountPolicyPage from '@/pages/dealer/DealerDiscountPolicyPage'
+import DealerPolicyRulePage from '@/pages/dealer/DealerPolicyRulePage'
 import CruiseBookingPage from '@/pages/dealer/booking/CruiseBookingPage'
 import SpecialPriceBookingPage from '@/pages/dealer/booking/SpecialPriceBookingPage'
 import BoatBookingPage from '@/pages/dealer/booking/BoatBookingPage'
@@ -154,6 +156,7 @@ export const router = createHashRouter([
       { path: '/voyage/template-inventory', element: <LegacyTemplateInventoryRedirect /> },
       { path: '/voyage/pricing', element: <PricingPage /> },
       { path: '/orders/list', element: <OrderListPage /> },
+      { path: '/orders/refunds', element: <RefundOrderPage /> },
       { path: '/orders/voyage-additional-products', element: <VoyageAdditionalProductPage /> },
       { path: '/orders/voyage-passenger-rooms', element: <VoyagePassengerRoomPage /> },
       { path: '/distribution-management', element: <DistributionOverviewPage /> },
@@ -219,6 +222,8 @@ export const router = createHashRouter([
     children: [
       { path: '/dealer/home', element: <DealerHomePage /> },
       { path: '/dealer/policies', element: <DealerDiscountPolicyPage /> },
+      { path: '/dealer/rules', element: <DealerPolicyRulePage /> },
+      { path: '/dealer/policy-content', element: <Navigate to="/dealer/rules" replace /> },
       { path: '/dealer/booking/cruise', element: <CruiseBookingPage /> },
       { path: '/dealer/booking/special-price', element: <SpecialPriceBookingPage /> },
       { path: '/dealer/booking/boat', element: <BoatBookingPage /> },

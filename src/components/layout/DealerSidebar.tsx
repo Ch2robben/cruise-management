@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { BadgePercent, LayoutDashboard, Ship, ChevronDown, ChevronRight, ShoppingCart, Wallet, PieChart, FileText, Settings, Navigation } from 'lucide-react'
+import { BadgePercent, LayoutDashboard, Ship, ChevronDown, ChevronRight, ShoppingCart, Wallet, PieChart, FileText, Settings, Navigation, ClipboardList } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -16,6 +16,9 @@ const menuItems: MenuItem[] = [
   },
   {
     key: 'discount_policies', label: '优惠政策', icon: 'BadgePercent', path: '/dealer/policies'
+  },
+  {
+    key: 'policy_rules', label: '规则/政策展示', icon: 'ClipboardList', path: '/dealer/rules'
   },
   {
     key: 'booking', label: '产品预定', icon: 'Navigation',
@@ -75,6 +78,7 @@ const menuItems: MenuItem[] = [
 
 const iconMap: Record<string, React.ReactNode> = {
   BadgePercent: <BadgePercent className="w-4 h-4" />,
+  ClipboardList: <ClipboardList className="w-4 h-4" />,
   LayoutDashboard: <LayoutDashboard className="w-4 h-4" />,
   Navigation: <Navigation className="w-4 h-4" />,
   Ship: <Ship className="w-4 h-4" />,

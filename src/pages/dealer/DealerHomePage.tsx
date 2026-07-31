@@ -136,10 +136,13 @@ export default function DealerHomePage() {
 
           {/* Announcements */}
           <div className="bg-white rounded-lg shadow border border-gray-200">
-            <div className="flex items-center gap-2 p-4 border-b border-gray-100">
-              <div className="w-1 h-4 bg-blue-500 rounded-full" />
-              <h3 className="font-semibold text-gray-900">公告通知</h3>
-              {unreadCount > 0 && <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{unreadCount}条未读</span>}
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                <h3 className="font-semibold text-gray-900">官方公告与规则</h3>
+                {unreadCount > 0 && <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{unreadCount}条未读</span>}
+              </div>
+              <button onClick={() => navigate('/dealer/rules')} className="text-xs text-gray-500 hover:text-blue-600 font-medium">查看全部规则/政策 →</button>
             </div>
             <div className="p-4 max-h-64 overflow-y-auto">
               <div className="space-y-3">
