@@ -426,17 +426,7 @@ export default function RoutePage() {
               />
             </div>
             <div className="lg:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">航线标识</label>
-              <input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder="请输入航线标识"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
-              <p className="mt-1 text-xs text-gray-400">航线标识填写后可作为航线唯一识别编码使用。</p>
-            </div>
-            <div className="lg:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-gray-700">类别</label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">上下水</label>
               <div className="flex flex-wrap gap-5 text-sm text-gray-700">
                 <label className="inline-flex items-center gap-2">
                   <input
@@ -445,7 +435,7 @@ export default function RoutePage() {
                     onChange={() => setForm(patchForm({ ...form, type: 'downstream' }))}
                     className="h-4 w-4"
                   />
-                  旅游航线
+                  下水
                 </label>
                 <label className="inline-flex items-center gap-2">
                   <input
@@ -454,7 +444,7 @@ export default function RoutePage() {
                     onChange={() => setForm(patchForm({ ...form, type: 'upstream' }))}
                     className="h-4 w-4"
                   />
-                  交通航线
+                  上水
                 </label>
               </div>
             </div>
