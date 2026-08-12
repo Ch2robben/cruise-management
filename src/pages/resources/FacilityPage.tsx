@@ -11,6 +11,8 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
+const typeLabels: Record<string, string> = { ship: '船舶设施', cabin: '船舱设施' }
+const typeColors: Record<string, string> = { ship: 'bg-blue-50 text-blue-700 border border-blue-200', cabin: 'bg-purple-50 text-purple-700 border border-purple-200' }
 const catLabels: Record<string, string> = { dining: '餐饮', entertainment: '娱乐', leisure: '休闲', sports: '运动', service: '服务' }
 const catColors: Record<string, string> = { dining: 'bg-orange-100 text-orange-700', entertainment: 'bg-purple-100 text-purple-700', leisure: 'bg-green-100 text-green-700', sports: 'bg-blue-100 text-blue-700', service: 'bg-gray-100 text-gray-700' }
 const bizLabels: Record<string, string> = { open: '营业中', closed: '停业', maintenance: '维护中' }
@@ -18,7 +20,7 @@ const bizColors: Record<string, string> = { open: 'bg-green-100 text-green-700',
 const chargeLabels: Record<string, string> = { free: '免费', per_time: '按次收费', per_hour: '按时收费' }
 
 const emptyForm: FacilityForm = {
-  code: '', name: '', category: 'dining', maxCapacity: 0, bizStatus: 'open',
+  code: '', name: '', facilityType: 'ship', category: 'dining', maxCapacity: 0, bizStatus: 'open', hours: '',
   chargeType: 'free', chargeAmount: 0, mainImage: '', images: [], description: '',
 }
 
@@ -26,6 +28,7 @@ export default function FacilityPage() {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<PaginatedResult<ShipFacility>>({ data: [], total: 0, page: 1, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [catFilter, setCatFilter] = useState('all')
   const [bizFilter, setBizFilter] = useState('all')
 
@@ -46,21 +49,22 @@ export default function FacilityPage() {
     if (keyword.trim()) params.keyword = keyword.trim()
     if (catFilter !== 'all') params.category = catFilter
     const result = await facilityApi.list(params)
-    // 前端过滤 bizStatus（createCrudApi 不支持 bizStatus 字段）
+    // 前端过滤 bizStatus 与 facilityType
     let items = result.data
+    if (typeFilter !== 'all') items = items.filter((f: ShipFacility) => (f.facilityType || 'ship') === typeFilter)
     if (bizFilter !== 'all') items = items.filter((f: ShipFacility) => f.bizStatus === bizFilter)
     setData({ ...result, data: items })
     setLoading(false)
-  }, [keyword, catFilter, bizFilter])
+  }, [keyword, catFilter, bizFilter, typeFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
   const handleSearch = () => fetchData(1)
-  const handleReset = () => { setKeyword(''); setCatFilter('all'); setBizFilter('all') }
+  const handleReset = () => { setKeyword(''); setTypeFilter('all'); setCatFilter('all'); setBizFilter('all') }
 
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setFormOpen(true) }
   const openEdit = (r: ShipFacility) => {
     setEditingId(r.id)
-    setForm({ ...emptyForm, name: r.name, category: r.category, bizStatus: r.bizStatus })
+    setForm({ ...emptyForm, name: r.name, facilityType: r.facilityType || 'ship', category: r.category, bizStatus: r.bizStatus, hours: r.hours || '' })
     setFormOpen(true)
   }
   const openDetail = async (r: ShipFacility) => { const f = await facilityApi.getById(r.id); setDetail(f || null); setCarouselIdx(0); setDetailOpen(true) }
@@ -83,6 +87,7 @@ export default function FacilityPage() {
 
   const columns = [
     { key: 'name', title: '设施名称', dataIndex: 'name' as keyof ShipFacility },
+    { key: 'facilityType', title: '设施类型', render: (r: ShipFacility) => <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColors[r.facilityType || 'ship']}`}>{typeLabels[r.facilityType || 'ship']}</span> },
     { key: 'category', title: '设施分类', render: (r: ShipFacility) => <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${catColors[r.category]}`}>{catLabels[r.category]}</span> },
     { key: 'bizStatus', title: '营业状态', render: (r: ShipFacility) => <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${bizColors[r.bizStatus]}`}>{bizLabels[r.bizStatus]}</span> },
     { key: 'actions', title: '操作', width: '160px', render: (r: ShipFacility) => (
@@ -97,9 +102,10 @@ export default function FacilityPage() {
 
   return (
     <div>
-      <PageHeader title="游轮设施管理" description="管理游轮通用设施资源：餐饮、娱乐、休闲、运动、服务" />
+      <PageHeader title="游轮设施管理" description="管理游轮通用设施资源：区分船舶设施与船舱设施，支持餐饮、娱乐、休闲、运动、服务等分类" />
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="设施名称" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">设施类型</label><select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">设施分类</label><select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{Object.entries(catLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">营业状态</label><select value={bizFilter} onChange={(e) => setBizFilter(e.target.value)} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="all">全部</option>{Object.entries(bizLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
       </SearchPanel>
@@ -110,15 +116,17 @@ export default function FacilityPage() {
 
       <FormDialog open={formOpen} title={editingId ? '编辑设施' : '新增设施'} loading={formLoading} onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 gap-4 p-4">
+          <div><label className="block text-sm text-gray-700 mb-1">设施类型 <span className="text-red-500">*</span></label><select value={form.facilityType} onChange={(e) => setForm({ ...form, facilityType: e.target.value as FacilityForm['facilityType'] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
           <div><label className="block text-sm text-gray-700 mb-1">设施名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
           <div><label className="block text-sm text-gray-700 mb-1">设施分类 <span className="text-red-500">*</span></label><select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as FacilityForm['category'] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{Object.entries(catLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
           <div><label className="block text-sm text-gray-700 mb-1">营业状态</label><select value={form.bizStatus} onChange={(e) => setForm({ ...form, bizStatus: e.target.value as FacilityForm['bizStatus'] })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{Object.entries(bizLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+          <div><label className="block text-sm text-gray-700 mb-1">营业时间</label><input value={form.hours || ''} onChange={(e) => setForm({ ...form, hours: e.target.value })} placeholder="请输入营业时间，如：07:00-22:00 或 24小时营业" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         </div>
       </FormDialog>
 
       <DetailDrawer open={detailOpen} title="设施详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
-          <DetailCard title="基本信息"><DetailRow label="设施名称" value={detail.name} /><DetailRow label="设施分类" value={catLabels[detail.category]} /><DetailRow label="营业状态" value={<span className={`px-1.5 py-0.5 rounded text-xs font-medium ${bizColors[detail.bizStatus]}`}>{bizLabels[detail.bizStatus]}</span>} /></DetailCard>
+          <DetailCard title="基本信息"><DetailRow label="设施名称" value={detail.name} /><DetailRow label="设施类型" value={<span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColors[detail.facilityType || 'ship']}`}>{typeLabels[detail.facilityType || 'ship']}</span>} /><DetailRow label="设施分类" value={catLabels[detail.category]} /><DetailRow label="营业状态" value={<span className={`px-1.5 py-0.5 rounded text-xs font-medium ${bizColors[detail.bizStatus]}`}>{bizLabels[detail.bizStatus]}</span>} /><DetailRow label="营业时间" value={detail.hours || '暂无'} /></DetailCard>
         </>)}
       </DetailDrawer>
       <ConfirmDialog open={confirmOpen} title="删除设施" message="确定要删除该设施吗？此操作不可恢复。" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />

@@ -183,7 +183,7 @@ export default function VoyageInventoryTemplatePage() {
     <div>
       <PageHeader
         title="航次库存配置"
-        description="按航次模板维护各房型、各航段的线上渠道、公共库存与经销商库存分配。"
+        description="按航次模板维护各房型、各航段的区域公共库存与全域公共库存，并分配经销商私有库存。"
       />
 
       <SearchPanel

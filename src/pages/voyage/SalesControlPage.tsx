@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { groupItineraryRows, itineraryActivityColumns, formatItineraryDayLabel } from '@/components/voyage/ItineraryEditor'
 import VoyageTipManagementPanel, { type RouteSegmentOption } from '@/components/voyage/VoyageTipManagementPanel'
-import VoyagePriceGradientPanel from '@/components/voyage/VoyagePriceGradientPanel'
+import VoyageChannelDealerInventoryPanel from '@/components/voyage/VoyageChannelDealerInventoryPanel'
 import { templateApi } from '@/mock/api'
 import { voyageInventories, voyageTemplates, voyages, products } from '@/mock/data'
 import {
+  aggregateInventoryField,
   aggregatePhysicalCapacity,
-  aggregatePublicStock,
   getTemplateSellRoomTypes,
   loadTemplateInventoryRules,
   saveTemplateInventoryRules,
@@ -17,22 +17,16 @@ import {
 import type { TemplateItinerary, Voyage, VoyageTemplate } from '@/types'
 import { resolveTemplateItinerary } from '@/utils/productVoyageConfig'
 
-type ControlTab = 'inventory' | 'sales' | 'itinerary' | 'warning' | 'tip' | 'gradient'
-type PolicyType = 'all' | 'ota' | 'dealer' | 'group' | 'port' | 'regional'
+type ControlTab = 'inventory' | 'private' | 'sales' | 'itinerary' | 'warning' | 'tip'
+type PolicyType = 'all' | 'regional' | 'global' | 'ota'
 type InventoryThresholdType = 'quantity' | 'percent'
-
-interface CabinStockRow {
-  id: string
-  name: string
-  release: number
-  sold: number
-}
 
 interface PublicInventoryRow {
   sellRoomTypeCode: string
   name: string
   physicalCapacity: number
-  publicStock: number
+  regionalPublicStock: number
+  globalPublicStock: number
   sold: number
   status: 'open' | 'closed'
 }
@@ -54,13 +48,20 @@ interface PolicyRow {
   allowSales: number
   maxSales: number
   sold: number
+  /** OTA 价关联渠道 */
+  otaChannels?: string[]
+  /** OTA 价：零售价与结算价相同 */
+  retailEqualsSettlement?: boolean
 }
 
 interface PriceRow {
   id: string
   code: string
-  portPrice: number
-  settlementPrice: number
+  roomType: string
+  /** 结算价（区域/全域即 P 值；OTA 为结算价） */
+  pValue: number
+  /** OTA 零售价；非 OTA 可忽略 */
+  retailPrice?: number
   availableSales: number
   sold: number
   validStart: string
@@ -68,28 +69,11 @@ interface PriceRow {
 }
 
 const baseTabs: Array<{ key: ControlTab; label: string }> = [
-  { key: 'inventory', label: '公有库存' },
-  { key: 'sales', label: '销售控制' },
+  { key: 'inventory', label: '公共库存' },
+  { key: 'private', label: '私有库存' },
+  { key: 'sales', label: '价格政策' },
   { key: 'itinerary', label: '航次行程' },
   { key: 'warning', label: '库存预警' },
-]
-
-const cabinRows: CabinStockRow[] = [
-  { id: 'std-a', name: '长江叁号豪华阳台标准间', release: 172, sold: 36 },
-  { id: 'std-b', name: '长江叁号4楼豪华阳台标准', release: 128, sold: 28 },
-  { id: 'std-c', name: '长江叁号5楼豪华阳台标准', release: 80, sold: 18 },
-  { id: 'family-a', name: '长江叁号5楼大床房', release: 6, sold: 2 },
-  { id: 'family-b', name: '长江叁号6楼大床房', release: 6, sold: 1 },
-  { id: 'suite-family', name: '长江叁号家庭套房', release: 20, sold: 6 },
-  { id: 'suite-admin', name: '长江叁号行政房', release: 20, sold: 7 },
-  { id: 'suite-view', name: '长江叁号观景套房', release: 8, sold: 5 },
-  { id: 'suite-luxury', name: '长江叁号豪华套房', release: 4, sold: 2 },
-  { id: 'suite-ceo', name: '长江叁号总套套房', release: 4, sold: 1 },
-  { id: 'inside-23', name: '长江叁号2-3楼内舱房', release: 10, sold: 3 },
-  { id: 'inside-4', name: '长江叁号4楼内舱房', release: 12, sold: 5 },
-  { id: 'inside-5', name: '长江叁号5楼内舱房', release: 12, sold: 4 },
-  { id: 'barrier-free', name: '长江叁号无障碍房', release: 2, sold: 0 },
-  { id: 'theater', name: '长江叁号影院房', release: 16, sold: 3 },
 ]
 
 const inventoryWarningRows: InventoryWarningRow[] = [
@@ -97,7 +81,8 @@ const inventoryWarningRows: InventoryWarningRow[] = [
     sellRoomTypeCode: 'vip-balcony-standard',
     name: '长江叁号豪华阳台标准间',
     physicalCapacity: 202,
-    publicStock: 202,
+    regionalPublicStock: 80,
+    globalPublicStock: 122,
     sold: 188,
     status: 'open',
     release: 202,
@@ -110,7 +95,8 @@ const inventoryWarningRows: InventoryWarningRow[] = [
     sellRoomTypeCode: 'deluxe-suite',
     name: '长江壹号豪华套房',
     physicalCapacity: 12,
-    publicStock: 12,
+    regionalPublicStock: 4,
+    globalPublicStock: 8,
     sold: 5,
     status: 'open',
     release: 12,
@@ -123,7 +109,8 @@ const inventoryWarningRows: InventoryWarningRow[] = [
     sellRoomTypeCode: 'presidential-suite',
     name: '长江壹号总统套房',
     physicalCapacity: 4,
-    publicStock: 4,
+    regionalPublicStock: 1,
+    globalPublicStock: 3,
     sold: 4,
     status: 'open',
     release: 4,
@@ -149,48 +136,44 @@ const resolvedItinerary: TemplateItinerary[] =
     : (currentVoyageTemplate ? resolveTemplateItinerary(currentVoyageTemplate, currentProduct, currentVoyage?.startDate) : [])
 
 const initialPolicyRows: PolicyRow[] = [
-  { id: 'p-ota-1', name: '携程阶梯控售政策', type: 'ota', allowSales: 58, maxSales: 80, sold: 21 },
-  { id: 'p-ota-2', name: '飞猪周末促销政策', type: 'ota', allowSales: 32, maxSales: 40, sold: 12 },
-  { id: 'p-dealer-1', name: '西南分销商控售', type: 'dealer', allowSales: 46, maxSales: 60, sold: 18 },
-  { id: 'p-group-1', name: '华东组团社保留位', type: 'group', allowSales: 24, maxSales: 30, sold: 10 },
-  { id: 'p-port-1', name: '重庆出发默认口岸价', type: 'port', allowSales: 120, maxSales: 150, sold: 42 },
-  { id: 'p-reg-1', name: '湖北省区域结算价', type: 'regional', allowSales: 80, maxSales: 100, sold: 26 },
+  { id: 'p-reg-1', name: '渝川区域结算价', type: 'regional', allowSales: 80, maxSales: 100, sold: 26 },
+  { id: 'p-reg-2', name: '滇黔区域结算价', type: 'regional', allowSales: 60, maxSales: 80, sold: 18 },
+  { id: 'p-glb-1', name: '长航默认全域结算价', type: 'global', allowSales: 150, maxSales: 200, sold: 48 },
+  { id: 'p-glb-2', name: '境内全域保底价', type: 'global', allowSales: 100, maxSales: 120, sold: 32 },
+  { id: 'p-ota-1', name: '美团/抖音OTA结算价', type: 'ota', allowSales: 90, maxSales: 120, sold: 22, otaChannels: ['美团', '抖音'], retailEqualsSettlement: true },
+  { id: 'p-ota-2', name: '携程OTA分设价', type: 'ota', allowSales: 70, maxSales: 100, sold: 15, otaChannels: ['携程'], retailEqualsSettlement: false },
 ]
 
 const initialPriceRowsByPolicy: Record<string, PriceRow[]> = {
+  'p-reg-1': [
+    { id: 'price-reg1-sui', code: 'CJTX-SUI', roomType: '套房', pValue: 6800, availableSales: 18, sold: 8, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-reg1-bal', code: 'CJTX-BAL', roomType: '阳台房', pValue: 4000, availableSales: 26, sold: 12, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-reg1-win', code: 'CJTX-WIN', roomType: '海景房', pValue: 3200, availableSales: 20, sold: 6, validStart: '2026-05-15', validEnd: '2026-05-18' },
+  ],
+  'p-reg-2': [
+    { id: 'price-reg2-sui', code: 'CJTX-SUI', roomType: '套房', pValue: 6600, availableSales: 12, sold: 5, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-reg2-bal', code: 'CJTX-BAL', roomType: '阳台房', pValue: 3900, availableSales: 22, sold: 9, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-reg2-win', code: 'CJTX-WIN', roomType: '海景房', pValue: 3100, availableSales: 16, sold: 4, validStart: '2026-05-15', validEnd: '2026-05-18' },
+  ],
+  'p-glb-1': [
+    { id: 'price-glb1-sui', code: 'CJTX-SUI', roomType: '套房', pValue: 7200, availableSales: 30, sold: 14, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-glb1-bal', code: 'CJTX-BAL', roomType: '阳台房', pValue: 4200, availableSales: 40, sold: 18, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-glb1-win', code: 'CJTX-WIN', roomType: '海景房', pValue: 3500, availableSales: 36, sold: 16, validStart: '2026-05-15', validEnd: '2026-05-18' },
+  ],
+  'p-glb-2': [
+    { id: 'price-glb2-sui', code: 'CJTX-SUI', roomType: '套房', pValue: 7000, availableSales: 20, sold: 8, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-glb2-bal', code: 'CJTX-BAL', roomType: '阳台房', pValue: 4100, availableSales: 28, sold: 12, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-glb2-win', code: 'CJTX-WIN', roomType: '海景房', pValue: 3400, availableSales: 24, sold: 12, validStart: '2026-05-15', validEnd: '2026-05-18' },
+  ],
   'p-ota-1': [
-    { id: 'price-sp-ota1', code: 'SP', portPrice: 2780, settlementPrice: 2580, availableSales: 12, sold: 6, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-a', code: 'STD-A-OTA', portPrice: 2880, settlementPrice: 2680, availableSales: 17, sold: 11, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-b', code: 'STD-A-DLR', portPrice: 2750, settlementPrice: 2550, availableSales: 11, sold: 7, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-c', code: 'STD-A-GRP', portPrice: 2680, settlementPrice: 2480, availableSales: 2, sold: 10, validStart: '2026-05-15', validEnd: '2026-05-17' },
-    { id: 'price-d', code: 'STD-A-LAST', portPrice: 3180, settlementPrice: 2980, availableSales: 0, sold: 8, validStart: '2026-05-16', validEnd: '2026-05-18' },
+    { id: 'price-ota1-sui', code: 'CJTX-SUI', roomType: '套房', pValue: 6500, retailPrice: 6500, availableSales: 24, sold: 10, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-ota1-bal', code: 'CJTX-BAL', roomType: '阳台房', pValue: 3800, retailPrice: 3800, availableSales: 32, sold: 8, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-ota1-win', code: 'CJTX-WIN', roomType: '海景房', pValue: 3000, retailPrice: 3000, availableSales: 28, sold: 4, validStart: '2026-05-15', validEnd: '2026-05-18' },
   ],
   'p-ota-2': [
-    { id: 'price-sp-ota2', code: 'SP', portPrice: 2680, settlementPrice: 2480, availableSales: 8, sold: 3, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-ota2-a', code: 'STD-A-OTA-WK', portPrice: 2780, settlementPrice: 2580, availableSales: 12, sold: 8, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-ota2-b', code: 'STD-A-OTA-WK2', portPrice: 2680, settlementPrice: 2480, availableSales: 8, sold: 4, validStart: '2026-05-15', validEnd: '2026-05-18' },
-  ],
-  'p-dealer-1': [
-    { id: 'price-sp-dlr', code: 'SP', portPrice: 2620, settlementPrice: 2420, availableSales: 10, sold: 4, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-dlr-a', code: 'STD-A-DLR-SW', portPrice: 2720, settlementPrice: 2520, availableSales: 18, sold: 12, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-dlr-b', code: 'STD-A-DLR-SW2', portPrice: 2620, settlementPrice: 2420, availableSales: 10, sold: 6, validStart: '2026-05-15', validEnd: '2026-05-18' },
-  ],
-  'p-group-1': [
-    { id: 'price-sp-grp', code: 'SP', portPrice: 2480, settlementPrice: 2280, availableSales: 6, sold: 2, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-grp-a', code: 'STD-A-GRP-EA', portPrice: 2580, settlementPrice: 2380, availableSales: 8, sold: 7, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-grp-b', code: 'STD-A-GRP-EA2', portPrice: 2480, settlementPrice: 2280, availableSales: 6, sold: 3, validStart: '2026-05-15', validEnd: '2026-05-17' },
-  ],
-  'p-port-1': [
-    { id: 'price-sp-port', code: 'SP', portPrice: 2480, settlementPrice: 2280, availableSales: 20, sold: 8, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-port-a', code: 'STD-A-PORT', portPrice: 2580, settlementPrice: 2380, availableSales: 38, sold: 22, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-port-b', code: 'STD-A-PORT-P', portPrice: 2480, settlementPrice: 2280, availableSales: 26, sold: 14, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-port-c', code: 'STD-A-PORT-L', portPrice: 2380, settlementPrice: 2180, availableSales: 14, sold: 6, validStart: '2026-05-15', validEnd: '2026-05-18' },
-  ],
-  'p-reg-1': [
-    { id: 'price-sp-reg', code: 'SP', portPrice: 2280, settlementPrice: 2080, availableSales: 15, sold: 5, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-reg-a', code: 'STD-A-REG', portPrice: 2380, settlementPrice: 2180, availableSales: 26, sold: 14, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-reg-b', code: 'STD-A-REG-HB', portPrice: 2280, settlementPrice: 2080, availableSales: 17, sold: 8, validStart: '2026-05-15', validEnd: '2026-05-18' },
-    { id: 'price-reg-c', code: 'STD-A-REG-YC', portPrice: 2180, settlementPrice: 1980, availableSales: 11, sold: 4, validStart: '2026-05-15', validEnd: '2026-05-17' },
+    { id: 'price-ota2-sui', code: 'CJTX-SUI', roomType: '套房', pValue: 6400, retailPrice: 7800, availableSales: 18, sold: 6, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-ota2-bal', code: 'CJTX-BAL', roomType: '阳台房', pValue: 3700, retailPrice: 4500, availableSales: 26, sold: 5, validStart: '2026-05-15', validEnd: '2026-05-18' },
+    { id: 'price-ota2-win', code: 'CJTX-WIN', roomType: '海景房', pValue: 2900, retailPrice: 3600, availableSales: 22, sold: 4, validStart: '2026-05-15', validEnd: '2026-05-18' },
   ],
 }
 
@@ -210,11 +193,9 @@ function formatPriceValidPeriod(start: string, end: string) {
 
 const policyTypeLabels: Record<PolicyType, string> = {
   all: '全部',
-  ota: 'OTA',
-  dealer: '分销商',
-  group: '组团社',
-  port: '口岸价',
   regional: '区域价',
+  global: '全域价',
+  ota: 'OTA价',
 }
 
 const inventoryWarningLabels: Record<InventoryWarningLevel, string> = {
@@ -259,17 +240,15 @@ export function SalesControlWorkspace({
   selectedSegmentKey?: string
   segmentOptions?: RouteSegmentOption[]
 }) {
-  const [activeTab, setActiveTab] = useState<ControlTab>('sales')
+  const [activeTab, setActiveTab] = useState<ControlTab>('inventory')
   const selectedSegmentLabel = segmentOptions.find((item) => item.key === selectedSegmentKey)?.label || '全部航段'
   const tabs = embedded
     ? [
       ...baseTabs,
       { key: 'tip' as const, label: `小费管理 · ${selectedSegmentLabel}` },
-      { key: 'gradient' as const, label: '调价梯度' },
     ]
     : baseTabs
   const resolvedVoyage = voyage || currentVoyage
-  const [selectedCabinId, setSelectedCabinId] = useState(cabinRows[0]?.id || '')
   const [selectedPolicyId, setSelectedPolicyId] = useState(initialPolicyRows[0]?.id || '')
   const [policyType, setPolicyType] = useState<PolicyType>('all')
   const [salesEditing, setSalesEditing] = useState(false)
@@ -277,36 +256,27 @@ export function SalesControlWorkspace({
   const [priceRowsByPolicy, setPriceRowsByPolicy] = useState(() => clonePriceRowsByPolicy(initialPriceRowsByPolicy))
   const itinerary = resolvedItinerary
 
-  const total = useMemo(() => {
-    return cabinRows.reduce((acc, row) => {
-      acc.release += row.release
-      acc.sold += row.sold
-      return acc
-    }, { release: 0, sold: 0 })
-  }, [])
-
   const filteredPolicies = useMemo(() => {
     return policyType === 'all' ? policyRows : policyRows.filter(row => row.type === policyType)
   }, [policyType, policyRows])
 
-  const selectedCabin = cabinRows.find(row => row.id === selectedCabinId) || cabinRows[0]
   const selectedPolicy = policyRows.find(row => row.id === selectedPolicyId) || policyRows[0]
-  const selectedCabinRate = selectedCabin.release <= 0 ? 0 : Math.round((selectedCabin.sold / selectedCabin.release) * 100)
-  const priceRows = priceRowsByPolicy[selectedPolicy?.id || ''] || priceRowsByPolicy['p-ota-1'] || []
-
-  const updatePolicyRow = (rowId: string, patch: Partial<Pick<PolicyRow, 'allowSales' | 'maxSales'>>) => {
-    setPolicyRows((prev) => prev.map((row) => (
-      row.id === rowId ? { ...row, ...patch } : row
-    )))
-  }
+  const priceRows = priceRowsByPolicy[selectedPolicy?.id || ''] || priceRowsByPolicy['p-reg-1'] || []
+  const isOtaPolicy = selectedPolicy?.type === 'ota'
+  const retailLocked = Boolean(selectedPolicy?.retailEqualsSettlement)
 
   const updatePriceRow = (rowId: string, patch: Partial<PriceRow>) => {
     if (!selectedPolicy?.id) return
     setPriceRowsByPolicy((prev) => ({
       ...prev,
-      [selectedPolicy.id]: (prev[selectedPolicy.id] || []).map((row) => (
-        row.id === rowId ? { ...row, ...patch } : row
-      )),
+      [selectedPolicy.id]: (prev[selectedPolicy.id] || []).map((row) => {
+        if (row.id !== rowId) return row
+        const next = { ...row, ...patch }
+        if (selectedPolicy.type === 'ota' && selectedPolicy.retailEqualsSettlement && patch.pValue != null) {
+          next.retailPrice = patch.pValue
+        }
+        return next
+      }),
     }))
   }
 
@@ -336,6 +306,8 @@ export function SalesControlWorkspace({
       <div className="overflow-hidden p-2.5">
         {activeTab === 'inventory' ? (
           <PublicInventoryTab voyage={resolvedVoyage} />
+        ) : activeTab === 'private' ? (
+          <VoyageChannelDealerInventoryPanel voyage={resolvedVoyage} />
         ) : activeTab === 'warning' ? (
           <InventoryWarningTab />
         ) : activeTab === 'tip' ? (
@@ -343,14 +315,6 @@ export function SalesControlWorkspace({
             <VoyageTipManagementPanel
               voyage={resolvedVoyage}
               selectedSegmentKey={selectedSegmentKey}
-              embedded
-            />
-          </section>
-        ) : activeTab === 'gradient' ? (
-          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <VoyagePriceGradientPanel
-              voyage={resolvedVoyage}
-              segmentOptions={segmentOptions}
               embedded
             />
           </section>
@@ -364,65 +328,16 @@ export function SalesControlWorkspace({
             hasOwnItinerary={voyageHasOwnItinerary}
           />
         ) : activeTab === 'sales' && (
-        <div className="grid min-w-0 grid-cols-[minmax(200px,0.68fr)_minmax(0,1.32fr)] items-start gap-2.5">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-3 py-2.5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">房型信息</h2>
-                <p className="mt-1 truncate text-xs text-slate-500">当前房型：{selectedCabin?.name || '-'}</p>
-              </div>
-              <div className="rounded-md bg-slate-50 px-2.5 py-1 text-right">
-                <div className="text-[11px] text-slate-500">售卖率</div>
-                <div className="text-sm font-semibold text-slate-900">{selectedCabinRate}%</div>
-              </div>
-            </div>
-          </div>
-          <div className="h-[420px] overflow-y-auto overflow-x-hidden">
-            <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-50 text-xs text-slate-500">
-                  <th className="border-b border-slate-200 px-2.5 py-2 text-left font-medium">房型名称</th>
-                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">投放</th>
-                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">已售</th>
-                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">未售</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cabinRows.map(row => {
-                  const selected = row.id === selectedCabinId
-                  const unsold = row.release - row.sold
-                  return (
-                    <tr
-                      key={row.id}
-                      onClick={() => setSelectedCabinId(row.id)}
-                      className={`cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
-                    >
-                      <td className={`truncate border-b border-slate-100 px-2.5 py-2 ${selected ? 'font-semibold text-blue-700' : 'text-slate-700'}`}>{row.name}</td>
-                      <td className="border-b border-slate-100 px-2 py-2 text-right font-medium text-slate-900">{row.release}</td>
-                      <td className="border-b border-slate-100 px-2 py-2 text-right font-medium text-emerald-600">{row.sold}</td>
-                      <td className={`border-b border-slate-100 px-2 py-2 text-right font-medium ${unsold <= 3 ? 'text-rose-600' : 'text-slate-700'}`}>{unsold}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot className="sticky bottom-0 bg-slate-50 text-sm font-semibold text-slate-900">
-                <tr>
-                  <td className="border-t border-slate-200 px-2.5 py-2.5">合计</td>
-                  <td className="border-t border-slate-200 px-2 py-2.5 text-right">{total.release}</td>
-                  <td className="border-t border-slate-200 px-2 py-2.5 text-right text-emerald-600">{total.sold}</td>
-                  <td className="border-t border-slate-200 px-2 py-2.5 text-right">{total.release - total.sold}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </section>
-
         <div className="min-w-0 space-y-2">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <p className="min-w-0 truncate whitespace-nowrap text-xs text-slate-500">
-              {selectedCabin?.name || '-'} · {selectedPolicy?.name || '-'}
-            </p>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">价格政策</p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">
+                {isOtaPolicy
+                  ? `OTA价可配置结算价与零售价 · 渠道：${(selectedPolicy?.otaChannels || []).join('、') || '-'} · 当前：${selectedPolicy?.name || '-'}`
+                  : `区域价 / 全域价调整 P 值（结算价）· 当前：${selectedPolicy?.name || '-'}`}
+              </p>
+            </div>
             <button
               type="button"
               onClick={salesEditing ? exitSalesEditing : enterSalesEditing}
@@ -433,43 +348,39 @@ export function SalesControlWorkspace({
               }`}
             >
               <Pencil className="h-3.5 w-3.5" />
-              {salesEditing ? '完成' : '编辑'}
+              {salesEditing ? '完成' : (isOtaPolicy ? '编辑价格' : '编辑 P 值')}
             </button>
           </div>
 
-          <div className="grid min-w-0 grid-cols-2 gap-2.5">
+          <div className="grid min-w-0 grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)] gap-2.5">
         <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-3 py-2.5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="shrink-0 whitespace-nowrap text-sm font-semibold text-slate-900">价格政策</h2>
-              <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs">
-                <select
-                  value={policyType}
-                  onChange={(event) => {
-                    const value = event.target.value as PolicyType
-                    setPolicyType(value)
-                    const nextPolicy = value === 'all' ? policyRows[0] : policyRows.find(row => row.type === value)
-                    if (nextPolicy) setSelectedPolicyId(nextPolicy.id)
-                  }}
-                  className="h-7 max-w-[96px] rounded-md border border-slate-300 bg-white px-1.5 text-xs text-slate-700"
-                >
-                  {(Object.keys(policyTypeLabels) as PolicyType[]).map(type => (
-                    <option key={type} value={type}>{policyTypeLabels[type]}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={policyType}
+                onChange={(event) => {
+                  const value = event.target.value as PolicyType
+                  setPolicyType(value)
+                  const nextPolicy = value === 'all' ? policyRows[0] : policyRows.find(row => row.type === value)
+                  if (nextPolicy) setSelectedPolicyId(nextPolicy.id)
+                }}
+                className="h-7 max-w-[96px] rounded-md border border-slate-300 bg-white px-1.5 text-xs text-slate-700"
+              >
+                {(Object.keys(policyTypeLabels) as PolicyType[]).map(type => (
+                  <option key={type} value={type}>{policyTypeLabels[type]}</option>
+                ))}
+              </select>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] border-separate border-spacing-0 text-xs">
+            <table className="w-full border-separate border-spacing-0 text-xs">
               <thead>
                 <tr className="whitespace-nowrap bg-slate-50 text-xs text-slate-500">
                   <th className="w-9 border-b border-slate-200 px-2 py-2 text-left font-medium">序号</th>
-                  <th className="min-w-[120px] border-b border-slate-200 px-2 py-2 text-left font-medium">政策名称</th>
-                  <th className="w-[68px] border-b border-slate-200 px-2 py-2 text-left font-medium">类型</th>
-                  <th className="w-12 border-b border-slate-200 px-2 py-2 text-right font-medium">允许</th>
-                  <th className="w-12 border-b border-slate-200 px-2 py-2 text-right font-medium">上限</th>
+                  <th className="border-b border-slate-200 px-2 py-2 text-left font-medium">政策名称</th>
+                  <th className="w-[72px] border-b border-slate-200 px-2 py-2 text-left font-medium">类型</th>
                   <th className="w-12 border-b border-slate-200 px-2 py-2 text-right font-medium">已售</th>
                   <th className="w-12 border-b border-slate-200 px-2 py-2 text-right font-medium">可售</th>
                 </tr>
@@ -485,38 +396,18 @@ export function SalesControlWorkspace({
                       className={`cursor-pointer whitespace-nowrap transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                     >
                       <td className="border-b border-slate-100 px-2 py-2 text-slate-500">{index + 1}</td>
-                      <td className={`max-w-[140px] truncate border-b border-slate-100 px-2 py-2 ${selected ? 'font-semibold text-blue-700' : 'text-slate-800'}`}>{row.name}</td>
+                      <td className={`border-b border-slate-100 px-2 py-2 ${selected ? 'font-semibold text-blue-700' : 'text-slate-800'}`}>
+                        <div className="truncate">{row.name}</div>
+                        {row.type === 'ota' && row.otaChannels && row.otaChannels.length > 0 && (
+                          <div className="mt-0.5 truncate text-[10px] font-normal text-amber-600">
+                            {row.otaChannels.join('、')}
+                            {row.retailEqualsSettlement ? ' · 同价' : ' · 分设'}
+                          </div>
+                        )}
+                      </td>
                       <td className="border-b border-slate-100 px-2 py-2"><TypeBadge type={row.type} /></td>
-                      <td className="border-b border-slate-100 px-2 py-2 text-right">
-                        {salesEditing ? (
-                          <input
-                            type="number"
-                            min={0}
-                            value={row.allowSales}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) => updatePolicyRow(row.id, { allowSales: Math.max(0, Number(event.target.value) || 0) })}
-                            className="h-7 w-full rounded-md border border-slate-300 px-1 text-right text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                          />
-                        ) : (
-                          <span className="font-medium tabular-nums text-slate-900">{row.allowSales}</span>
-                        )}
-                      </td>
-                      <td className="border-b border-slate-100 px-2 py-2 text-right">
-                        {salesEditing ? (
-                          <input
-                            type="number"
-                            min={0}
-                            value={row.maxSales}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) => updatePolicyRow(row.id, { maxSales: Math.max(0, Number(event.target.value) || 0) })}
-                            className="h-7 w-full rounded-md border border-slate-300 px-1 text-right text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                          />
-                        ) : (
-                          <span className="tabular-nums text-slate-700">{row.maxSales}</span>
-                        )}
-                      </td>
                       <td className="border-b border-slate-100 px-2 py-2 text-right font-medium tabular-nums text-emerald-600">{row.sold}</td>
-                      <td className={`border-b border-slate-100 px-2 py-2 text-right font-medium tabular-nums ${available <= 8 ? 'text-rose-600' : 'text-slate-900'}`}>{available}</td>
+                      <td className={`border-b border-slate-100 px-2 py-2 text-right font-medium tabular-nums ${available <= 5 ? 'text-rose-600' : 'text-slate-900'}`}>{available}</td>
                     </tr>
                   )
                 })}
@@ -527,92 +418,80 @@ export function SalesControlWorkspace({
 
         <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-3 py-2.5">
-            <h2 className="whitespace-nowrap text-sm font-semibold text-slate-900">价格详情</h2>
+            <h2 className="whitespace-nowrap text-sm font-semibold text-slate-900">
+              {isOtaPolicy ? '房型结算价 / 零售价' : '房型 P 值（结算价）'}
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {isOtaPolicy
+                ? (retailLocked ? '该 OTA 政策勾选了零售价与结算价相同，改结算价将同步零售价' : 'OTA 可分别配置结算价与零售价；调整后需走价格投放审批（原型仅本地更新）')
+                : '调整后需走价格投放审批（原型仅本地更新）'}
+            </p>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
+            <table className="w-full border-separate border-spacing-0 text-xs">
               <thead>
                 <tr className="whitespace-nowrap bg-slate-50 text-xs text-slate-500">
-                  <th className="w-10 border-b border-slate-200 px-1 py-2 text-center font-medium">代码</th>
-                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">P</th>
-                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">S</th>
-                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">可售</th>
-                  <th className="w-12 border-b border-slate-200 px-2 py-2 text-right font-medium">已售</th>
-                  <th className="w-[108px] border-b border-slate-200 px-2 py-2 text-left font-medium">有效期</th>
+                  <th className="border-b border-slate-200 px-3 py-2 text-left font-medium">销售房型</th>
+                  <th className="w-28 border-b border-slate-200 px-2 py-2 text-left font-medium">代码</th>
+                  <th className="w-24 border-b border-slate-200 px-2 py-2 text-right font-medium">
+                    {isOtaPolicy ? '结算价' : 'P 值'}
+                  </th>
+                  {isOtaPolicy && (
+                    <th className="w-24 border-b border-slate-200 px-2 py-2 text-right font-medium">零售价</th>
+                  )}
+                  <th className="w-16 border-b border-slate-200 px-2 py-2 text-right font-medium">可售</th>
+                  <th className="w-14 border-b border-slate-200 px-2 py-2 text-right font-medium">已售</th>
+                  <th className="w-[120px] border-b border-slate-200 px-2 py-2 text-left font-medium">有效期</th>
                 </tr>
               </thead>
               <tbody>
-                {priceRows.map(row => (
-                  <tr key={row.id} className="whitespace-nowrap hover:bg-slate-50">
-                    <td className="w-10 truncate border-b border-slate-100 px-1 py-2 text-center font-mono text-[11px] text-slate-700" title={row.code}>{row.code}</td>
-                    <td className="border-b border-slate-100 px-2 py-2 text-right">
-                      {salesEditing ? (
-                        <input
-                          type="number"
-                          value={row.portPrice}
-                          onChange={(event) => updatePriceRow(row.id, { portPrice: Number(event.target.value) || 0 })}
-                          className="h-7 w-full rounded-md border border-slate-300 px-1 text-right text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
-                      ) : (
-                        <span className="font-medium tabular-nums text-slate-900">{row.portPrice}</span>
-                      )}
-                    </td>
-                    <td className="border-b border-slate-100 px-2 py-2 text-right">
-                      {salesEditing ? (
-                        <input
-                          type="number"
-                          value={row.settlementPrice}
-                          onChange={(event) => updatePriceRow(row.id, { settlementPrice: Number(event.target.value) || 0 })}
-                          className="h-7 w-full rounded-md border border-slate-300 px-1 text-right text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
-                      ) : (
-                        <span className="font-medium tabular-nums text-slate-900">{row.settlementPrice}</span>
-                      )}
-                    </td>
-                    <td className="border-b border-slate-100 px-2 py-2 text-right">
-                      {salesEditing ? (
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.availableSales}
-                          onChange={(event) => updatePriceRow(row.id, { availableSales: Math.max(0, Number(event.target.value) || 0) })}
-                          className="h-7 w-full rounded-md border border-slate-300 px-1 text-right text-xs font-medium text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
-                      ) : (
-                        <span className={`font-medium tabular-nums ${row.availableSales <= 5 ? 'text-rose-600' : 'text-slate-900'}`}>{row.availableSales}</span>
-                      )}
-                    </td>
-                    <td className="border-b border-slate-100 px-2 py-2 text-right font-medium tabular-nums text-emerald-600">{row.sold}</td>
-                    <td className="border-b border-slate-100 px-2 py-2">
-                      {salesEditing ? (
-                        <div className="flex flex-nowrap items-center gap-0.5">
+                {priceRows.map(row => {
+                  const retailValue = retailLocked ? row.pValue : (row.retailPrice ?? row.pValue)
+                  return (
+                    <tr key={row.id} className="whitespace-nowrap hover:bg-slate-50">
+                      <td className="border-b border-slate-100 px-3 py-2 font-medium text-slate-800">{row.roomType}</td>
+                      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[11px] text-slate-600">{row.code}</td>
+                      <td className="border-b border-slate-100 px-2 py-2 text-right">
+                        {salesEditing ? (
                           <input
-                            type="date"
-                            value={row.validStart}
-                            onChange={(event) => updatePriceRow(row.id, { validStart: event.target.value })}
-                            className="h-7 w-[88px] shrink-0 rounded-md border border-slate-300 px-0.5 text-[10px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            type="number"
+                            value={row.pValue}
+                            onChange={(event) => updatePriceRow(row.id, { pValue: Number(event.target.value) || 0 })}
+                            className="h-8 w-full rounded-md border border-blue-300 bg-blue-50/40 px-2 text-right text-sm font-semibold tabular-nums text-blue-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                           />
-                          <span className="shrink-0 text-slate-400">~</span>
-                          <input
-                            type="date"
-                            value={row.validEnd}
-                            onChange={(event) => updatePriceRow(row.id, { validEnd: event.target.value })}
-                            className="h-7 w-[88px] shrink-0 rounded-md border border-slate-300 px-0.5 text-[10px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                          />
-                        </div>
-                      ) : (
-                        <span className="tabular-nums text-slate-600">{formatPriceValidPeriod(row.validStart, row.validEnd)}</span>
+                        ) : (
+                          <span className="text-sm font-semibold tabular-nums text-blue-700">{row.pValue}</span>
+                        )}
+                      </td>
+                      {isOtaPolicy && (
+                        <td className="border-b border-slate-100 px-2 py-2 text-right">
+                          {salesEditing && !retailLocked ? (
+                            <input
+                              type="number"
+                              value={retailValue}
+                              onChange={(event) => updatePriceRow(row.id, { retailPrice: Number(event.target.value) || 0 })}
+                              className="h-8 w-full rounded-md border border-amber-300 bg-amber-50/40 px-2 text-right text-sm font-semibold tabular-nums text-amber-800 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                            />
+                          ) : (
+                            <span className={`text-sm font-semibold tabular-nums ${retailLocked ? 'text-slate-500' : 'text-amber-700'}`}>
+                              {retailValue}
+                              {retailLocked && <span className="ml-1 text-[10px] font-normal text-slate-400">同结算</span>}
+                            </span>
+                          )}
+                        </td>
                       )}
-                    </td>
-                  </tr>
-                ))}
+                      <td className={`border-b border-slate-100 px-2 py-2 text-right font-medium tabular-nums ${row.availableSales <= 5 ? 'text-rose-600' : 'text-slate-900'}`}>{row.availableSales}</td>
+                      <td className="border-b border-slate-100 px-2 py-2 text-right font-medium tabular-nums text-emerald-600">{row.sold}</td>
+                      <td className="border-b border-slate-100 px-2 py-2 tabular-nums text-slate-600">{formatPriceValidPeriod(row.validStart, row.validEnd)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </section>
           </div>
-        </div>
         </div>
         )}
       </div>
@@ -636,7 +515,8 @@ function buildPublicInventoryRows(
     sellRoomTypeCode: sellRoom.code,
     name: sellRoom.name,
     physicalCapacity: aggregatePhysicalCapacity(rules, sellRoom.code),
-    publicStock: aggregatePublicStock(rules, sellRoom.code),
+    regionalPublicStock: aggregateInventoryField(rules, sellRoom.code, 'regionalPublicStock'),
+    globalPublicStock: aggregateInventoryField(rules, sellRoom.code, 'globalPublicStock'),
     sold: getSoldForSellRoom(voyageId, sellRoom.name),
     status: statusMap[sellRoom.code] || 'open',
   }))
@@ -685,20 +565,27 @@ function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
   const total = rows.reduce(
     (acc, row) => {
       acc.physicalCapacity += row.physicalCapacity
-      acc.publicStock += row.publicStock
+      acc.regionalPublicStock += row.regionalPublicStock
+      acc.globalPublicStock += row.globalPublicStock
       acc.sold += row.sold
       return acc
     },
-    { physicalCapacity: 0, publicStock: 0, sold: 0 },
+    { physicalCapacity: 0, regionalPublicStock: 0, globalPublicStock: 0, sold: 0 },
   )
 
   const handleSave = (updated: PublicInventoryRow) => {
     if (!template) return
-    const nextRules = setAggregatedInventoryField(
+    let nextRules = setAggregatedInventoryField(
       inventoryRules,
       updated.sellRoomTypeCode,
-      'publicStock',
-      updated.publicStock,
+      'regionalPublicStock',
+      updated.regionalPublicStock,
+    )
+    nextRules = setAggregatedInventoryField(
+      nextRules,
+      updated.sellRoomTypeCode,
+      'globalPublicStock',
+      updated.globalPublicStock,
     )
     setInventoryRules(nextRules)
     saveTemplateInventoryRules(template.id, nextRules)
@@ -709,7 +596,7 @@ function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
   if (!voyage.templateId) {
     return (
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white py-16 text-center text-sm text-slate-400 shadow-sm">
-        当前航次未关联模板，无法查看公有库存
+        当前航次未关联模板，无法查看公共库存
       </section>
     )
   }
@@ -718,9 +605,9 @@ function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
     <>
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-slate-900">公有库存</h2>
+          <h2 className="text-sm font-semibold text-slate-900">公共库存</h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            共 {rows.length} 类销售房型，展示模板渠道配置中的公有库存；点击「维护库存」可调整数量与状态
+            共 {rows.length} 类销售房型；区分区域公共库存与全域公共库存，点击「维护库存」可分别调整
           </p>
         </div>
 
@@ -734,18 +621,19 @@ function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
                   <th className="w-12 border-b border-slate-200 px-3 py-2.5 text-center font-medium">序号</th>
                   <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">销售房型</th>
                   <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">物理容量</th>
-                  <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">公有库存</th>
+                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">区域公共</th>
+                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">全域公共</th>
+                  <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">公共合计</th>
                   <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已售数</th>
-                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">容量未售</th>
-                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">公有未售</th>
+                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">公共未售</th>
                   <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-center font-medium">库存状态</th>
                   <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row, index) => {
-                  const capacityUnsold = row.physicalCapacity - row.sold
-                  const publicUnsold = row.publicStock - row.sold
+                  const publicTotal = row.regionalPublicStock + row.globalPublicStock
+                  const publicUnsold = publicTotal - row.sold
                   const isOpen = row.status === 'open'
 
                   return (
@@ -753,9 +641,10 @@ function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
                       <td className="border-b border-slate-100 px-3 py-2.5 text-center text-slate-400">{index + 1}</td>
                       <td className="border-b border-slate-100 px-3 py-2.5 font-medium text-slate-800">{row.name}</td>
                       <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-slate-900">{row.physicalCapacity}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-blue-700">{row.publicStock}</td>
+                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-purple-700">{row.regionalPublicStock}</td>
+                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-blue-700">{row.globalPublicStock}</td>
+                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-semibold text-slate-900">{publicTotal}</td>
                       <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-emerald-600">{row.sold}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-slate-900">{capacityUnsold}</td>
                       <td className={`border-b border-slate-100 px-3 py-2.5 text-right font-medium ${publicUnsold <= 5 ? 'text-rose-600' : 'text-slate-700'}`}>{publicUnsold}</td>
                       <td className="border-b border-slate-100 px-3 py-2.5 text-center">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${
@@ -784,10 +673,11 @@ function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
                   <td className="border-t border-slate-200 px-3 py-2.5 text-center text-slate-400">—</td>
                   <td className="border-t border-slate-200 px-3 py-2.5 text-slate-500">合计</td>
                   <td className="border-t border-slate-200 px-3 py-2.5 text-right">{total.physicalCapacity}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-blue-700">{total.publicStock}</td>
+                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-purple-700">{total.regionalPublicStock}</td>
+                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-blue-700">{total.globalPublicStock}</td>
+                  <td className="border-t border-slate-200 px-3 py-2.5 text-right">{total.regionalPublicStock + total.globalPublicStock}</td>
                   <td className="border-t border-slate-200 px-3 py-2.5 text-right text-emerald-600">{total.sold}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right">{total.physicalCapacity - total.sold}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-slate-600">{total.publicStock - total.sold}</td>
+                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-slate-600">{total.regionalPublicStock + total.globalPublicStock - total.sold}</td>
                   <td className="border-t border-slate-200 px-3 py-2.5" />
                   <td className="border-t border-slate-200 px-3 py-2.5" />
                 </tr>
@@ -1078,27 +968,41 @@ function PublicInventoryModal({
   onSave: (updated: PublicInventoryRow) => void
   onClose: () => void
 }) {
-  const [publicStock, setPublicStock] = useState(String(row.publicStock))
+  const [regionalPublicStock, setRegionalPublicStock] = useState(String(row.regionalPublicStock))
+  const [globalPublicStock, setGlobalPublicStock] = useState(String(row.globalPublicStock))
   const [status, setStatus] = useState<'open' | 'closed'>(row.status)
 
-  const publicStockNum = publicStock === '' ? 0 : parseInt(publicStock, 10)
-  const isValid = publicStock !== '' && Number.isFinite(publicStockNum) && !Number.isNaN(publicStockNum) && publicStockNum >= 0
-  const isUnderflow = isValid && publicStockNum < row.sold
-  const isOverCapacity = isValid && publicStockNum > row.physicalCapacity
+  const regionalNum = regionalPublicStock === '' ? 0 : parseInt(regionalPublicStock, 10)
+  const globalNum = globalPublicStock === '' ? 0 : parseInt(globalPublicStock, 10)
+  const publicTotal = regionalNum + globalNum
+  const isValid =
+    regionalPublicStock !== ''
+    && globalPublicStock !== ''
+    && Number.isFinite(regionalNum)
+    && Number.isFinite(globalNum)
+    && regionalNum >= 0
+    && globalNum >= 0
+  const isUnderflow = isValid && publicTotal < row.sold
+  const isOverCapacity = isValid && publicTotal > row.physicalCapacity
   const canSave = isValid && !isUnderflow
 
   const handleSave = () => {
     if (!canSave) return
-    onSave({ ...row, publicStock: publicStockNum, status })
+    onSave({
+      ...row,
+      regionalPublicStock: regionalNum,
+      globalPublicStock: globalNum,
+      status,
+    })
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-[420px] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
+      <div className="relative z-10 w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
         <div className="flex items-start justify-between bg-white px-6 pt-5 pb-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">维护公有库存</h3>
+            <h3 className="text-sm font-semibold text-slate-900">维护公共库存</h3>
             <p className="mt-0.5 max-w-[280px] truncate text-xs font-normal text-slate-400">{row.name}</p>
           </div>
           <button
@@ -1119,8 +1023,8 @@ function PublicInventoryModal({
             <div className="text-lg font-bold leading-none text-slate-800">{row.physicalCapacity}</div>
           </div>
           <div className="px-4 py-3 text-center">
-            <div className="mb-1 text-[10px] text-slate-400">当前公有库存</div>
-            <div className="text-lg font-bold leading-none text-blue-700">{row.publicStock}</div>
+            <div className="mb-1 text-[10px] text-slate-400">公共合计</div>
+            <div className="text-lg font-bold leading-none text-slate-800">{publicTotal}</div>
           </div>
           <div className="px-4 py-3 text-center">
             <div className="mb-1 text-[10px] text-slate-400">已售</div>
@@ -1129,27 +1033,33 @@ function PublicInventoryModal({
         </div>
 
         <div className="space-y-4 px-6 pb-5">
-          <div>
-            <label className="mb-2 block text-xs font-medium text-slate-700">公有库存数量</label>
-            <input
-              type="number"
-              min={0}
-              value={publicStock}
-              onChange={(e) => setPublicStock(e.target.value)}
-              autoFocus
-              className={`h-9 w-full rounded-lg border px-3 text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 ${
-                !isValid || isUnderflow
-                  ? 'border-rose-300 text-rose-700 focus:border-rose-400 focus:ring-rose-100'
-                  : isOverCapacity
-                    ? 'border-amber-300 text-amber-700 focus:border-amber-400 focus:ring-amber-100'
-                    : 'border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-blue-100'
-              }`}
-            />
-            {isUnderflow && <p className="mt-1 text-xs text-rose-500">不能低于已售数 {row.sold}</p>}
-            {isOverCapacity && !isUnderflow && (
-              <p className="mt-1 text-xs text-amber-600">已超过物理容量上限 {row.physicalCapacity}</p>
-            )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-2 block text-xs font-medium text-purple-700">区域公共库存</label>
+              <input
+                type="number"
+                min={0}
+                value={regionalPublicStock}
+                onChange={(e) => setRegionalPublicStock(e.target.value)}
+                autoFocus
+                className="h-9 w-full rounded-lg border border-purple-200 px-3 text-sm font-semibold tabular-nums text-purple-800 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-medium text-blue-700">全域公共库存</label>
+              <input
+                type="number"
+                min={0}
+                value={globalPublicStock}
+                onChange={(e) => setGlobalPublicStock(e.target.value)}
+                className="h-9 w-full rounded-lg border border-blue-200 px-3 text-sm font-semibold tabular-nums text-blue-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
           </div>
+          {isUnderflow && <p className="text-xs text-rose-500">区域+全域合计不能低于已售数 {row.sold}</p>}
+          {isOverCapacity && !isUnderflow && (
+            <p className="text-xs text-amber-600">已超过物理容量上限 {row.physicalCapacity}</p>
+          )}
 
           <div>
             <label className="mb-2 block text-xs font-medium text-slate-700">库存状态</label>
@@ -1196,14 +1106,11 @@ function PublicInventoryModal({
 
 
 
-
 function TypeBadge({ type }: { type: Exclude<PolicyType, 'all'> }) {
   const className: Record<Exclude<PolicyType, 'all'>, string> = {
-    ota: 'bg-violet-50 text-violet-700 ring-violet-200',
-    dealer: 'bg-blue-50 text-blue-700 ring-blue-200',
-    group: 'bg-amber-50 text-amber-700 ring-amber-200',
-    port: 'bg-teal-50 text-teal-700 ring-teal-200',
     regional: 'bg-purple-50 text-purple-700 ring-purple-200',
+    global: 'bg-blue-50 text-blue-700 ring-blue-200',
+    ota: 'bg-amber-50 text-amber-700 ring-amber-200',
   }
 
   return (

@@ -509,6 +509,8 @@ export interface Product {
   cutoffDays: number
   refundPolicy: string
   materialReq: string[]
+  /** 关联的附加产品ID列表 */
+  additionalProductIds?: string[]
   approvalStatus?: string
   approvalTimeline?: ApprovalStep[]
   publishStatus?: 'published' | 'unpublished'
@@ -885,13 +887,17 @@ export type FacilityCategory = 'dining' | 'entertainment' | 'leisure' | 'sports'
 export type FacilityBizStatus = 'open' | 'closed' | 'maintenance'
 export type FacilityChargeType = 'free' | 'per_time' | 'per_hour'
 
+export type FacilityType = 'ship' | 'cabin'
+
 export interface ShipFacility {
   id: string
   code: string
   name: string
+  facilityType?: FacilityType
   category: FacilityCategory
   maxCapacity: number
   bizStatus: FacilityBizStatus
+  hours?: string
   chargeType: FacilityChargeType
   chargeAmount: number
   mainImage: string
@@ -906,9 +912,11 @@ export interface ShipFacility {
 export interface FacilityForm {
   code: string
   name: string
+  facilityType: FacilityType
   category: FacilityCategory
   maxCapacity: number
   bizStatus: FacilityBizStatus
+  hours?: string
   chargeType: FacilityChargeType
   chargeAmount: number
   mainImage: string

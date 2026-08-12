@@ -44,9 +44,12 @@ function normalizeTip(item: TemplateTip, defaultSegmentKey: string): TemplateTip
 }
 
 export function pickProductVoyageConfig(
-  product: Pick<Product, 'deposits' | 'tips' | 'configuredRoomTypes' | 'privileges' | 'presaleDays' | 'cutoffDays' | 'refundPolicy' | 'materialReq' | 'segments'>,
+  product: Pick<Product, 'id' | 'deposits' | 'tips' | 'configuredRoomTypes' | 'privileges' | 'presaleDays' | 'cutoffDays' | 'refundPolicy' | 'materialReq' | 'segments' | 'additionalProductIds'>,
 ): ProductVoyageConfigValue {
   const defaultSegmentKey = product.segments?.[0] ? getSegmentKey(product.segments[0]) : ''
+  const associatedAps = product.additionalProductIds
+    ? product.additionalProductIds
+    : ['ap001', 'ap002', 'ap004'] // 默认关联常用附加产品 mock
   return {
     deposits: (product.deposits || []).map((item) => normalizeDeposit(item, defaultSegmentKey)),
     tips: (product.tips || []).map((item) => normalizeTip(item, defaultSegmentKey)),
@@ -56,6 +59,7 @@ export function pickProductVoyageConfig(
     cutoffDays: product.cutoffDays || 0,
     refundPolicy: product.refundPolicy || '',
     materialReq: [...(product.materialReq || [])],
+    additionalProductIds: associatedAps,
   }
 }
 

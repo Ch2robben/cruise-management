@@ -33,6 +33,7 @@ interface TipStandard {
   ticketAmounts: TipTicketAmount[]
   effectiveStart: string
   effectiveEnd: string
+  longTerm: boolean
   approvalStatus: TipApprovalStatus
   status: TipStatus
   remark: string
@@ -71,12 +72,18 @@ const emptyForm: TipStandardForm = {
   ticketAmounts: createDefaultTicketAmounts(50),
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
+  longTerm: false,
   status: 'enabled',
   remark: '',
 }
 
 function getChargeTypeLabel(type: TipChargeType) {
   return chargeTypes.find((item) => item.value === type)?.label || type
+}
+
+function formatEffectivePeriod(start: string, end: string, longTerm: boolean) {
+  if (longTerm) return `${formatDate(start)} 起 · 长期`
+  return `${formatDate(start)} 至 ${formatDate(end)}`
 }
 
 function formatTipAmount(type: TipChargeType, amount: number) {
@@ -161,7 +168,7 @@ export default function TipConfigPage() {
   const openEdit = (record: TipStandard) => {
     const { id: _id, approvalStatus: _approvalStatus, updatedBy: _updatedBy, updatedAt: _updatedAt, createdAt: _createdAt, ...nextForm } = record
     setEditingId(record.id)
-    setForm(nextForm)
+    setForm({ ...nextForm, longTerm: Boolean(record.longTerm) })
     setFormOpen(true)
   }
 
@@ -209,7 +216,7 @@ export default function TipConfigPage() {
     { key: 'amount', title: '票类小费标准', render: (r: TipStandard) => (
       <div className="max-w-[320px] whitespace-normal leading-5">{formatTicketAmountSummary(r.chargeType, r.ticketAmounts)}</div>
     ) },
-    { key: 'effective', title: '有效期', render: (r: TipStandard) => `${formatDate(r.effectiveStart)} 至 ${formatDate(r.effectiveEnd)}` },
+    { key: 'effective', title: '有效期', render: (r: TipStandard) => formatEffectivePeriod(r.effectiveStart, r.effectiveEnd, r.longTerm) },
     { key: 'approvalStatus', title: '审批状态', render: (r: TipStandard) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'status', title: '状态', render: (r: TipStandard) => <StatusBadge status={r.status} /> },
     { key: 'updatedAt', title: '修改时间', render: (r: TipStandard) => formatDateTime(r.updatedAt) },
@@ -290,10 +297,40 @@ export default function TipConfigPage() {
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">生效控制</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div><label className="block text-sm text-gray-700 mb-1">生效开始日期</label><input type="date" value={form.effectiveStart} onChange={(e) => setForm({ ...form, effectiveStart: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">生效结束日期</label><input type="date" value={form.effectiveEnd} onChange={(e) => setForm({ ...form, effectiveEnd: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">状态</label><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as TipStatus })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="enabled">启用</option><option value="disabled">禁用</option></select></div>
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">生效开始日期</label>
+                <input type="date" value={form.effectiveStart} onChange={(e) => setForm({ ...form, effectiveStart: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">生效结束日期</label>
+                <input
+                  type="date"
+                  value={form.longTerm ? '' : form.effectiveEnd}
+                  onChange={(e) => setForm({ ...form, effectiveEnd: e.target.value, longTerm: false })}
+                  disabled={form.longTerm}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">有效期类型</label>
+                <label className="inline-flex h-[38px] w-full cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={form.longTerm}
+                    onChange={(e) => setForm({ ...form, longTerm: e.target.checked })}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  长期
+                </label>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">状态</label>
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as TipStatus })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                  <option value="enabled">启用</option>
+                  <option value="disabled">禁用</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -307,7 +344,7 @@ export default function TipConfigPage() {
       <DetailDrawer open={detailOpen} title="小费标准详情" onClose={() => setDetailOpen(false)}>
         {detail && (<>
           <DetailCard title="基本信息"><DetailRow label="标准编码" value={detail.code} mono /><DetailRow label="标准名称" value={detail.name} /><DetailRow label="市场类别" value={getMarketCategoryLabel(detail.marketCategory)} /><DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} /><DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} /><DetailRow label="状态" value={<StatusBadge status={detail.status} />} /></DetailCard>
-          <DetailCard title="小费标准"><DetailRow label="收取方式" value={getChargeTypeLabel(detail.chargeType)} /><DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} 至 ${formatDate(detail.effectiveEnd)}`} /><DetailRow label="规则说明" value={detail.remark || '-'} /></DetailCard>
+          <DetailCard title="小费标准"><DetailRow label="收取方式" value={getChargeTypeLabel(detail.chargeType)} /><DetailRow label="有效期" value={formatEffectivePeriod(detail.effectiveStart, detail.effectiveEnd, detail.longTerm)} /><DetailRow label="规则说明" value={detail.remark || '-'} /></DetailCard>
           <DetailCard title="票类金额">
             <div className="space-y-2">
               {normalizeTicketAmounts(detail.chargeType, detail.ticketAmounts).map((item) => (

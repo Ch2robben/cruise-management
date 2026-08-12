@@ -6,6 +6,7 @@ import DealerInventoryAllocationTable from '@/components/voyage/DealerInventoryA
 import {
   collectSelectedDealerIds,
   findOverAllocations,
+  getSellableTotal,
   getTemplateSellRoomTypes,
   loadDealerInventoryRules,
   loadTemplateInventoryRules,
@@ -13,6 +14,7 @@ import {
   saveTemplateInventoryRules,
   segmentKey,
   setDealerQuantity,
+  type DealerPrivateStockKind,
   type TemplateDealerInventoryRules,
   type TemplateInventoryCell,
   type TemplateInventoryRules,
@@ -21,7 +23,7 @@ import type { TemplateSellRoomType } from '@/mock/sellRoomTypeConfig'
 import type { ProductSegment, VoyageTemplate } from '@/types'
 
 type ConfigStep = 1 | 2
-type ChannelField = 'onlineChannel' | 'publicStock' | 'dealerStockPool'
+type ChannelField = 'regionalPublicStock' | 'globalPublicStock'
 
 const stepLabels: Record<ConfigStep, string> = {
   1: '渠道库存配置',
@@ -36,9 +38,8 @@ function getCell(
   return (
     rules[sellRoomTypeCode]?.[segKey] || {
       physicalCapacity: 0,
-      onlineChannel: 0,
-      publicStock: 0,
-      dealerStockPool: 0,
+      regionalPublicStock: 0,
+      globalPublicStock: 0,
     }
   )
 }
@@ -67,7 +68,6 @@ export default function TemplateInventoryConfigPanel({
   const [sellRoomTypes, setSellRoomTypes] = useState<TemplateSellRoomType[]>([])
   const [currentStep, setCurrentStep] = useState<ConfigStep>(1)
   const [editMode, setEditMode] = useState(false)
-  const [dealerDropdownOpen, setDealerDropdownOpen] = useState(false)
   const [saveWarning, setSaveWarning] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -85,7 +85,6 @@ export default function TemplateInventoryConfigPanel({
       setCurrentStep(1)
       setEditMode(false)
       setSaveWarning('')
-      setDealerDropdownOpen(false)
 
       const t = await templateApi.getById(id)
       if (cancelled || !t) {
@@ -165,7 +164,7 @@ export default function TemplateInventoryConfigPanel({
           const current = cabinMap[key] || []
           cabinMap[key] = dealerIds.map((dealerId) => {
             const existing = current.find((item) => item.dealerId === dealerId)
-            return existing || { dealerId, quantity: 0 }
+            return existing || { dealerId, regionalPrivateQty: 0, privateQty: 0 }
           })
         })
         nextRules[sellRoom.code] = cabinMap
@@ -174,18 +173,11 @@ export default function TemplateInventoryConfigPanel({
     })
   }
 
-  const toggleDealerSelection = (dealerId: string) => {
-    const next = selectedDealers.includes(dealerId)
-      ? selectedDealers.filter((id) => id !== dealerId)
-      : [...selectedDealers, dealerId]
-    setSelectedDealers(next)
-    syncDealerRows(next)
-  }
-
   const updateDealerAllocation = (
     sellRoomTypeCode: string,
     segKey: string,
     dealerId: string,
+    stockKind: DealerPrivateStockKind,
     value: number,
   ) => {
     setDealerRules((prev) => {
@@ -195,7 +187,7 @@ export default function TemplateInventoryConfigPanel({
         ...prev,
         [sellRoomTypeCode]: {
           ...cabinMap,
-          [segKey]: setDealerQuantity(current, dealerId, value),
+          [segKey]: setDealerQuantity(current, dealerId, value, stockKind),
         },
       }
     })
@@ -209,11 +201,6 @@ export default function TemplateInventoryConfigPanel({
     }
     setCurrentStep(2)
   }
-
-  const selectedDealerNames = selectedDealers
-    .map((dealerId) => activeDealers.find((dealer) => dealer.id === dealerId)?.name)
-    .filter(Boolean)
-    .join('、')
 
   const padding = embedded ? 'px-6 py-4' : 'px-6 py-5'
 
@@ -299,20 +286,24 @@ export default function TemplateInventoryConfigPanel({
                     <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">航段</th>
                     <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">销售房型</th>
                     <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">物理容量</th>
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">线上渠道</th>
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">公共库存</th>
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">经销商库存</th>
+                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">区域公共库存</th>
+                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">全域公共库存</th>
+                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">未分配</th>
                     <th className="border-b px-3 py-2 text-right text-xs font-medium text-gray-500">可售合计</th>
                   </tr>
                 </thead>
                 <tbody>
                   {renderSegmentCabinRows((segKey, sellRoomTypeCode) => {
                     const cell = getCell(inventoryRules, sellRoomTypeCode, segKey)
-                    const total = cell.onlineChannel + cell.publicStock + cell.dealerStockPool
+                    const total = getSellableTotal(cell)
+                    const unallocated = Math.max(
+                      0,
+                      cell.physicalCapacity - cell.regionalPublicStock - cell.globalPublicStock,
+                    )
                     return (
                       <>
                         <td className="border-r border-b px-3 py-2 text-right text-gray-600">{cell.physicalCapacity}</td>
-                        {(['onlineChannel', 'publicStock', 'dealerStockPool'] as ChannelField[]).map((field) => (
+                        {(['regionalPublicStock', 'globalPublicStock'] as ChannelField[]).map((field) => (
                           <td key={field} className="border-r border-b px-3 py-2 text-right">
                             {editMode ? (
                               <input
@@ -334,6 +325,12 @@ export default function TemplateInventoryConfigPanel({
                             )}
                           </td>
                         ))}
+                        <td className={`border-r border-b px-3 py-2 text-right font-medium tabular-nums ${
+                          unallocated === 0 ? 'text-slate-400' : 'text-amber-700'
+                        }`}
+                        >
+                          {unallocated}
+                        </td>
                         <td className="border-b px-3 py-2 text-right font-medium text-blue-600">{total}</td>
                       </>
                     )
@@ -342,46 +339,18 @@ export default function TemplateInventoryConfigPanel({
               </table>
             </div>
             <p className="text-xs text-gray-500">
-              按航段 × 销售房型维护渠道库存；经销商库存为 Step2 各经销商分配的上限。
+              按航段 × 销售房型维护区域/全域公共库存；「未分配」= 物理容量 − 区域公共 − 全域公共，将作为 Step2 经销商私有库存池上限。
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <p className="text-xs text-gray-500">按航段 × 销售房型将经销商库存池拆分到各经销商。</p>
-              {editMode && (
-                <div className="relative w-72 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setDealerDropdownOpen((v) => !v)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-left text-sm"
-                  >
-                    <span className="block truncate">{selectedDealerNames || '请选择经销商'}</span>
-                  </button>
-                  {dealerDropdownOpen && (
-                    <div className="absolute right-0 z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border bg-white p-2 shadow-lg">
-                      {activeDealers.map((dealer) => (
-                        <label
-                          key={dealer.id}
-                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-gray-50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedDealers.includes(dealer.id)}
-                            onChange={() => toggleDealerSelection(dealer.id)}
-                          />
-                          <span className="truncate">{dealer.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <p className="text-xs text-gray-500">
+              按航段卡片平铺展示；房型横向、经销商纵向，区分区域私有 / 私有库存。
+            </p>
 
             {selectedDealers.length === 0 ? (
               <div className="rounded-lg border border-dashed py-12 text-center text-sm text-gray-400">
-                {editMode ? '请先选择经销商' : '暂无经销商分配'}
+                暂无经销商分配
               </div>
             ) : (
               <DealerInventoryAllocationTable

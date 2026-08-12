@@ -9,6 +9,7 @@ import { formatDateTime } from '@/utils/format'
 import { getRouteProductAutoFill } from '@/utils/itineraryPlanProduct'
 import { getEnabledSellRoomTypesByShip } from '@/mock/sellRoomTypeConfig'
 import { pickProductVoyageConfig, buildProductSegmentOptions, formatSegmentKeyLabel } from '@/utils/productVoyageConfig'
+import { initialAdditionalProducts } from '@/mock/additionalProducts'
 import ProductVoyageConfigPanel, { emptyProductVoyageConfig, type ProductVoyageConfigValue } from '@/components/resources/ProductVoyageConfigPanel'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -274,6 +275,16 @@ export default function ProductPage() {
     if (!configProduct) return
     setConfigLoading(true)
     const now = new Date().toISOString()
+    const productId = configProduct.id
+    const selectedApIds = configDraft.additionalProductIds || []
+    initialAdditionalProducts.forEach((ap) => {
+      if (selectedApIds.includes(ap.id)) {
+        if (!ap.relatedProductIds.includes(productId)) ap.relatedProductIds.push(productId)
+      } else {
+        ap.relatedProductIds = ap.relatedProductIds.filter((id) => id !== productId)
+      }
+    })
+
     await productApi.update(configProduct.id, {
       ...configDraft,
       updatedBy: '当前用户',

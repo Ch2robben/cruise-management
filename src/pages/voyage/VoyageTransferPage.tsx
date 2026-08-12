@@ -163,7 +163,7 @@ function TransferWorkbench({ caseId }: { caseId: string }) {
     return (
       <div className="bg-white p-12 text-center text-sm text-gray-500">
         未找到该转船处置单。
-        <button onClick={() => navigate('/voyage/transfers')} className="ml-2 text-blue-600">返回列表</button>
+        <button onClick={() => navigate('/voyage/list')} className="ml-2 text-blue-600">返回航次列表</button>
       </div>
     )
   }
@@ -203,7 +203,7 @@ function TransferWorkbench({ caseId }: { caseId: string }) {
       {toast && <div className="fixed left-1/2 top-6 z-[80] -translate-x-1/2 rounded-md bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
 
       <PageHeader title={`转船处置 · ${record.caseNo}`}>
-        <button onClick={() => navigate('/voyage/transfers')} className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"><ArrowLeft className="h-4 w-4" />返回列表</button>
+        <button onClick={() => navigate('/voyage/list')} className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"><ArrowLeft className="h-4 w-4" />返回航次列表</button>
         <button disabled={!canComplete || record.status === 'completed'} onClick={finishCase} className="rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">完成处置</button>
       </PageHeader>
 

@@ -19,24 +19,13 @@ type DepositTrigger = 'orderConfirmed' | 'inventoryLocked' | 'specialPriceApprov
 type DepositFeeScope = 'cruiseFare' | 'orderTotal'
 type DepositOverdueAction = 'cancelAndRelease' | 'manualReview' | 'keepOrder'
 
-export interface DepositConfigRow {
+export interface DepositScopeItem {
   id: string
   productId: string
   productName: string
   routeId: string
   routeName: string
-  roomType: string
-  chargeDeposit: boolean
-  calculationType: DepositCalculationType
-  dimension: DepositDimension
-  amount: number
-  feeScope: DepositFeeScope
-  paymentTrigger: DepositTrigger
-  deadlineType: DepositDeadlineType
-  deadlineValue: number
-  deadlineTimeUnit: TimeUnit
-  offsetPayment: boolean
-  overdueAction: DepositOverdueAction
+  roomTypes: string[]
 }
 
 interface DepositConfigFields {
@@ -66,7 +55,8 @@ interface DepositRule {
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
   status: RuleStatus
-  configRows: DepositConfigRow[]
+  scopeItems: DepositScopeItem[]
+  config: DepositConfigFields
   updatedBy: string
   updatedAt: string
   createdAt: string
@@ -148,24 +138,27 @@ function getProductRoomTypes(productId: string) {
   return Array.from(new Set(product.pricing.map((item) => item.cabinType).filter(Boolean)))
 }
 
-function createSpecialConfigRow(productId: string, roomType: string): DepositConfigRow | null {
+function createScopeItem(productId: string, roomTypes: string[]): DepositScopeItem | null {
   const product = products.find((item) => item.id === productId)
-  if (!product) return null
+  if (!product || roomTypes.length === 0) return null
+  const available = new Set(getProductRoomTypes(productId))
+  const matchedRoomTypes = roomTypes.filter((roomType) => available.has(roomType))
+  if (matchedRoomTypes.length === 0) return null
   return {
-    id: `${productId}-${product.routeId}-${roomType}`,
+    id: product.id,
     productId: product.id,
     productName: product.name,
     routeId: product.routeId,
     routeName: product.routeName,
-    roomType,
-    ...defaultConfigFields,
+    roomTypes: matchedRoomTypes,
   }
 }
 
 const emptyForm: DepositRuleForm = {
   name: '',
   status: 'enabled',
-  configRows: [],
+  scopeItems: [],
+  config: { ...defaultConfigFields },
 }
 
 function createDepositRule(form: DepositRuleForm): DepositRule {
@@ -184,32 +177,34 @@ const initialSpecialRules: DepositRule[] = [
   createDepositRule({
     name: '内宾巫山特殊房型定金',
     status: 'enabled',
-    configRows: [
-      { ...createSpecialConfigRow('prod01', '套房')!, amount: 500 },
-      { ...createSpecialConfigRow('prod01', '阳台房')!, amount: 280 },
-    ].filter(Boolean) as DepositConfigRow[],
+    scopeItems: [createScopeItem('prod01', ['套房', '阳台房'])!].filter(Boolean) as DepositScopeItem[],
+    config: { ...defaultConfigFields, amount: 500 },
   }),
   createDepositRule({
     name: '外宾日本旺季特殊定金',
     status: 'enabled',
-    configRows: [
-      {
-        ...createSpecialConfigRow('prod02', '套房')!,
-        calculationType: 'percent',
-        amount: 20,
-        feeScope: 'orderTotal',
-        deadlineType: 'beforeSail',
-        deadlineValue: 20,
-        deadlineTimeUnit: 'day',
-      },
-    ].filter(Boolean) as DepositConfigRow[],
+    scopeItems: [createScopeItem('prod02', ['套房'])!].filter(Boolean) as DepositScopeItem[],
+    config: {
+      ...defaultConfigFields,
+      calculationType: 'percent',
+      amount: 20,
+      feeScope: 'orderTotal',
+      deadlineType: 'beforeSail',
+      deadlineValue: 20,
+      deadlineTimeUnit: 'day',
+    },
   }),
 ]
 
-function formatScopeSummary(rows: DepositConfigRow[]) {
-  if (rows.length === 0) return '未配置'
-  const productsCount = new Set(rows.map((row) => row.productId)).size
-  return `${productsCount}个产品 / ${rows.length}个房型`
+function formatScopeSummary(items: DepositScopeItem[]) {
+  if (items.length === 0) return '未配置'
+  const roomCount = items.reduce((sum, item) => sum + item.roomTypes.length, 0)
+  return `${items.length}个产品 / ${roomCount}个房型`
+}
+
+function formatScopeDetail(items: DepositScopeItem[]) {
+  if (items.length === 0) return '未配置'
+  return items.map((item) => `${item.productName}（${item.routeName} / ${item.roomTypes.join('、')}）`).join('\n')
 }
 
 function formatDeadline(fields: DepositConfigFields) {
@@ -336,189 +331,63 @@ function DepositConfigFieldsEditor({
   )
 }
 
-function ConfigTable({
-  rows,
-  onUpdate,
+
+function ScopeCartList({
+  items,
   onRemove,
   showRemove = false,
 }: {
-  rows: DepositConfigRow[]
-  onUpdate?: <K extends keyof DepositConfigRow>(rowId: string, field: K, value: DepositConfigRow[K]) => void
-  onRemove?: (rowId: string) => void
+  items: DepositScopeItem[]
+  onRemove?: (id: string) => void
   showRemove?: boolean
 }) {
-  const editable = Boolean(onUpdate)
-
-  if (editable) {
-    return (
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <div key={row.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div className="mb-4 flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
-              <div className="min-w-0 text-sm text-gray-700">
-                <span className="font-medium text-gray-900">{row.productName}</span>
-                <span className="mx-2 text-gray-300">/</span>
-                <span>{row.routeName}</span>
-                <span className="mx-2 text-gray-300">/</span>
-                <span>{row.roomType}</span>
-              </div>
-              {showRemove && <button type="button" onClick={() => onRemove?.(row.id)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" />移除</button>}
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div><label className="mb-1 block text-xs text-gray-500">是否收取</label><select value={row.chargeDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'chargeDeposit', e.target.value === 'yes')} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs"><option value="yes">是</option><option value="no">否</option></select></div>
-              <div><label className="mb-1 block text-xs text-gray-500">计算方式</label><select value={row.calculationType} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'calculationType', e.target.value as DepositCalculationType)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{calculationTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
-              <div><label className="mb-1 block text-xs text-gray-500">维度</label><select value={row.dimension} disabled={!row.chargeDeposit || row.calculationType === 'percent'} onChange={(e) => onUpdate!(row.id, 'dimension', e.target.value as DepositDimension)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{dimensionOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-              <div><label className="mb-1 block text-xs text-gray-500">定金标准</label><NumberStepper value={row.amount} min={0} max={row.calculationType === 'percent' ? 100 : undefined} step={row.calculationType === 'percent' ? 1 : 10} disabled={!row.chargeDeposit} onChange={(value) => onUpdate!(row.id, 'amount', value)} /></div>
-              <div><label className="mb-1 block text-xs text-gray-500">计价范围</label><select value={row.feeScope} disabled={!row.chargeDeposit || row.calculationType === 'fixed'} onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as DepositFeeScope)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
-              <div><label className="mb-1 block text-xs text-gray-500">支付触发点</label><select value={row.paymentTrigger} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'paymentTrigger', e.target.value as DepositTrigger)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{triggerOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
-              <div className="sm:col-span-2"><label className="mb-1 block text-xs text-gray-500">支付期限</label><div className="flex flex-wrap items-center gap-1.5"><select value={row.deadlineType} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'deadlineType', e.target.value as DepositDeadlineType)} className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{deadlineTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><NumberStepper value={row.deadlineValue} min={0} step={1} disabled={!row.chargeDeposit} onChange={(value) => onUpdate!(row.id, 'deadlineValue', value)} compact /><select value={row.deadlineTimeUnit} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'deadlineTimeUnit', e.target.value as TimeUnit)} className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{timeUnitOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div></div>
-              <div><label className="mb-1 block text-xs text-gray-500">抵扣船款</label><select value={row.offsetPayment ? 'yes' : 'no'} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'offsetPayment', e.target.value === 'yes')} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100"><option value="yes">是</option><option value="no">否</option></select></div>
-              <div><label className="mb-1 block text-xs text-gray-500">逾期未付处理</label><select value={row.overdueAction} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as DepositOverdueAction)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100">{overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
-            </div>
-          </div>
-        ))}
-      </div>
-    )
+  if (items.length === 0) {
+    return <div className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-400">尚未添加适用范围</div>
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-[1900px] w-full text-sm">
-        <thead>
-          <tr className="border-b bg-gray-50">
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">产品</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">航线</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">房型</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">是否收取</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">计算方式</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">维度</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">定金标准</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">计价范围</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">支付触发点</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">支付期限</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">抵扣船款</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">逾期未付处理</th>
-            {showRemove && <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">操作</th>}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={row.id} className="hover:bg-gray-50/60">
-              <td className="px-3 py-2 text-gray-700">{row.productName}</td>
-              <td className="px-3 py-2 text-gray-700">{row.routeName}</td>
-              <td className="px-3 py-2 text-gray-700">{row.roomType}</td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select value={row.chargeDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'chargeDeposit', e.target.value === 'yes')} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
-                    <option value="yes">是</option>
-                    <option value="no">否</option>
-                  </select>
-                ) : row.chargeDeposit ? '是' : '否'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select
-                    value={row.calculationType}
-                    disabled={!row.chargeDeposit}
-                    onChange={(e) => onUpdate!(row.id, 'calculationType', e.target.value as DepositCalculationType)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50"
-                  >
-                    {calculationTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                ) : getOptionLabel(calculationTypeOptions, row.calculationType)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select
-                    value={row.dimension}
-                    disabled={!row.chargeDeposit || row.calculationType === 'percent'}
-                    onChange={(e) => onUpdate!(row.id, 'dimension', e.target.value as DepositDimension)}
-                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50"
-                  >
-                    {dimensionOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                ) : row.calculationType === 'fixed' ? row.dimension : '-'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <NumberStepper
-                    value={row.amount}
-                    min={0}
-                    max={row.calculationType === 'percent' ? 100 : undefined}
-                    step={row.calculationType === 'percent' ? 1 : 10}
-                    disabled={!row.chargeDeposit}
-                    onChange={(value) => onUpdate!(row.id, 'amount', value)}
-                  />
-                ) : formatAmount(row)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select
-                    value={row.feeScope}
-                    disabled={!row.chargeDeposit || row.calculationType === 'fixed'}
-                    onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as DepositFeeScope)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50"
-                  >
-                    {feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                ) : row.calculationType === 'percent' ? getOptionLabel(feeScopeOptions, row.feeScope) : '-'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select
-                    value={row.paymentTrigger}
-                    disabled={!row.chargeDeposit}
-                    onChange={(e) => onUpdate!(row.id, 'paymentTrigger', e.target.value as DepositTrigger)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50"
-                  >
-                    {triggerOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                ) : row.chargeDeposit ? getOptionLabel(triggerOptions, row.paymentTrigger) : '-'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <select value={row.deadlineType} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'deadlineType', e.target.value as DepositDeadlineType)} className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50">
-                      {deadlineTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                    </select>
-                    <NumberStepper value={row.deadlineValue} min={0} step={1} disabled={!row.chargeDeposit} onChange={(value) => onUpdate!(row.id, 'deadlineValue', value)} compact />
-                    <select value={row.deadlineTimeUnit} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'deadlineTimeUnit', e.target.value as TimeUnit)} className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50">
-                      {timeUnitOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                    </select>
-                  </div>
-                ) : row.chargeDeposit ? formatDeadline(row) : '-'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select value={row.offsetPayment ? 'yes' : 'no'} disabled={!row.chargeDeposit} onChange={(e) => onUpdate!(row.id, 'offsetPayment', e.target.value === 'yes')} className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50">
-                    <option value="yes">是</option>
-                    <option value="no">否</option>
-                  </select>
-                ) : row.chargeDeposit ? row.offsetPayment ? '是' : '否' : '-'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select
-                    value={row.overdueAction}
-                    disabled={!row.chargeDeposit}
-                    onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as DepositOverdueAction)}
-                    className="rounded border border-gray-300 px-2 py-1.5 text-xs disabled:bg-gray-50"
-                  >
-                    {overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                ) : row.chargeDeposit ? getOptionLabel(overdueActionOptions, row.overdueAction) : '-'}
-              </td>
-              {showRemove && (
-                <td className="px-3 py-2 text-center">
-                  <button type="button" onClick={() => onRemove?.(row.id)} className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600">
-                    <Trash2 className="h-3.5 w-3.5" /> 移除
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+          <div className="min-w-0 text-sm">
+            <div className="font-medium text-gray-900">{item.productName}</div>
+            <div className="mt-0.5 text-xs text-gray-500">{item.routeName} · {item.roomTypes.join('、')}</div>
+          </div>
+          {showRemove && (
+            <button type="button" onClick={() => onRemove?.(item.id)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600">
+              <Trash2 className="h-3.5 w-3.5" /> 移除
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function NumberStepper({
+  value,
+  onChange,
+  min = 0,
+  max,
+  step = 1,
+  disabled = false,
+  compact = false,
+}: {
+  value: number
+  onChange: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
+  disabled?: boolean
+  compact?: boolean
+}) {
+  const clamp = (nextValue: number) => Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, nextValue))
+  const widthClass = compact ? 'w-14' : 'w-20'
+  return (
+    <div className={`inline-flex items-center rounded border border-gray-300 bg-white ${disabled ? 'opacity-50' : ''}`}>
+      <button type="button" disabled={disabled} onClick={() => onChange(clamp(value - step))} className="px-2 py-1.5 text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed">−</button>
+      <input type="number" disabled={disabled} value={value} min={min} max={max} step={step} onChange={(e) => onChange(clamp(Number(e.target.value) || 0))} className={`${widthClass} border-x border-gray-300 px-1 py-1.5 text-center text-xs focus:outline-none`} />
+      <button type="button" disabled={disabled} onClick={() => onChange(clamp(value + step))} className="px-2 py-1.5 text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed">+</button>
     </div>
   )
 }
@@ -537,7 +406,7 @@ export default function DepositRulePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<DepositRuleForm>(emptyForm)
 
-  const [scopeProductId, setScopeProductId] = useState(products[0]?.id || '')
+  const [scopeProductIds, setScopeProductIds] = useState<string[]>([])
   const [scopeRoomTypes, setScopeRoomTypes] = useState<string[]>([])
 
   const [detailOpen, setDetailOpen] = useState(false)
@@ -545,8 +414,13 @@ export default function DepositRulePage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
 
-  const scopeProduct = products.find((item) => item.id === scopeProductId)
-  const scopeRoomTypeOptions = useMemo(() => getProductRoomTypes(scopeProductId), [scopeProductId])
+  const scopeRoomTypeOptions = useMemo(() => {
+    const roomTypes = new Set<string>()
+    scopeProductIds.forEach((productId) => {
+      getProductRoomTypes(productId).forEach((roomType) => roomTypes.add(roomType))
+    })
+    return Array.from(roomTypes)
+  }, [scopeProductIds])
 
   const filteredRecords = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
@@ -560,8 +434,8 @@ export default function DepositRulePage() {
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
 
-  const resetScopeSelector = (productId = products[0]?.id || '') => {
-    setScopeProductId(productId)
+  const resetScopeSelector = () => {
+    setScopeProductIds([])
     setScopeRoomTypes([])
   }
 
@@ -573,12 +447,7 @@ export default function DepositRulePage() {
 
   const handleDefaultSubmit = () => {
     const now = new Date().toISOString()
-    setDefaultRule((prev) => ({
-      ...prev,
-      ...defaultForm,
-      updatedBy: '当前用户',
-      updatedAt: now,
-    }))
+    setDefaultRule((prev) => ({ ...prev, ...defaultForm, updatedBy: '当前用户', updatedAt: now }))
     setDefaultFormOpen(false)
   }
 
@@ -594,7 +463,7 @@ export default function DepositRulePage() {
 
   const openCreate = () => {
     setEditingId(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, config: { ...defaultConfigFields } })
     resetScopeSelector()
     setFormOpen(true)
   }
@@ -602,13 +471,13 @@ export default function DepositRulePage() {
   const openEdit = (record: DepositRule) => {
     const { id: _id, approvalStatus: _approvalStatus, updatedBy: _updatedBy, updatedAt: _updatedAt, createdAt: _createdAt, ...nextForm } = record
     setEditingId(record.id)
-    setForm(nextForm)
-    resetScopeSelector(record.configRows[0]?.productId || products[0]?.id || '')
+    setForm({ ...nextForm, config: { ...nextForm.config }, scopeItems: nextForm.scopeItems.map((item) => ({ ...item, roomTypes: [...item.roomTypes] })) })
+    resetScopeSelector()
     setFormOpen(true)
   }
 
   const handleSubmit = () => {
-    if (!form.name.trim() || form.configRows.length === 0) return
+    if (!form.name.trim() || form.scopeItems.length === 0) return
     const now = new Date().toISOString()
     if (editingId) {
       setRecords((prev) => prev.map((item) => item.id === editingId ? { ...item, ...form, updatedBy: '当前用户', updatedAt: now } : item))
@@ -634,31 +503,43 @@ export default function DepositRulePage() {
     setConfirmOpen(false)
   }
 
+  const toggleScopeProduct = (productId: string) => {
+    setScopeProductIds((prev) => {
+      const next = prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
+      const available = new Set(next.flatMap((id) => getProductRoomTypes(id)))
+      setScopeRoomTypes((rooms) => rooms.filter((room) => available.has(room)))
+      return next
+    })
+  }
+
   const toggleScopeRoomType = (roomType: string) => {
     setScopeRoomTypes((prev) => prev.includes(roomType) ? prev.filter((item) => item !== roomType) : [...prev, roomType])
   }
 
   const addScopeToConfig = () => {
-    if (!scopeProductId || scopeRoomTypes.length === 0) return
-    const existingIds = new Set(form.configRows.map((row) => row.id))
-    const nextRows = [...form.configRows]
-    scopeRoomTypes.forEach((roomType) => {
-      const row = createSpecialConfigRow(scopeProductId, roomType)
-      if (row && !existingIds.has(row.id)) nextRows.push(row)
+    if (scopeProductIds.length === 0 || scopeRoomTypes.length === 0) return
+    const nextItems = [...form.scopeItems]
+    scopeProductIds.forEach((productId) => {
+      const created = createScopeItem(productId, scopeRoomTypes)
+      if (!created) return
+      const existingIndex = nextItems.findIndex((item) => item.productId === productId)
+      if (existingIndex >= 0) {
+        const merged = Array.from(new Set([...nextItems[existingIndex].roomTypes, ...created.roomTypes]))
+        nextItems[existingIndex] = { ...nextItems[existingIndex], roomTypes: merged }
+      } else {
+        nextItems.push(created)
+      }
     })
-    setForm({ ...form, configRows: nextRows })
-    setScopeRoomTypes([])
+    setForm({ ...form, scopeItems: nextItems })
+    resetScopeSelector()
   }
 
-  const updateConfigRow = <K extends keyof DepositConfigRow>(rowId: string, field: K, value: DepositConfigRow[K]) => {
-    setForm({
-      ...form,
-      configRows: form.configRows.map((row) => row.id === rowId ? { ...row, [field]: value } : row),
-    })
+  const removeScopeItem = (id: string) => {
+    setForm({ ...form, scopeItems: form.scopeItems.filter((item) => item.id !== id) })
   }
 
-  const removeConfigRow = (rowId: string) => {
-    setForm({ ...form, configRows: form.configRows.filter((row) => row.id !== rowId) })
+  const updateConfigField = <K extends keyof DepositConfigFields>(field: K, value: DepositConfigFields[K]) => {
+    setForm({ ...form, config: { ...form.config, [field]: value } })
   }
 
   const updateDefaultField = <K extends keyof DefaultDepositRuleForm>(field: K, value: DefaultDepositRuleForm[K]) => {
@@ -671,8 +552,8 @@ export default function DepositRulePage() {
 
   const columns = [
     { key: 'name', title: '规则名称', dataIndex: 'name' as keyof DepositRule },
-    { key: 'scope', title: '适用范围', render: (r: DepositRule) => formatScopeSummary(r.configRows) },
-    { key: 'configCount', title: '配置条数', render: (r: DepositRule) => `${r.configRows.length} 条` },
+    { key: 'scope', title: '适用范围', render: (r: DepositRule) => formatScopeSummary(r.scopeItems) },
+    { key: 'amount', title: '定金标准', render: (r: DepositRule) => formatAmount(r.config) },
     { key: 'approvalStatus', title: '审批状态', render: (r: DepositRule) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'status', title: '状态', render: (r: DepositRule) => (
       <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${r.status === 'enabled' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -716,34 +597,13 @@ export default function DepositRulePage() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">定金标准</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{formatAmount(defaultRule)}</div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">支付触发点</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(triggerOptions, defaultRule.paymentTrigger)}</div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">支付期限</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{formatDeadline(defaultRule)}</div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">抵扣船款</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{defaultRule.offsetPayment ? '是' : '否'}</div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">逾期未付处理</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(overdueActionOptions, defaultRule.overdueAction)}</div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">审批状态</div>
-            <div className="mt-1"><StatusBadge status={defaultRule.approvalStatus} /></div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <div className="text-xs text-gray-500">最近修改</div>
-            <div className="mt-1 text-sm font-medium text-gray-900">{formatDateTime(defaultRule.updatedAt)}</div>
-          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">定金标准</div><div className="mt-1 text-sm font-medium text-gray-900">{formatAmount(defaultRule)}</div></div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">支付触发点</div><div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(triggerOptions, defaultRule.paymentTrigger)}</div></div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">支付期限</div><div className="mt-1 text-sm font-medium text-gray-900">{formatDeadline(defaultRule)}</div></div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">抵扣船款</div><div className="mt-1 text-sm font-medium text-gray-900">{defaultRule.offsetPayment ? '是' : '否'}</div></div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">逾期未付处理</div><div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(overdueActionOptions, defaultRule.overdueAction)}</div></div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">审批状态</div><div className="mt-1"><StatusBadge status={defaultRule.approvalStatus} /></div></div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3"><div className="text-xs text-gray-500">最近修改</div><div className="mt-1 text-sm font-medium text-gray-900">{formatDateTime(defaultRule.updatedAt)}</div></div>
         </div>
       </div>
 
@@ -773,7 +633,7 @@ export default function DepositRulePage() {
         </div>
       </FormDialog>
 
-      <FormDialog open={formOpen} title={editingId ? '编辑特殊规则' : '新增特殊规则'} width="max-w-6xl" onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
+      <FormDialog open={formOpen} title={editingId ? '编辑特殊规则' : '新增特殊规则'} width="max-w-5xl" onCancel={() => setFormOpen(false)} onSubmit={handleSubmit}>
         <div className="space-y-5">
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">基本信息</h4>
@@ -794,29 +654,28 @@ export default function DepositRulePage() {
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">适用范围</h4>
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm text-gray-700">产品</label>
-                  <select
-                    value={scopeProductId}
-                    onChange={(e) => {
-                      setScopeProductId(e.target.value)
-                      setScopeRoomTypes([])
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">航线</label>
-                  <input value={scopeProduct?.routeName || ''} readOnly className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600" />
+                  <label className="mb-1 block text-sm text-gray-700">产品（可多选）</label>
+                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
+                    {products.map((item) => (
+                      <label key={item.id} className="flex items-start gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={scopeProductIds.includes(item.id)} onChange={() => toggleScopeProduct(item.id)} className="mt-0.5" />
+                        <span>
+                          <span className="block font-medium text-gray-900">{item.name}</span>
+                          <span className="text-xs text-gray-400">{item.routeName}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm text-gray-700">房型（可多选）</label>
-                  <div className="max-h-28 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
-                    {scopeRoomTypeOptions.length === 0 ? (
-                      <p className="text-xs text-gray-400">当前产品暂无房型</p>
+                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
+                    {scopeProductIds.length === 0 ? (
+                      <p className="text-xs text-gray-400">请先选择产品</p>
+                    ) : scopeRoomTypeOptions.length === 0 ? (
+                      <p className="text-xs text-gray-400">所选产品暂无房型</p>
                     ) : scopeRoomTypeOptions.map((roomType) => (
                       <label key={roomType} className="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" checked={scopeRoomTypes.includes(roomType)} onChange={() => toggleScopeRoomType(roomType)} />
@@ -826,12 +685,12 @@ export default function DepositRulePage() {
                   </div>
                 </div>
               </div>
-              <p className="mt-3 text-xs text-gray-500">特殊规则仅对所选产品-航线-房型生效，优先级高于默认定金规则。</p>
+              <p className="mt-3 text-xs text-gray-500">可多选产品与房型，添加后进入下方购物车；多选房型共用同一套规则配置。</p>
               <div className="mt-3 flex justify-end">
                 <button
                   type="button"
                   onClick={addScopeToConfig}
-                  disabled={!scopeProductId || scopeRoomTypes.length === 0}
+                  disabled={scopeProductIds.length === 0 || scopeRoomTypes.length === 0}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   添加至配置区
@@ -842,17 +701,23 @@ export default function DepositRulePage() {
 
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">配置区</h4>
-            {form.configRows.length === 0 ? (
+            {form.scopeItems.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-400">
-                请先选择产品-航线-房型并添加至配置区
+                请先选择产品与房型并添加至配置区
               </div>
             ) : (
-              <ConfigTable
-                rows={form.configRows}
-                onUpdate={updateConfigRow}
-                onRemove={removeConfigRow}
-                showRemove
-              />
+              <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div>
+                  <div className="mb-2 text-sm font-medium text-gray-800">已选范围（{formatScopeSummary(form.scopeItems)}）</div>
+                  <ScopeCartList items={form.scopeItems} onRemove={removeScopeItem} showRemove />
+                </div>
+                <div>
+                  <div className="mb-2 text-sm font-medium text-gray-800">规则配置（共用一套）</div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <DepositConfigFieldsEditor fields={form.config} onChange={updateConfigField} />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -862,12 +727,17 @@ export default function DepositRulePage() {
         {detail && (<>
           <DetailCard title="基本信息">
             <DetailRow label="规则名称" value={detail.name} />
-            <DetailRow label="适用范围" value={formatScopeSummary(detail.configRows)} />
+            <DetailRow label="适用范围" value={<span className="whitespace-pre-line">{formatScopeDetail(detail.scopeItems)}</span>} />
             <DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} />
             <DetailRow label="状态" value={detail.status === 'enabled' ? '启用' : '关闭'} />
           </DetailCard>
-          <DetailCard title={`配置明细（${detail.configRows.length}条）`}>
-            <ConfigTable rows={detail.configRows} />
+          <DetailCard title="规则配置">
+            <DetailRow label="定金标准" value={formatAmount(detail.config)} />
+            <DetailRow label="支付触发点" value={getOptionLabel(triggerOptions, detail.config.paymentTrigger)} />
+            <DetailRow label="支付期限" value={formatDeadline(detail.config)} />
+            <DetailRow label="计价范围" value={detail.config.calculationType === 'percent' ? getOptionLabel(feeScopeOptions, detail.config.feeScope) : '-'} />
+            <DetailRow label="抵扣船款" value={detail.config.offsetPayment ? '是' : '否'} />
+            <DetailRow label="逾期处理" value={getOptionLabel(overdueActionOptions, detail.config.overdueAction)} />
           </DetailCard>
           <DetailCard title="操作信息">
             <DetailRow label="修改人" value={detail.updatedBy} />
@@ -878,57 +748,6 @@ export default function DepositRulePage() {
       </DetailDrawer>
 
       <ConfirmDialog open={confirmOpen} title="删除特殊规则" message="确定要删除该特殊规则吗？此操作不可恢复。" danger onConfirm={confirmDelete} onCancel={() => setConfirmOpen(false)} />
-    </div>
-  )
-}
-
-function NumberStepper({
-  value,
-  onChange,
-  min = 0,
-  max,
-  step = 1,
-  disabled = false,
-  compact = false,
-}: {
-  value: number
-  onChange: (value: number) => void
-  min?: number
-  max?: number
-  step?: number
-  disabled?: boolean
-  compact?: boolean
-}) {
-  const clamp = (nextValue: number) => Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, nextValue))
-  const widthClass = compact ? 'w-14' : 'w-20'
-  return (
-    <div className={`inline-flex items-center rounded border border-gray-300 bg-white ${disabled ? 'opacity-50' : ''}`}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(clamp(value - step))}
-        className="px-2 py-1.5 text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed"
-      >
-        −
-      </button>
-      <input
-        type="number"
-        disabled={disabled}
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(clamp(Number(e.target.value) || 0))}
-        className={`${widthClass} border-x border-gray-300 px-1 py-1.5 text-center text-xs focus:outline-none`}
-      />
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(clamp(value + step))}
-        className="px-2 py-1.5 text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed"
-      >
-        +
-      </button>
     </div>
   )
 }

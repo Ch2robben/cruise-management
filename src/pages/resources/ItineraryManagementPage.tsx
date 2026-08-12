@@ -134,7 +134,12 @@ export default function ItineraryManagementPage() {
   const [draftSegments, setDraftSegments] = useState<ItinerarySegment[]>([])
   const [keyword, setKeyword] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
-  const [reachFilter, setReachFilter] = useState('all')
+  const [routeFilter, setRouteFilter] = useState('all')
+  const [appliedRouteFilter, setAppliedRouteFilter] = useState('all')
+  const [startPortFilter, setStartPortFilter] = useState('all')
+  const [appliedStartPortFilter, setAppliedStartPortFilter] = useState('all')
+  const [endPortFilter, setEndPortFilter] = useState('all')
+  const [appliedEndPortFilter, setAppliedEndPortFilter] = useState('all')
   const [deletePlanId, setDeletePlanId] = useState('')
   const [viewPlan, setViewPlan] = useState<ItineraryPlan | null>(null)
   const [generationPlan, setGenerationPlan] = useState<ItineraryPlan | null>(null)
@@ -227,13 +232,23 @@ export default function ItineraryManagementPage() {
     const text = `${plan.name} ${plan.code}`.toLowerCase()
     const keywordOk = !appliedKeyword.trim() || text.includes(appliedKeyword.trim().toLowerCase())
     if (!keywordOk) return false
-    if (reachFilter === 'all') return true
-    const portIds = new Set<string>()
-    plan.segments.forEach((seg) => {
-      if (seg.fromPortId) portIds.add(seg.fromPortId)
-      if (seg.toPortId) portIds.add(seg.toPortId)
-    })
-    return Array.from(portIds).some((id) => portMap.get(id)?.riverReach === reachFilter)
+
+    if (appliedRouteFilter !== 'all' && plan.routeId !== appliedRouteFilter) {
+      return false
+    }
+
+    const firstSegment = plan.segments[0]
+    const lastSegment = plan.segments[plan.segments.length - 1]
+
+    if (appliedStartPortFilter !== 'all' && firstSegment?.fromPortId !== appliedStartPortFilter) {
+      return false
+    }
+
+    if (appliedEndPortFilter !== 'all' && lastSegment?.toPortId !== appliedEndPortFilter) {
+      return false
+    }
+
+    return true
   })
 
   const openCreate = () => {
@@ -519,10 +534,13 @@ export default function ItineraryManagementPage() {
     { key: 'effectiveRange', title: '生效时间', width: '210px', render: (plan: ItineraryPlan) => (
       <span className="text-sm text-gray-700">{plan.effectiveStart} ~ {plan.effectiveEnd}</span>
     ) },
-    { key: 'ports', title: '起止码头', render: (plan: ItineraryPlan) => {
+    { key: 'startPort', title: '始发码头', width: '130px', render: (plan: ItineraryPlan) => {
       const firstSegment = plan.segments[0]
+      return portMap.get(firstSegment?.fromPortId || '')?.name || '-'
+    } },
+    { key: 'endPort', title: '终到码头', width: '130px', render: (plan: ItineraryPlan) => {
       const lastSegment = plan.segments[plan.segments.length - 1]
-      return `${portMap.get(firstSegment?.fromPortId || '')?.name || '-'} → ${portMap.get(lastSegment?.toPortId || '')?.name || '-'}`
+      return portMap.get(lastSegment?.toPortId || '')?.name || '-'
     } },
     { key: 'reach', title: '途经江段', width: '140px', render: (plan: ItineraryPlan) => (
       <span className="text-sm text-gray-700">{planReachSummary(plan.segments, portMap)}</span>
@@ -831,22 +849,81 @@ export default function ItineraryManagementPage() {
     <div>
       <PageHeader title="行程管理" description="每条航线可维护多个带生效时间的行程，航次按开航日期自动匹配。" />
 
-      <SearchPanel onSearch={() => setAppliedKeyword(keyword)} onReset={() => { setKeyword(''); setAppliedKeyword(''); setReachFilter('all') }}>
+      <SearchPanel
+        onSearch={() => {
+          setAppliedKeyword(keyword)
+          setAppliedRouteFilter(routeFilter)
+          setAppliedStartPortFilter(startPortFilter)
+          setAppliedEndPortFilter(endPortFilter)
+        }}
+        onReset={() => {
+          setKeyword('')
+          setAppliedKeyword('')
+          setRouteFilter('all')
+          setAppliedRouteFilter('all')
+          setStartPortFilter('all')
+          setAppliedStartPortFilter('all')
+          setEndPortFilter('all')
+          setAppliedEndPortFilter('all')
+        }}
+      >
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">关键词</label>
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter') setAppliedKeyword(keyword) }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                setAppliedKeyword(keyword)
+                setAppliedRouteFilter(routeFilter)
+                setAppliedStartPortFilter(startPortFilter)
+                setAppliedEndPortFilter(endPortFilter)
+              }
+            }}
             placeholder="行程名称/编号"
-            className="w-52 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
         </div>
+
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">途经江段</label>
-          <select value={reachFilter} onChange={(event) => setReachFilter(event.target.value)} className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          <label className="text-xs text-gray-500">关联航线</label>
+          <select
+            value={routeFilter}
+            onChange={(event) => setRouteFilter(event.target.value)}
+            className="w-44 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          >
             <option value="all">全部</option>
-            {RIVER_REACH_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            {routes.map((route) => (
+              <option key={route.id} value={route.id}>{route.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">始发码头</label>
+          <select
+            value={startPortFilter}
+            onChange={(event) => setStartPortFilter(event.target.value)}
+            className="w-36 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="all">全部</option>
+            {ports.map((port) => (
+              <option key={port.id} value={port.id}>{port.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-gray-500">终到码头</label>
+          <select
+            value={endPortFilter}
+            onChange={(event) => setEndPortFilter(event.target.value)}
+            className="w-36 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="all">全部</option>
+            {ports.map((port) => (
+              <option key={port.id} value={port.id}>{port.name}</option>
+            ))}
           </select>
         </div>
       </SearchPanel>

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { bookingSegmentOptions, defaultRoomReserveData } from '@/mock/data'
 import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
-import { formatCurrency } from '@/utils/format'
 import type { DealerBookingDraft } from '@/components/dealer/booking/bookingTypes'
 import {
   calculateCabinPrice,
@@ -40,11 +39,6 @@ const roomCatalog = defaultRoomReserveData as Record<string, RoomCatalogItem>
 
 function formatRoomStock(count: number) {
   return count > 20 ? '充足' : `${count}间`
-}
-
-function cartLineDeposit(line: CartLine) {
-  if (line.roomType === '标准间') return line.deposit * 2 * line.count
-  return line.deposit * line.count
 }
 
 function cartLinePax(line: CartLine) {
@@ -94,7 +88,6 @@ export default function Step2RoomReserve({
 
   const totalRooms = useMemo(() => cart.reduce((sum, line) => sum + line.count, 0), [cart])
   const totalPax = useMemo(() => cart.reduce((sum, line) => sum + cartLinePax(line), 0), [cart])
-  const totalDeposit = useMemo(() => cart.reduce((sum, line) => sum + cartLineDeposit(line), 0), [cart])
 
   const selectSegment = (segmentId: string) => {
     setSelectedSegmentId(segmentId)
@@ -332,14 +325,14 @@ export default function Step2RoomReserve({
             )}
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[780px] text-sm">
+              <table className="w-full min-w-[480px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-white">
-                  {['房型', '床型', '可售库存', '航段 Q', '默认系数', '舱房价', '定金单价', '占舱数量'].map((col) => (
+                  {['房型', '床型', '可售库存', '占舱数量'].map((col) => (
                     <th
                       key={col}
                       className={`px-4 py-3 text-xs font-medium text-gray-500 ${
-                        ['航段 Q', '默认系数', '舱房价', '定金单价', '占舱数量'].includes(col) ? 'text-right' : 'text-left'
+                        col === '占舱数量' ? 'text-right' : 'text-left'
                       }`}
                     >
                       {col}
@@ -351,20 +344,11 @@ export default function Step2RoomReserve({
                 {Object.entries(roomCatalog).map(([roomType, room]) => {
                   const available = getAvailableStock(selectedSegment.id, roomType)
                   const qty = pendingQty[roomType] || 0
-                  const coefficient = getDefaultRoomCoefficient(roomType)
-                  const cabinPrice = calculateCabinPrice(selectedSegmentQ, coefficient)
                   return (
                     <tr key={roomType} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{roomType}</td>
                       <td className="px-4 py-3 text-gray-700">{room.bedType}</td>
                       <td className="px-4 py-3 text-gray-700">{formatRoomStock(available)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatCurrency(selectedSegmentQ)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{coefficient.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-600">{formatCurrency(cabinPrice)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">
-                        {formatCurrency(room.deposit)}
-                        <span className="text-xs text-gray-400">{roomType === '标准间' ? '/床' : '/间'}</span>
-                      </td>
                       <td className="px-4 py-3">
                         <div className="ml-auto flex w-fit items-center">
                           <button
@@ -434,14 +418,14 @@ export default function Step2RoomReserve({
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-white">
-                    {['航段', '房型', '床型', 'Q / 系数', '舱房单价', '数量', '舱房小计', '定金小计', '操作'].map((col) => (
+                    {['航段', '房型', '床型', '数量', '操作'].map((col) => (
                       <th
                         key={col}
                         className={`px-4 py-3 text-xs font-medium text-gray-500 ${
-                          ['Q / 系数', '舱房单价', '数量', '舱房小计', '定金小计', '操作'].includes(col) ? 'text-right' : 'text-left'
+                          ['数量', '操作'].includes(col) ? 'text-right' : 'text-left'
                         }`}
                       >
                         {col}
@@ -455,14 +439,6 @@ export default function Step2RoomReserve({
                       <td className="px-4 py-3 text-gray-800">{line.segmentLabel}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{line.roomType}</td>
                       <td className="px-4 py-3 text-gray-700">{line.bedType}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="font-mono text-xs text-gray-700">
-                          {line.pricingSnapshot.q.toLocaleString()} × {line.pricingSnapshot.coefficient.toFixed(2)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-600">
-                        {formatCurrency(line.pricingSnapshot.cabinPrice)}
-                      </td>
                       <td className="px-4 py-3">
                         <div className="ml-auto flex w-fit items-center">
                           <button
@@ -484,12 +460,6 @@ export default function Step2RoomReserve({
                           </button>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
-                        {formatCurrency(line.pricingSnapshot.cabinPrice * line.count)}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
-                        {formatCurrency(cartLineDeposit(line))}
-                      </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
@@ -507,19 +477,13 @@ export default function Step2RoomReserve({
             </div>
 
             <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-600">
-                  <span>
-                    已占 <strong className="text-gray-900">{totalRooms}</strong> 间
-                  </span>
-                  <span>
-                    预计 <strong className="text-gray-900">{totalPax}</strong> 人
-                  </span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-gray-500">定金合计 </span>
-                  <span className="text-lg font-semibold tabular-nums text-gray-900">{formatCurrency(totalDeposit)}</span>
-                </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-600">
+                <span>
+                  已占 <strong className="text-gray-900">{totalRooms}</strong> 间
+                </span>
+                <span>
+                  预计 <strong className="text-gray-900">{totalPax}</strong> 人
+                </span>
               </div>
             </div>
           </>

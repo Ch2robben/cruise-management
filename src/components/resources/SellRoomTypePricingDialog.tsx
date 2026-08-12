@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
 import FormDialog from '@/components/common/FormDialog'
 import CoefficientStepper from '@/components/common/CoefficientStepper'
 import type { SellRoomTypeConfig } from '@/mock/sellRoomTypeConfig'
@@ -13,17 +12,12 @@ import {
 } from '@/mock/occupancyFormulaTemplates'
 import {
   createDefaultPricingRule,
-  createEmptyExcludePeriod,
   createEmptyFormulaRule,
-  createSupplementPricingRule,
   deckOptions,
-  formatEffectiveRange,
-  formatExcludePeriod,
   formatFormulaFromGuestCoefficients,
   normalizeFormulaRule,
   sortPricingRules,
   type CabinPricingRule,
-  type ExcludePeriod,
   type FormulaPricingRule,
   type GuestPriceCoefficient,
 } from '@/utils/cabinPriceCoefficient'
@@ -76,33 +70,6 @@ export default function SellRoomTypePricingDialog({
 
   const updateActiveRule = (updater: (rule: CabinPricingRule) => CabinPricingRule) => {
     setCabinRules((prev) => prev.map((rule) => (rule.id === activeRuleId ? updater(rule) : rule)))
-  }
-
-  const updatePricingRuleField = (field: 'name' | 'effectiveStart' | 'effectiveEnd', value: string) => {
-    updateActiveRule((rule) => ({ ...rule, [field]: value }))
-  }
-
-  const addExcludePeriod = () => {
-    updateActiveRule((rule) => ({
-      ...rule,
-      excludePeriods: [...rule.excludePeriods, createEmptyExcludePeriod()],
-    }))
-  }
-
-  const updateExcludePeriod = (periodId: string, field: keyof Pick<ExcludePeriod, 'start' | 'end'>, value: string) => {
-    updateActiveRule((rule) => ({
-      ...rule,
-      excludePeriods: rule.excludePeriods.map((period) =>
-        period.id === periodId ? { ...period, [field]: value } : period,
-      ),
-    }))
-  }
-
-  const removeExcludePeriod = (periodId: string) => {
-    updateActiveRule((rule) => ({
-      ...rule,
-      excludePeriods: rule.excludePeriods.filter((period) => period.id !== periodId),
-    }))
   }
 
   const updateFormulaRule = (
@@ -185,21 +152,6 @@ export default function SellRoomTypePricingDialog({
       ...rule,
       formulaRules: rule.formulaRules.filter((item) => item.id !== id),
     }))
-  }
-
-  const addPricingRule = () => {
-    if (!sellRoomType) return
-    const nextRule = createSupplementPricingRule(sellRoomType, cabinRules)
-    setCabinRules((prev) => sortPricingRules([...prev, nextRule]))
-    setActiveRuleId(nextRule.id)
-    setEditMode(true)
-  }
-
-  const removeActivePricingRule = () => {
-    if (cabinRules.length <= 1) return
-    const nextRules = cabinRules.filter((rule) => rule.id !== activeRuleId)
-    setCabinRules(nextRules)
-    setActiveRuleId(nextRules[0].id)
   }
 
   const handleSave = () => {
@@ -312,143 +264,6 @@ export default function SellRoomTypePricingDialog({
               已开启按楼层售卖。楼层价格请回到房型编辑页维护。
             </div>
           )}
-        </div>
-
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">生效规则</h4>
-            {editMode && (
-              <button
-                onClick={addPricingRule}
-                className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100"
-              >
-                <Plus className="h-4 w-4" /> 新增规则
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sortPricingRules(cabinRules).map((rule) => (
-              <button
-                key={rule.id}
-                onClick={() => setActiveRuleId(rule.id)}
-                className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                  activeRuleId === rule.id
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <div className="font-medium">{rule.name}</div>
-                <div className="mt-0.5 text-xs text-gray-500">{formatEffectiveRange(rule)}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900">当前规则配置</h4>
-              <p className="mt-1 text-xs text-gray-500">同一房型下不同生效期可维护独立系数与公式模板</p>
-            </div>
-            {editMode && cabinRules.length > 1 && (
-              <button
-                onClick={removeActivePricingRule}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> 删除当前规则
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">规则名称</label>
-              {editMode ? (
-                <input
-                  value={pricingRule.name}
-                  onChange={(e) => updatePricingRuleField('name', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                />
-              ) : (
-                <p className="mt-1 text-sm font-medium text-gray-900">{pricingRule.name}</p>
-              )}
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">生效开始日期</label>
-              {editMode ? (
-                <input
-                  type="date"
-                  value={pricingRule.effectiveStart}
-                  onChange={(e) => updatePricingRuleField('effectiveStart', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                />
-              ) : (
-                <p className="mt-1 text-sm font-medium text-gray-900">{pricingRule.effectiveStart}</p>
-              )}
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">生效结束日期</label>
-              {editMode ? (
-                <input
-                  type="date"
-                  value={pricingRule.effectiveEnd}
-                  onChange={(e) => updatePricingRuleField('effectiveEnd', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                />
-              ) : (
-                <p className="mt-1 text-sm font-medium text-gray-900">{pricingRule.effectiveEnd}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-xs text-gray-500">排除时间段</label>
-              {editMode && (
-                <button onClick={addExcludePeriod} className="text-xs font-medium text-blue-600 hover:text-blue-700">
-                  + 添加时间段
-                </button>
-              )}
-            </div>
-            {pricingRule.excludePeriods.length === 0 ? (
-              <p className="text-sm text-gray-500">无排除时间段</p>
-            ) : (
-              <div className="space-y-2">
-                {pricingRule.excludePeriods.map((period) => (
-                  <div
-                    key={period.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
-                  >
-                    {editMode ? (
-                      <>
-                        <input
-                          type="date"
-                          value={period.start}
-                          onChange={(e) => updateExcludePeriod(period.id, 'start', e.target.value)}
-                          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                        />
-                        <span className="text-xs text-gray-400">至</span>
-                        <input
-                          type="date"
-                          value={period.end}
-                          onChange={(e) => updateExcludePeriod(period.id, 'end', e.target.value)}
-                          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                        />
-                        <button
-                          onClick={() => removeExcludePeriod(period.id)}
-                          className="ml-auto text-xs text-red-500 hover:text-red-600"
-                        >
-                          删除
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-sm text-gray-700">{formatExcludePeriod(period)}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         <div>

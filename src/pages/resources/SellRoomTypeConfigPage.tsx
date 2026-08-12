@@ -38,14 +38,7 @@ function getInitialPricingRulesBySellRoomType(): Record<string, CabinPricingRule
   return {
     [sample.id]: [
       createDefaultPricingRule(sample, {
-        name: '旺季规则',
-        effectiveStart: '2026-04-01',
-        effectiveEnd: '2026-10-31',
-      }),
-      createDefaultPricingRule(sample, {
-        name: '淡季规则',
-        effectiveStart: '2026-11-01',
-        effectiveEnd: '2027-03-31',
+        name: '价格系数规则',
       }),
     ],
   }
@@ -222,43 +215,10 @@ export default function SellRoomTypeConfigPage() {
     { key: 'sellRoomTypeName', title: '房型名称', dataIndex: 'sellRoomTypeName' as keyof SellRoomTypeConfig, width: '120px' },
     { key: 'sellRoomTypeCode', title: '房型编码', dataIndex: 'sellRoomTypeCode' as keyof SellRoomTypeConfig, width: '120px' },
     {
-      key: 'defaultPriceCoefficient',
-      title: '默认系数',
-      width: '100px',
-      render: (record: SellRoomTypeConfig) => (
-        <span className="font-medium tabular-nums text-gray-900">
-          {(record.defaultPriceCoefficient ?? getDefaultRoomCoefficient(record.sellRoomTypeName)).toFixed(2)}
-        </span>
-      ),
-    },
-    {
       key: 'mappings',
       title: '关联物理船舱',
       render: (record: SellRoomTypeConfig) => (
         <div className="max-w-md text-sm leading-6 text-gray-700">{formatMappingSummary(record.mappings)}</div>
-      ),
-    },
-    {
-      key: 'ruleStatus',
-      title: '入住系数规则',
-      width: '120px',
-      render: (record: SellRoomTypeConfig) => {
-        const count = pricingRulesBySellRoomType[record.id]?.length || 0
-        return (
-          <span className={`text-sm ${count > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
-            {count > 0 ? `${count} 条规则` : '默认'}
-          </span>
-        )
-      },
-    },
-    {
-      key: 'sellByFloor',
-      title: '售卖方式',
-      width: '110px',
-      render: (record: SellRoomTypeConfig) => (
-        <span className={`text-sm ${record.sellByFloor ? 'text-blue-600' : 'text-gray-500'}`}>
-          {record.sellByFloor ? '按楼层售卖' : '统一售卖'}
-        </span>
       ),
     },
     {
@@ -273,6 +233,16 @@ export default function SellRoomTypeConfigPage() {
           <span className="text-sm text-gray-400">未配置</span>
         )
       },
+    },
+    {
+      key: 'allowShareRoom',
+      title: '允许拼房',
+      width: '100px',
+      render: (record: SellRoomTypeConfig) => (
+        <span className={`text-sm ${record.allowShareRoom ?? true ? 'text-blue-600' : 'text-gray-400'}`}>
+          {record.allowShareRoom ?? true ? '允许' : '禁止'}
+        </span>
+      ),
     },
     {
       key: 'status',
@@ -417,20 +387,6 @@ export default function SellRoomTypeConfigPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm text-gray-700">
-                  默认价格系数 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={editing.defaultPriceCoefficient ?? getDefaultRoomCoefficient(editing.sellRoomTypeName)}
-                  onChange={(e) => updateEditing({ defaultPriceCoefficient: Math.max(0, Number(e.target.value)) })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                />
-                <p className="mt-1 text-xs text-gray-400">舱房基础价格 = 航次 Q × 默认价格系数。</p>
-              </div>
-              <div>
                 <label className="mb-1 block text-sm text-gray-700">状态</label>
                 <select
                   value={editing.status}
@@ -498,17 +454,7 @@ export default function SellRoomTypeConfigPage() {
             </div>
 
             <div>
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">售卖单位</h4>
-              <div className="grid gap-4 md:grid-cols-[240px_1fr]">
-                <select
-                  value={editing.countDimension}
-                  onChange={(e) => updateEditing({ countDimension: e.target.value as SellRoomTypeConfig['countDimension'] })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                >
-                  <option value="room">按房</option>
-                  <option value="bed">按床</option>
-                </select>
-
+              <div className="space-y-3">
                 <div className="rounded-lg border border-gray-200 px-4 py-3">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -521,6 +467,24 @@ export default function SellRoomTypeConfigPage() {
                         className="peer sr-only"
                         checked={editing.specifyFloorSelectable}
                         onChange={(e) => updateEditing({ specifyFloorSelectable: e.target.checked })}
+                      />
+                      <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300" />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">是否允许拼房</div>
+                      <div className="mt-1 text-xs text-gray-500">开启后，预订时同性别散客可选择拼房入住。</div>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        className="peer sr-only"
+                        checked={editing.allowShareRoom ?? true}
+                        onChange={(e) => updateEditing({ allowShareRoom: e.target.checked })}
                       />
                       <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300" />
                     </label>

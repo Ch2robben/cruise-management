@@ -15,13 +15,7 @@ type PaymentFeeScope = 'cruiseFare' | 'orderTotal'
 type LateBookingPolicy = 'immediateFull' | 'withinHours' | 'manualReview'
 type PaymentOverdueAction = 'triggerPenalty' | 'manualReview' | 'cancelOrder'
 
-export interface PaymentConfigRow {
-  id: string
-  productId: string
-  productName: string
-  routeId: string
-  routeName: string
-  roomType: string
+interface PaymentConfigFields {
   sailingStart: string
   sailingEnd: string
   collectionStartDaysBeforeSail: number
@@ -33,16 +27,13 @@ export interface PaymentConfigRow {
   overdueAction: PaymentOverdueAction
 }
 
-interface PaymentConfigFields {
-  sailingStart: string
-  sailingEnd: string
-  collectionStartDaysBeforeSail: number
-  paymentDeadlineDaysBeforeSail: number
-  feeScope: PaymentFeeScope
-  deductDeposit: boolean
-  lateBookingPolicy: LateBookingPolicy
-  lateBookingHours: number
-  overdueAction: PaymentOverdueAction
+interface PaymentScopeItem {
+  id: string
+  productId: string
+  productName: string
+  routeId: string
+  routeName: string
+  roomTypes: string[]
 }
 
 interface DefaultPaymentRule extends PaymentConfigFields {
@@ -58,7 +49,8 @@ interface PaymentRule {
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
   status: RuleStatus
-  configRows: PaymentConfigRow[]
+  scopeItems: PaymentScopeItem[]
+  config: PaymentConfigFields
   updatedBy: string
   updatedAt: string
   createdAt: string
@@ -113,7 +105,8 @@ const initialDefaultRule: DefaultPaymentRule = {
 const emptyForm: PaymentRuleForm = {
   name: '',
   status: 'enabled',
-  configRows: [],
+  scopeItems: [],
+  config: { ...defaultConfigFields },
 }
 
 function getProductRoomTypes(productId: string) {
@@ -122,18 +115,32 @@ function getProductRoomTypes(productId: string) {
   return Array.from(new Set(product.pricing.map((item) => item.cabinType).filter(Boolean)))
 }
 
-function createPaymentConfigRow(productId: string, roomType: string): PaymentConfigRow | null {
+function createPaymentScopeItem(productId: string, roomTypes: string[]): PaymentScopeItem | null {
   const product = products.find((item) => item.id === productId)
   if (!product) return null
+  const validRoomTypes = roomTypes.filter((roomType) => getProductRoomTypes(productId).includes(roomType))
+  if (validRoomTypes.length === 0) return null
   return {
-    id: `${productId}-${product.routeId}-${roomType}`,
+    id: productId,
     productId: product.id,
     productName: product.name,
     routeId: product.routeId,
     routeName: product.routeName,
-    roomType,
-    ...defaultConfigFields,
+    roomTypes: validRoomTypes,
   }
+}
+
+function mergeScopeItems(existing: PaymentScopeItem[], incoming: PaymentScopeItem[]): PaymentScopeItem[] {
+  const map = new Map(existing.map((item) => [item.productId, { ...item, roomTypes: [...item.roomTypes] }]))
+  incoming.forEach((item) => {
+    const current = map.get(item.productId)
+    if (current) {
+      current.roomTypes = Array.from(new Set([...current.roomTypes, ...item.roomTypes]))
+    } else {
+      map.set(item.productId, { ...item, roomTypes: [...item.roomTypes] })
+    }
+  })
+  return Array.from(map.values())
 }
 
 function createPaymentRule(form: PaymentRuleForm): PaymentRule {
@@ -152,31 +159,46 @@ const initialSpecialRules: PaymentRule[] = [
   createPaymentRule({
     name: '内宾巫山特殊船款',
     status: 'enabled',
-    configRows: [
-      { ...createPaymentConfigRow('prod01', '套房')!, collectionStartDaysBeforeSail: 45, paymentDeadlineDaysBeforeSail: 10 },
-      { ...createPaymentConfigRow('prod01', '阳台房')!, collectionStartDaysBeforeSail: 30, paymentDeadlineDaysBeforeSail: 7 },
-    ].filter(Boolean) as PaymentConfigRow[],
+    scopeItems: [
+      createPaymentScopeItem('prod01', ['套房', '阳台房'])!,
+    ],
+    config: {
+      ...defaultConfigFields,
+      collectionStartDaysBeforeSail: 45,
+      paymentDeadlineDaysBeforeSail: 10,
+    },
   }),
   createPaymentRule({
     name: '外宾日本旺季船款',
     status: 'enabled',
-    configRows: [
-      { ...createPaymentConfigRow('prod02', '套房')!, sailingStart: '2025-07-01', collectionStartDaysBeforeSail: 60, paymentDeadlineDaysBeforeSail: 15 },
-    ].filter(Boolean) as PaymentConfigRow[],
+    scopeItems: [
+      createPaymentScopeItem('prod02', ['套房'])!,
+    ],
+    config: {
+      ...defaultConfigFields,
+      sailingStart: '2025-07-01',
+      collectionStartDaysBeforeSail: 60,
+      paymentDeadlineDaysBeforeSail: 15,
+    },
   }),
   createPaymentRule({
     name: '外宾美国长线船款',
     status: 'enabled',
-    configRows: [
-      { ...createPaymentConfigRow('prod03', '内舱房')!, collectionStartDaysBeforeSail: 90, paymentDeadlineDaysBeforeSail: 30 },
-    ].filter(Boolean) as PaymentConfigRow[],
+    scopeItems: [
+      createPaymentScopeItem('prod03', ['内舱房'])!,
+    ],
+    config: {
+      ...defaultConfigFields,
+      collectionStartDaysBeforeSail: 90,
+      paymentDeadlineDaysBeforeSail: 30,
+    },
   }),
 ]
 
-function formatScopeSummary(rows: PaymentConfigRow[]) {
-  if (rows.length === 0) return '未配置'
-  const productsCount = new Set(rows.map((row) => row.productId)).size
-  return `${productsCount}个产品 / ${rows.length}个房型`
+function formatScopeSummary(scopeItems: PaymentScopeItem[]) {
+  if (scopeItems.length === 0) return '未配置'
+  const roomTypeCount = scopeItems.reduce((sum, item) => sum + item.roomTypes.length, 0)
+  return `${scopeItems.length}个产品 / ${roomTypeCount}个房型`
 }
 
 function formatSailingPeriod(fields: PaymentConfigFields) {
@@ -286,164 +308,69 @@ function PaymentConfigFieldsEditor({
   )
 }
 
-function ConfigTable({
-  rows,
-  onUpdate,
+function ScopeCartList({
+  items,
   onRemove,
-  showRemove = false,
 }: {
-  rows: PaymentConfigRow[]
-  onUpdate?: <K extends keyof PaymentConfigRow>(rowId: string, field: K, value: PaymentConfigRow[K]) => void
-  onRemove?: (rowId: string) => void
-  showRemove?: boolean
+  items: PaymentScopeItem[]
+  onRemove?: (productId: string) => void
 }) {
-  const editable = Boolean(onUpdate)
-
-  if (editable) {
-    return (
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <div key={row.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div className="mb-4 flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
-              <div className="min-w-0 text-sm text-gray-700"><span className="font-medium text-gray-900">{row.productName}</span><span className="mx-2 text-gray-300">/</span><span>{row.routeName}</span><span className="mx-2 text-gray-300">/</span><span>{row.roomType}</span></div>
-              {showRemove && <button type="button" onClick={() => onRemove?.(row.id)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" />移除</button>}
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div><label className="mb-1 block text-xs text-gray-500">船期开始</label><input type="date" value={row.sailingStart} onChange={(e) => onUpdate!(row.id, 'sailingStart', e.target.value)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /></div>
-              <div><label className="mb-1 block text-xs text-gray-500">船期结束</label><input type="date" value={row.sailingEnd} onChange={(e) => onUpdate!(row.id, 'sailingEnd', e.target.value)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /></div>
-              <div><label className="mb-1 block text-xs text-gray-500">开始收取</label><div className="flex items-center gap-1.5"><span className="shrink-0 text-xs text-gray-500">开船前</span><input type="number" min={row.paymentDeadlineDaysBeforeSail} value={row.collectionStartDaysBeforeSail} onChange={(e) => onUpdate!(row.id, 'collectionStartDaysBeforeSail', Math.max(row.paymentDeadlineDaysBeforeSail, Number(e.target.value) || 0))} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /><span className="text-xs text-gray-500">天</span></div></div>
-              <div><label className="mb-1 block text-xs text-gray-500">最晚付清</label><div className="flex items-center gap-1.5"><span className="shrink-0 text-xs text-gray-500">开船前</span><input type="number" min={0} max={row.collectionStartDaysBeforeSail} value={row.paymentDeadlineDaysBeforeSail} onChange={(e) => onUpdate!(row.id, 'paymentDeadlineDaysBeforeSail', Math.min(row.collectionStartDaysBeforeSail, Math.max(0, Number(e.target.value) || 0)))} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /><span className="text-xs text-gray-500">天</span></div></div>
-              <div><label className="mb-1 block text-xs text-gray-500">计价范围</label><select value={row.feeScope} onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as PaymentFeeScope)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">{feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
-              <div><label className="mb-1 block text-xs text-gray-500">扣除定金</label><select value={row.deductDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'deductDeposit', e.target.value === 'yes')} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs"><option value="yes">是</option><option value="no">否</option></select></div>
-              <div className="sm:col-span-2"><label className="mb-1 block text-xs text-gray-500">临近开航处理</label><div className="flex flex-wrap items-center gap-1.5"><select value={row.lateBookingPolicy} onChange={(e) => onUpdate!(row.id, 'lateBookingPolicy', e.target.value as LateBookingPolicy)} className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">{lateBookingPolicyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>{row.lateBookingPolicy === 'withinHours' && <><input type="number" min={1} value={row.lateBookingHours} onChange={(e) => onUpdate!(row.id, 'lateBookingHours', Math.max(1, Number(e.target.value) || 1))} className="w-20 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs" /><span className="text-xs text-gray-500">小时</span></>}</div></div>
-              <div><label className="mb-1 block text-xs text-gray-500">逾期处理</label><select value={row.overdueAction} onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as PaymentOverdueAction)} className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs">{overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="min-w-0 text-sm text-gray-700">
+            <span className="font-medium text-gray-900">{item.productName}</span>
+            <span className="mx-2 text-gray-300">/</span>
+            <span>{item.routeName}</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {item.roomTypes.map((roomType) => (
+                <span key={roomType} className="rounded bg-white px-2 py-0.5 text-xs text-gray-600 ring-1 ring-gray-200">{roomType}</span>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
-    )
-  }
+          {onRemove && (
+            <button type="button" onClick={() => onRemove(item.productId)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600">
+              <Trash2 className="h-3.5 w-3.5" />移除
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
+function ConfigSummaryGrid({ config }: { config: PaymentConfigFields }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-[1900px] w-full text-sm">
-        <thead>
-          <tr className="border-b bg-gray-50">
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">产品</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">航线</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">房型</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">船期开始</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">船期结束</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">开始收取</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">最晚付清</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">计价范围</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">扣除定金</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">临近开航处理</th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">逾期处理</th>
-            {showRemove && <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">操作</th>}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <tr key={row.id} className="hover:bg-gray-50/60">
-              <td className="px-3 py-2 text-gray-700">{row.productName}</td>
-              <td className="px-3 py-2 text-gray-700">{row.routeName}</td>
-              <td className="px-3 py-2 text-gray-700">{row.roomType}</td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <input type="date" value={row.sailingStart} onChange={(e) => onUpdate!(row.id, 'sailingStart', e.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-xs" />
-                ) : formatDate(row.sailingStart)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <input type="date" value={row.sailingEnd} onChange={(e) => onUpdate!(row.id, 'sailingEnd', e.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-xs" />
-                ) : formatDate(row.sailingEnd)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-500">开船前</span>
-                    <input
-                      type="number"
-                      min={row.paymentDeadlineDaysBeforeSail}
-                      value={row.collectionStartDaysBeforeSail}
-                      onChange={(e) => onUpdate!(row.id, 'collectionStartDaysBeforeSail', Math.max(row.paymentDeadlineDaysBeforeSail, Number(e.target.value) || 0))}
-                      className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs"
-                    />
-                    <span className="text-xs text-gray-500">天</span>
-                  </div>
-                ) : formatCollectionStart(row)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-500">开船前</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={row.collectionStartDaysBeforeSail}
-                      value={row.paymentDeadlineDaysBeforeSail}
-                      onChange={(e) => onUpdate!(row.id, 'paymentDeadlineDaysBeforeSail', Math.min(row.collectionStartDaysBeforeSail, Math.max(0, Number(e.target.value) || 0)))}
-                      className="w-16 rounded border border-gray-300 px-2 py-1.5 text-xs"
-                    />
-                    <span className="text-xs text-gray-500">天</span>
-                  </div>
-                ) : formatPaymentDeadline(row)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select value={row.feeScope} onChange={(e) => onUpdate!(row.id, 'feeScope', e.target.value as PaymentFeeScope)} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
-                    {feeScopeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                ) : getOptionLabel(feeScopeOptions, row.feeScope)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select value={row.deductDeposit ? 'yes' : 'no'} onChange={(e) => onUpdate!(row.id, 'deductDeposit', e.target.value === 'yes')} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
-                    <option value="yes">是</option>
-                    <option value="no">否</option>
-                  </select>
-                ) : row.deductDeposit ? '是' : '否'}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <div className="flex items-center gap-1.5">
-                    <select value={row.lateBookingPolicy} onChange={(e) => onUpdate!(row.id, 'lateBookingPolicy', e.target.value as LateBookingPolicy)} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
-                      {lateBookingPolicyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                    </select>
-                    {row.lateBookingPolicy === 'withinHours' && (
-                      <>
-                        <input
-                          type="number"
-                          min={1}
-                          value={row.lateBookingHours}
-                          onChange={(e) => onUpdate!(row.id, 'lateBookingHours', Math.max(1, Number(e.target.value) || 1))}
-                          className="w-14 rounded border border-gray-300 px-2 py-1.5 text-xs"
-                        />
-                        <span className="text-xs text-gray-500">小时</span>
-                      </>
-                    )}
-                  </div>
-                ) : formatLateBookingPolicy(row)}
-              </td>
-              <td className="px-3 py-2">
-                {editable ? (
-                  <select value={row.overdueAction} onChange={(e) => onUpdate!(row.id, 'overdueAction', e.target.value as PaymentOverdueAction)} className="rounded border border-gray-300 px-2 py-1.5 text-xs">
-                    {overdueActionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                ) : getOptionLabel(overdueActionOptions, row.overdueAction)}
-              </td>
-              {showRemove && (
-                <td className="px-3 py-2 text-center">
-                  <button type="button" onClick={() => onRemove?.(row.id)} className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600">
-                    <Trash2 className="h-3.5 w-3.5" /> 移除
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">船期</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{formatSailingPeriod(config)}</div>
+      </div>
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">开始收取</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{formatCollectionStart(config)}</div>
+      </div>
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">最晚付清</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{formatPaymentDeadline(config)}</div>
+      </div>
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">船款口径</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(feeScopeOptions, config.feeScope)}</div>
+      </div>
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">扣除已付定金</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{config.deductDeposit ? '是' : '否'}</div>
+      </div>
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">临近开航处理</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{formatLateBookingPolicy(config)}</div>
+      </div>
+      <div className="rounded-lg bg-gray-50 px-4 py-3">
+        <div className="text-xs text-gray-500">逾期处理</div>
+        <div className="mt-1 text-sm font-medium text-gray-900">{getOptionLabel(overdueActionOptions, config.overdueAction)}</div>
+      </div>
     </div>
   )
 }
@@ -462,7 +389,7 @@ export default function PaymentRulePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<PaymentRuleForm>(emptyForm)
 
-  const [scopeProductId, setScopeProductId] = useState(products[0]?.id || '')
+  const [scopeProductIds, setScopeProductIds] = useState<string[]>([])
   const [scopeRoomTypes, setScopeRoomTypes] = useState<string[]>([])
 
   const [detailOpen, setDetailOpen] = useState(false)
@@ -470,8 +397,10 @@ export default function PaymentRulePage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
 
-  const scopeProduct = products.find((item) => item.id === scopeProductId)
-  const scopeRoomTypeOptions = useMemo(() => getProductRoomTypes(scopeProductId), [scopeProductId])
+  const scopeRoomTypeOptions = useMemo(() => {
+    if (scopeProductIds.length === 0) return []
+    return Array.from(new Set(scopeProductIds.flatMap((productId) => getProductRoomTypes(productId))))
+  }, [scopeProductIds])
 
   const filteredRecords = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
@@ -485,8 +414,8 @@ export default function PaymentRulePage() {
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
 
-  const resetScopeSelector = (productId = products[0]?.id || '') => {
-    setScopeProductId(productId)
+  const resetScopeSelector = () => {
+    setScopeProductIds([])
     setScopeRoomTypes([])
   }
 
@@ -528,12 +457,12 @@ export default function PaymentRulePage() {
     const { id: _id, approvalStatus: _approvalStatus, updatedBy: _updatedBy, updatedAt: _updatedAt, createdAt: _createdAt, ...nextForm } = record
     setEditingId(record.id)
     setForm(nextForm)
-    resetScopeSelector(record.configRows[0]?.productId || products[0]?.id || '')
+    resetScopeSelector()
     setFormOpen(true)
   }
 
   const handleSubmit = () => {
-    if (!form.name.trim() || form.configRows.length === 0) return
+    if (!form.name.trim() || form.scopeItems.length === 0) return
     const now = new Date().toISOString()
     if (editingId) {
       setRecords((prev) => prev.map((item) => item.id === editingId ? { ...item, ...form, updatedBy: '当前用户', updatedAt: now } : item))
@@ -559,31 +488,38 @@ export default function PaymentRulePage() {
     setConfirmOpen(false)
   }
 
+  const toggleScopeProduct = (productId: string) => {
+    setScopeProductIds((prev) => {
+      const next = prev.includes(productId) ? prev.filter((item) => item !== productId) : [...prev, productId]
+      if (next.length === 0) setScopeRoomTypes([])
+      else {
+        const validRoomTypes = new Set(next.flatMap((id) => getProductRoomTypes(id)))
+        setScopeRoomTypes((current) => current.filter((roomType) => validRoomTypes.has(roomType)))
+      }
+      return next
+    })
+  }
+
   const toggleScopeRoomType = (roomType: string) => {
     setScopeRoomTypes((prev) => prev.includes(roomType) ? prev.filter((item) => item !== roomType) : [...prev, roomType])
   }
 
   const addScopeToConfig = () => {
-    if (!scopeProductId || scopeRoomTypes.length === 0) return
-    const existingIds = new Set(form.configRows.map((row) => row.id))
-    const nextRows = [...form.configRows]
-    scopeRoomTypes.forEach((roomType) => {
-      const row = createPaymentConfigRow(scopeProductId, roomType)
-      if (row && !existingIds.has(row.id)) nextRows.push(row)
-    })
-    setForm({ ...form, configRows: nextRows })
+    if (scopeProductIds.length === 0 || scopeRoomTypes.length === 0) return
+    const incoming = scopeProductIds
+      .map((productId) => createPaymentScopeItem(productId, scopeRoomTypes))
+      .filter(Boolean) as PaymentScopeItem[]
+    if (incoming.length === 0) return
+    setForm({ ...form, scopeItems: mergeScopeItems(form.scopeItems, incoming) })
     setScopeRoomTypes([])
   }
 
-  const updateConfigRow = <K extends keyof PaymentConfigRow>(rowId: string, field: K, value: PaymentConfigRow[K]) => {
-    setForm({
-      ...form,
-      configRows: form.configRows.map((row) => row.id === rowId ? { ...row, [field]: value } : row),
-    })
+  const removeScopeItem = (productId: string) => {
+    setForm({ ...form, scopeItems: form.scopeItems.filter((item) => item.productId !== productId) })
   }
 
-  const removeConfigRow = (rowId: string) => {
-    setForm({ ...form, configRows: form.configRows.filter((row) => row.id !== rowId) })
+  const updateConfigField = <K extends keyof PaymentConfigFields>(field: K, value: PaymentConfigFields[K]) => {
+    setForm({ ...form, config: { ...form.config, [field]: value } })
   }
 
   const updateDefaultField = <K extends keyof DefaultPaymentRuleForm>(field: K, value: DefaultPaymentRuleForm[K]) => {
@@ -596,8 +532,17 @@ export default function PaymentRulePage() {
 
   const columns = [
     { key: 'name', title: '规则名称', dataIndex: 'name' as keyof PaymentRule },
-    { key: 'scope', title: '适用范围', render: (r: PaymentRule) => formatScopeSummary(r.configRows) },
-    { key: 'configCount', title: '配置条数', render: (r: PaymentRule) => `${r.configRows.length} 条` },
+    { key: 'scope', title: '适用范围', render: (r: PaymentRule) => formatScopeSummary(r.scopeItems) },
+    {
+      key: 'configSummary',
+      title: '规则配置',
+      render: (r: PaymentRule) => (
+        <div className="text-xs text-gray-600">
+          <div>{formatCollectionStart(r.config)} · {formatPaymentDeadline(r.config)}</div>
+          <div className="mt-0.5">{formatSailingPeriod(r.config)}</div>
+        </div>
+      ),
+    },
     { key: 'approvalStatus', title: '审批状态', render: (r: PaymentRule) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'status', title: '状态', render: (r: PaymentRule) => (
       <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${r.status === 'enabled' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -727,29 +672,33 @@ export default function PaymentRulePage() {
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">适用范围</h4>
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm text-gray-700">产品</label>
-                  <select
-                    value={scopeProductId}
-                    onChange={(e) => {
-                      setScopeProductId(e.target.value)
-                      setScopeRoomTypes([])
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">航线</label>
-                  <input value={scopeProduct?.routeName || ''} readOnly className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600" />
+                  <label className="mb-1 block text-sm text-gray-700">产品（可多选）</label>
+                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
+                    {products.map((item) => (
+                      <label key={item.id} className="flex items-start gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={scopeProductIds.includes(item.id)}
+                          onChange={() => toggleScopeProduct(item.id)}
+                        />
+                        <span>
+                          <span className="font-medium text-gray-900">{item.name}</span>
+                          <span className="ml-2 text-xs text-gray-500">{item.routeName}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm text-gray-700">房型（可多选）</label>
-                  <div className="max-h-28 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
-                    {scopeRoomTypeOptions.length === 0 ? (
-                      <p className="text-xs text-gray-400">当前产品暂无房型</p>
+                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
+                    {scopeProductIds.length === 0 ? (
+                      <p className="text-xs text-gray-400">请先选择产品</p>
+                    ) : scopeRoomTypeOptions.length === 0 ? (
+                      <p className="text-xs text-gray-400">所选产品暂无房型</p>
                     ) : scopeRoomTypeOptions.map((roomType) => (
                       <label key={roomType} className="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" checked={scopeRoomTypes.includes(roomType)} onChange={() => toggleScopeRoomType(roomType)} />
@@ -764,7 +713,7 @@ export default function PaymentRulePage() {
                 <button
                   type="button"
                   onClick={addScopeToConfig}
-                  disabled={!scopeProductId || scopeRoomTypes.length === 0}
+                  disabled={scopeProductIds.length === 0 || scopeRoomTypes.length === 0}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   添加至配置区
@@ -775,17 +724,21 @@ export default function PaymentRulePage() {
 
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">配置区</h4>
-            {form.configRows.length === 0 ? (
+            {form.scopeItems.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-400">
-                请先选择产品-航线-房型并添加至配置区
+                请先选择产品与房型并添加至配置区
               </div>
             ) : (
-              <ConfigTable
-                rows={form.configRows}
-                onUpdate={updateConfigRow}
-                onRemove={removeConfigRow}
-                showRemove
-              />
+              <div className="space-y-5">
+                <div>
+                  <h5 className="mb-2 text-sm font-medium text-gray-700">已选范围</h5>
+                  <ScopeCartList items={form.scopeItems} onRemove={removeScopeItem} />
+                </div>
+                <div>
+                  <h5 className="mb-3 text-sm font-medium text-gray-700">规则配置（共用一套）</h5>
+                  <PaymentConfigFieldsEditor fields={form.config} onChange={updateConfigField} />
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -795,12 +748,15 @@ export default function PaymentRulePage() {
         {detail && (<>
           <DetailCard title="基本信息">
             <DetailRow label="规则名称" value={detail.name} />
-            <DetailRow label="适用范围" value={formatScopeSummary(detail.configRows)} />
+            <DetailRow label="适用范围" value={formatScopeSummary(detail.scopeItems)} />
             <DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} />
             <DetailRow label="状态" value={detail.status === 'enabled' ? '启用' : '关闭'} />
           </DetailCard>
-          <DetailCard title={`配置明细（${detail.configRows.length}条）`}>
-            <ConfigTable rows={detail.configRows} />
+          <DetailCard title="已选范围">
+            <ScopeCartList items={detail.scopeItems} />
+          </DetailCard>
+          <DetailCard title="规则配置">
+            <ConfigSummaryGrid config={detail.config} />
           </DetailCard>
           <DetailCard title="操作信息">
             <DetailRow label="修改人" value={detail.updatedBy} />

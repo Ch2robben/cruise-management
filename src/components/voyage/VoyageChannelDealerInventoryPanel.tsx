@@ -14,6 +14,7 @@ import {
   segmentKey,
   setAggregatedDealerAllocation,
   setDealerQuantity,
+  type DealerPrivateStockKind,
   type TemplateDealerInventoryRules,
   type TemplateInventoryRules,
 } from '@/mock/templateInventoryRules'
@@ -106,7 +107,7 @@ export default function VoyageChannelDealerInventoryPanel({ voyage }: VoyageChan
           const current = cabinMap[key] || []
           cabinMap[key] = dealerIds.map((dealerId) => {
             const existing = current.find((item) => item.dealerId === dealerId)
-            return existing || { dealerId, quantity: 0 }
+            return existing || { dealerId, regionalPrivateQty: 0, privateQty: 0 }
           })
         })
         nextRules[sellRoom.code] = cabinMap
@@ -127,6 +128,7 @@ export default function VoyageChannelDealerInventoryPanel({ voyage }: VoyageChan
     sellRoomTypeCode: string,
     segKey: string,
     dealerId: string,
+    stockKind: DealerPrivateStockKind,
     value: number,
   ) => {
     setDealerRules((prev) => {
@@ -136,14 +138,19 @@ export default function VoyageChannelDealerInventoryPanel({ voyage }: VoyageChan
         ...prev,
         [sellRoomTypeCode]: {
           ...cabinMap,
-          [segKey]: setDealerQuantity(current, dealerId, value),
+          [segKey]: setDealerQuantity(current, dealerId, value, stockKind),
         },
       }
     })
   }
 
-  const updateAggregatedDealerAllocation = (sellRoomTypeCode: string, dealerId: string, value: number) => {
-    setDealerRules((prev) => setAggregatedDealerAllocation(prev, sellRoomTypeCode, dealerId, value))
+  const updateAggregatedDealerAllocation = (
+    sellRoomTypeCode: string,
+    dealerId: string,
+    stockKind: DealerPrivateStockKind,
+    value: number,
+  ) => {
+    setDealerRules((prev) => setAggregatedDealerAllocation(prev, sellRoomTypeCode, dealerId, value, stockKind))
   }
 
   const handleSave = () => {
@@ -164,7 +171,7 @@ export default function VoyageChannelDealerInventoryPanel({ voyage }: VoyageChan
   if (!voyage.templateId) {
     return (
       <div className="rounded-lg border border-dashed border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
-        当前航次未关联模板，无法查看经销商库存分配
+        当前航次未关联模板，无法查看私有库存
       </div>
     )
   }
@@ -173,9 +180,9 @@ export default function VoyageChannelDealerInventoryPanel({ voyage }: VoyageChan
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">经销商库存分配</h3>
+          <h3 className="text-sm font-semibold text-gray-900">私有库存</h3>
           <p className="mt-1 text-xs text-gray-500">
-            按销售房型将经销商库存池拆分到各经销商；数据来源于航次模板
+            按经销商分配，区分区域私有库存与私有库存；数据来源于航次模板
             {template ? `「${template.name}」` : ''}，各航段汇总展示。
           </p>
         </div>

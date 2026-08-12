@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRightLeft, Plus, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { voyageApi, priceApi } from '@/mock/api'
 import { dealers, products, voyageTemplates, voyages, routes, ships } from '@/mock/data'
 import type { Voyage, PaginatedResult, SearchParams, ApprovalStep, VoyagePrice, TemplateItinerary } from '@/types'
@@ -292,16 +292,16 @@ export default function VoyagePage() {
       return (
       <div className="flex items-center gap-1">
         <button onClick={() => openDetail(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">详情</button>
-        <button onClick={() => openItinerary(r)} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded">行程</button>
+        <button onClick={() => openItinerary(r)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">产品行程</button>
         {existingCase ? (
-          <button onClick={() => navigate(`/voyage/transfers/${existingCase.id}`)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">继续转船处置</button>
+          <button onClick={() => navigate(`/voyage/transfers/${existingCase.id}`)} className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded">转船</button>
         ) : (
           <button
             onClick={() => setTransferVoyage(r)}
             disabled={r.status !== 'ticketing' && r.status !== 'pending'}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-300"
+            className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-300"
           >
-            <ArrowRightLeft className="h-3.5 w-3.5" />发起转船
+            转船
           </button>
         )}
         <button onClick={() => handleDelete(r.id)} className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded">删除</button>
@@ -367,9 +367,9 @@ export default function VoyagePage() {
           <div className="relative mx-4 flex max-h-[82vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b px-6 py-4">
               <div>
-                <h3 className="text-base font-semibold text-gray-900">编辑航次行程 · {itineraryVoyage.voyageNo}</h3>
+                <h3 className="text-base font-semibold text-gray-900">编辑产品行程 · {itineraryVoyage.voyageNo}</h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  {itineraryVoyage.productName} · 已按开航日期匹配「{getMatchedItineraryPlan(itineraryVoyage)?.name || '未匹配行程'}」；此处保存为当前航次专属覆盖。
+                  {itineraryVoyage.productName} · 已按开航日期匹配「{getMatchedItineraryPlan(itineraryVoyage)?.name || '未匹配行程'}」；可在此编辑并保存为当前航次专属产品行程。
                 </p>
               </div>
               <button onClick={closeItinerary} className="rounded p-1 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
@@ -379,8 +379,9 @@ export default function VoyagePage() {
               <ItineraryEditor
                 value={itineraryDraft}
                 onChange={setItineraryDraft}
+                title="产品行程"
                 compact
-                emptyText="暂无行程配置，请先在行程管理中维护关联产品的行程方案"
+                emptyText="暂无产品行程，请先在行程管理中维护关联产品的行程方案"
               />
             </div>
             <div className="flex justify-end gap-3 border-t px-6 py-4">

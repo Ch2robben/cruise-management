@@ -28,6 +28,7 @@ export interface RuleRecord {
   priority: number
   effectiveStart: string
   effectiveEnd: string
+  longTerm: boolean
   allowManualAdjust: boolean
   remark: string
   status: Status
@@ -81,6 +82,11 @@ function formatAmount(type: RuleAmountType, value: number) {
 
 function optionLabel<T extends string>(options: { value: T; label: string }[], value: T) {
   return options.find((item) => item.value === value)?.label || value
+}
+
+function formatEffectivePeriod(start: string, end: string, longTerm: boolean) {
+  if (longTerm) return `${formatDate(start)} 起 · 长期`
+  return `${formatDate(start)} 至 ${formatDate(end)}`
 }
 
 export function createRuleRecord(form: RuleForm, status: Status = 'enabled'): RuleRecord {
@@ -144,7 +150,7 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
   const openEdit = (record: RuleRecord) => {
     const { id: _id, status: _status, updatedBy: _updatedBy, updatedAt: _updatedAt, createdAt: _createdAt, ...nextForm } = record
     setEditingId(record.id)
-    setForm(nextForm)
+    setForm({ ...nextForm, longTerm: Boolean(record.longTerm) })
     setFormOpen(true)
   }
 
@@ -183,7 +189,7 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
     { key: 'trigger', title: config.triggerLabel, dataIndex: 'triggerPoint' as keyof RuleRecord },
     { key: 'amount', title: config.amountLabel, render: (r: RuleRecord) => formatAmount(r.amountType, r.amountValue) },
     { key: 'dueDays', title: config.dueDaysLabel, render: (r: RuleRecord) => `${r.dueDays}${config.dueDaysSuffix}` },
-    { key: 'effective', title: '有效期', render: (r: RuleRecord) => `${formatDate(r.effectiveStart)} 至 ${formatDate(r.effectiveEnd)}` },
+    { key: 'effective', title: '有效期', render: (r: RuleRecord) => formatEffectivePeriod(r.effectiveStart, r.effectiveEnd, r.longTerm) },
     { key: 'priority', title: '优先级', dataIndex: 'priority' as keyof RuleRecord },
     { key: 'approvalStatus', title: '审批状态', render: (r: RuleRecord) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'status', title: '状态', render: (r: RuleRecord) => <StatusBadge status={r.status} /> },
@@ -268,9 +274,38 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">生效控制</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm text-gray-700 mb-1">生效开始日期</label><input type="date" value={form.effectiveStart} onChange={(e) => setForm({ ...form, effectiveStart: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm text-gray-700 mb-1">生效结束日期</label><input type="date" value={form.effectiveEnd} onChange={(e) => setForm({ ...form, effectiveEnd: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">生效开始日期</label>
+                <input
+                  type="date"
+                  value={form.effectiveStart}
+                  onChange={(e) => setForm({ ...form, effectiveStart: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">生效结束日期</label>
+                <input
+                  type="date"
+                  value={form.longTerm ? '' : form.effectiveEnd}
+                  onChange={(e) => setForm({ ...form, effectiveEnd: e.target.value, longTerm: false })}
+                  disabled={form.longTerm}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-gray-700">有效期类型</label>
+                <label className="inline-flex h-[38px] w-full cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={form.longTerm}
+                    onChange={(e) => setForm({ ...form, longTerm: e.target.checked })}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  长期
+                </label>
+              </div>
             </div>
           </div>
 
@@ -299,8 +334,7 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
             <DetailRow label={config.adjustLabel} value={detail.allowManualAdjust ? '允许' : '不允许'} />
           </DetailCard>
           <DetailCard title="生效控制">
-            <DetailRow label="生效开始" value={formatDate(detail.effectiveStart)} />
-            <DetailRow label="生效结束" value={formatDate(detail.effectiveEnd)} />
+            <DetailRow label="有效期" value={formatEffectivePeriod(detail.effectiveStart, detail.effectiveEnd, detail.longTerm)} />
             <DetailRow label="规则说明" value={detail.remark || '-'} />
           </DetailCard>
           <DetailCard title="适用范围">

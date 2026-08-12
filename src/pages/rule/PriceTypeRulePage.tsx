@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -7,23 +7,12 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
-import { NATIONALITY_OPTIONS } from '@/utils/constants'
+import PolicyRegionPicker, { type SelectedPolicyRegion } from '@/components/rule/PolicyRegionPicker'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
 import type { Status } from '@/types'
+import type { RegionScopeKind } from '@/mock/pricePolicyRegions'
 
-export type PricePolicyTypeKind = 'port' | 'regional'
-export type PortMatchMode = 'default' | 'departure_port'
-export type RegionalMatchType = 'id_card_prefix' | 'nationality'
-
-export interface RegionalMatchRule {
-  id: string
-  matchType: RegionalMatchType
-  /** 身份证区划码前缀（matchType = id_card_prefix） */
-  prefix: string
-  label: string
-  /** 国籍列表（matchType = nationality） */
-  nationalities: string[]
-}
+export type PricePolicyTypeKind = 'regional' | 'global' | 'ota'
 
 export interface PricePolicyType {
   id: string
@@ -34,10 +23,14 @@ export interface PricePolicyType {
   priority: number
   effectiveStart: string
   effectiveEnd: string
-  portMatchMode: PortMatchMode
-  departurePorts: string[]
-  /** 区域价匹配条件，命中任一条即适用区域价 */
-  regionalMatchRules: RegionalMatchRule[]
+  /** 生效范围：境内 / 境外，可多选（区域价/全域价） */
+  scopes: RegionScopeKind[]
+  domesticRegions: SelectedPolicyRegion[]
+  overseasRegions: SelectedPolicyRegion[]
+  /** OTA 价：关联渠道 */
+  otaChannels: string[]
+  /** OTA 价：零售价与结算价相同 */
+  retailEqualsSettlement: boolean
   status: Status
   remark: string
   updatedBy: string
@@ -49,42 +42,32 @@ type PricePolicyTypeForm = Omit<PricePolicyType, 'id' | 'updatedBy' | 'updatedAt
 
 const distributorGroupOptions = ['A组', 'B组', 'C组', 'D组']
 
-const departurePortOptions = ['重庆', '宜昌', '武汉', '南京', '上海', '岳阳']
+const otaChannelOptions = ['美团', '携程', '抖音', '同程', '飞猪', '抖音团购', '抖音预售']
 
 const policyTypeOptions: { value: PricePolicyTypeKind; label: string }[] = [
-  { value: 'port', label: '口岸价' },
   { value: 'regional', label: '区域价' },
+  { value: 'global', label: '全域价' },
+  { value: 'ota', label: 'OTA价' },
 ]
 
-const portMatchModeOptions: { value: PortMatchMode; label: string }[] = [
-  { value: 'default', label: '默认生效（不限出发港）' },
-  { value: 'departure_port', label: '按出发港匹配' },
+const scopeOptions: { value: RegionScopeKind; label: string; hint: string }[] = [
+  { value: 'domestic', label: '境内', hint: '身份证前六位区划' },
+  { value: 'overseas', label: '境外', hint: '护照属地（含港澳台）' },
 ]
-
-const regionalMatchTypeOptions: { value: RegionalMatchType; label: string }[] = [
-  { value: 'id_card_prefix', label: '身份证区划码' },
-  { value: 'nationality', label: '国籍' },
-]
-
-const emptyRegionalMatchRule = (matchType: RegionalMatchType = 'id_card_prefix'): RegionalMatchRule => ({
-  id: generateId(),
-  matchType,
-  prefix: '',
-  label: '',
-  nationalities: [],
-})
 
 const emptyForm: PricePolicyTypeForm = {
   code: 'PPOL-NEW',
   name: '',
   distributorGroup: distributorGroupOptions[0],
-  policyType: 'port',
+  policyType: 'regional',
   priority: 10,
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
-  portMatchMode: 'default',
-  departurePorts: [],
-  regionalMatchRules: [],
+  scopes: ['domestic'],
+  domesticRegions: [],
+  overseasRegions: [],
+  otaChannels: [],
+  retailEqualsSettlement: false,
   status: 'enabled',
   remark: '',
 }
@@ -104,117 +87,94 @@ function getPolicyTypeLabel(type: PricePolicyTypeKind) {
   return policyTypeOptions.find((item) => item.value === type)?.label || type
 }
 
-function getPortMatchModeLabel(mode: PortMatchMode) {
-  return portMatchModeOptions.find((item) => item.value === mode)?.label || mode
+function getScopeLabel(scope: RegionScopeKind) {
+  return scopeOptions.find((item) => item.value === scope)?.label || scope
 }
 
-function getRegionalMatchTypeLabel(type: RegionalMatchType) {
-  return regionalMatchTypeOptions.find((item) => item.value === type)?.label || type
-}
-
-function formatRegionalMatchRule(rule: RegionalMatchRule) {
-  if (rule.matchType === 'nationality') {
-    return rule.nationalities.length > 0 ? `国籍：${rule.nationalities.join('、')}` : '-'
-  }
-  if (!rule.prefix) return '-'
-  return rule.label ? `${rule.prefix}（${rule.label}）` : rule.prefix
-}
-
-function formatRegionalMatchRules(rules: RegionalMatchRule[]) {
-  if (rules.length === 0) return '-'
-  if (rules.length === 1) return formatRegionalMatchRule(rules[0])
-  return `${formatRegionalMatchRule(rules[0])} 等${rules.length}条`
+function formatRegions(regions: SelectedPolicyRegion[]) {
+  if (regions.length === 0) return '-'
+  if (regions.length <= 2) return regions.map((item) => item.pathLabel).join('、')
+  return `${regions.slice(0, 2).map((item) => item.pathLabel).join('、')} 等${regions.length}项`
 }
 
 function formatEffectiveRule(rule: PricePolicyType) {
-  if (rule.policyType === 'port') {
-    if (rule.portMatchMode === 'departure_port' && rule.departurePorts.length > 0) {
-      return `出发港：${rule.departurePorts.join('、')}`
-    }
-    return '默认口岸价'
+  if (rule.policyType === 'ota') {
+    const channels = rule.otaChannels.length > 0 ? rule.otaChannels.join('、') : '未选渠道'
+    const priceRule = rule.retailEqualsSettlement ? '零售价=结算价' : '零售价/结算价分设'
+    return `OTA · ${channels} · ${priceRule}`
   }
-  return formatRegionalMatchRules(rule.regionalMatchRules)
+
+  const scopeText = rule.scopes.length > 0
+    ? rule.scopes.map(getScopeLabel).join('+')
+    : '未选范围'
+
+  if (rule.policyType === 'global') {
+    return `全域 · ${scopeText}`
+  }
+
+  const parts: string[] = []
+  if (rule.scopes.includes('domestic')) {
+    parts.push(`境内：${formatRegions(rule.domesticRegions)}`)
+  }
+  if (rule.scopes.includes('overseas')) {
+    parts.push(`境外：${formatRegions(rule.overseasRegions)}`)
+  }
+  return parts.length > 0 ? parts.join('；') : `区域 · ${scopeText}`
 }
 
-function isValidIdCardAreaPrefix(prefix: string) {
-  return /^\d{2,6}$/.test(prefix)
+function getPolicyTypeBadgeClass(type: PricePolicyTypeKind) {
+  if (type === 'global') return 'bg-blue-50 text-blue-700'
+  if (type === 'ota') return 'bg-amber-50 text-amber-700'
+  return 'bg-purple-50 text-purple-700'
 }
 
-function normalizeRegionalMatchRules(rules: RegionalMatchRule[]) {
-  return rules
-    .map((rule) => ({
-      ...rule,
-      prefix: rule.prefix.trim(),
-      label: rule.label.trim(),
-      nationalities: rule.nationalities.filter(Boolean),
-    }))
-    .filter((rule) => (
-      rule.matchType === 'nationality'
-        ? rule.nationalities.length > 0
-        : rule.prefix
-    ))
+function regionsOverlap(a: SelectedPolicyRegion[], b: SelectedPolicyRegion[]) {
+  const codes = new Set(a.map((item) => item.code))
+  return b.filter((item) => codes.has(item.code))
 }
 
 const initialRecords: PricePolicyType[] = [
   createPolicyType({
     ...emptyForm,
-    code: 'PPOL-PORT-001',
-    name: '长航重庆出发默认口岸价',
-    distributorGroup: 'A组',
-    policyType: 'port',
-    portMatchMode: 'departure_port',
-    departurePorts: ['重庆'],
-    priority: 10,
-    remark: '重庆出发航次统一按口岸价计价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-PORT-002',
-    name: '宜昌交运宜昌港口岸价',
-    distributorGroup: 'B组',
-    policyType: 'port',
-    portMatchMode: 'departure_port',
-    departurePorts: ['宜昌'],
-    priority: 20,
-    remark: '宜昌港出发适用口岸价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
     code: 'PPOL-REG-001',
-    name: '巫山区域结算价',
+    name: '渝川区域结算价',
     distributorGroup: 'A组',
     policyType: 'regional',
-    regionalMatchRules: [
-      { id: 'r1', matchType: 'id_card_prefix', prefix: '500100', label: '重庆市辖区', nationalities: [] },
-      { id: 'r2', matchType: 'id_card_prefix', prefix: '500229', label: '巫山县', nationalities: [] },
+    scopes: ['domestic'],
+    domesticRegions: [
+      { code: '500000', label: '重庆市', pathLabel: '重庆市', path: ['重庆市'], scope: 'domestic' },
+      { code: '510000', label: '四川省', pathLabel: '四川省', path: ['四川省'], scope: 'domestic' },
     ],
-    priority: 15,
-    remark: '重庆辖区及巫山籍游客适用区域价。',
+    priority: 10,
+    remark: '重庆、四川属地游客适用区域优惠结算价。',
   }),
   createPolicyType({
     ...emptyForm,
     code: 'PPOL-REG-002',
-    name: '宜昌城区区域价',
-    distributorGroup: 'B组',
+    name: '滇黔区域结算价',
+    distributorGroup: 'A组',
     policyType: 'regional',
-    regionalMatchRules: [
-      { id: 'r3', matchType: 'id_card_prefix', prefix: '420500', label: '宜昌市', nationalities: [] },
-      { id: 'r4', matchType: 'id_card_prefix', prefix: '420503', label: '伍家岗区', nationalities: [] },
+    scopes: ['domestic'],
+    domesticRegions: [
+      { code: '530000', label: '云南省', pathLabel: '云南省', path: ['云南省'], scope: 'domestic' },
+      { code: '520000', label: '贵州省', pathLabel: '贵州省', path: ['贵州省'], scope: 'domestic' },
     ],
-    priority: 25,
-    remark: '宜昌市及伍家岗区籍游客适用区域价。',
+    priority: 15,
+    remark: '云南、贵州属地游客适用区域优惠结算价。',
   }),
   createPolicyType({
     ...emptyForm,
     code: 'PPOL-REG-003',
-    name: '湖北省区域价',
-    distributorGroup: 'C组',
+    name: '宜昌城区区域价',
+    distributorGroup: 'B组',
     policyType: 'regional',
-    regionalMatchRules: [
-      { id: 'r5', matchType: 'id_card_prefix', prefix: '42', label: '湖北省', nationalities: [] },
+    scopes: ['domestic'],
+    domesticRegions: [
+      { code: '420500', label: '宜昌市', pathLabel: '湖北省 / 宜昌市', path: ['湖北省', '宜昌市'], scope: 'domestic' },
+      { code: '420503', label: '伍家岗区', pathLabel: '湖北省 / 宜昌市 / 伍家岗区', path: ['湖北省', '宜昌市', '伍家岗区'], scope: 'domestic' },
     ],
-    priority: 12,
-    remark: '身份证号码前2位为42的游客适用区域价。',
+    priority: 25,
+    remark: '宜昌市及伍家岗区籍游客适用区域价。',
   }),
   createPolicyType({
     ...emptyForm,
@@ -222,11 +182,57 @@ const initialRecords: PricePolicyType[] = [
     name: '日韩外宾区域价',
     distributorGroup: 'D组',
     policyType: 'regional',
-    regionalMatchRules: [
-      { id: 'r6', matchType: 'nationality', prefix: '', label: '', nationalities: ['日本', '韩国'] },
+    scopes: ['overseas'],
+    overseasRegions: [
+      { code: 'JP', label: '日本', pathLabel: '亚洲 / 日本', path: ['亚洲', '日本'], scope: 'overseas' },
+      { code: 'KR', label: '韩国', pathLabel: '亚洲 / 韩国', path: ['亚洲', '韩国'], scope: 'overseas' },
     ],
     priority: 18,
     remark: '日本、韩国籍外宾适用区域价。',
+  }),
+  createPolicyType({
+    ...emptyForm,
+    code: 'PPOL-GLB-001',
+    name: '长航默认全域结算价',
+    distributorGroup: 'A组',
+    policyType: 'global',
+    scopes: ['domestic', 'overseas'],
+    priority: 100,
+    remark: '保底结算价，适用于境内+境外全部游客。',
+  }),
+  createPolicyType({
+    ...emptyForm,
+    code: 'PPOL-GLB-002',
+    name: '境内全域保底价',
+    distributorGroup: 'B组',
+    policyType: 'global',
+    scopes: ['domestic'],
+    priority: 90,
+    remark: '仅面向境内属地游客的全域保底结算价。',
+  }),
+  createPolicyType({
+    ...emptyForm,
+    code: 'PPOL-OTA-001',
+    name: '美团/抖音OTA结算价',
+    distributorGroup: 'A组',
+    policyType: 'ota',
+    scopes: [],
+    otaChannels: ['美团', '抖音'],
+    retailEqualsSettlement: true,
+    priority: 30,
+    remark: '美团、抖音渠道统一OTA价；零售价与结算价相同。',
+  }),
+  createPolicyType({
+    ...emptyForm,
+    code: 'PPOL-OTA-002',
+    name: '携程OTA分设价',
+    distributorGroup: 'B组',
+    policyType: 'ota',
+    scopes: [],
+    otaChannels: ['携程'],
+    retailEqualsSettlement: false,
+    priority: 35,
+    remark: '携程渠道OTA价，零售价与结算价分设。',
   }),
 ]
 
@@ -250,17 +256,17 @@ export default function PricePolicyTypePage() {
   const filteredRecords = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return records.filter((item) => {
+      const regionText = [
+        ...item.domesticRegions.flatMap((r) => [r.code, r.label, r.pathLabel]),
+        ...item.overseasRegions.flatMap((r) => [r.code, r.label, r.pathLabel]),
+      ]
       const matchedKeyword = !kw || [
         item.code,
         item.name,
         item.distributorGroup,
         item.remark,
-        formatRegionalMatchRules(item.regionalMatchRules),
-        ...item.regionalMatchRules.flatMap((rule) => [
-          rule.prefix,
-          rule.label,
-          ...rule.nationalities,
-        ]),
+        formatEffectiveRule(item),
+        ...regionText,
       ].some((value) => value.toLowerCase().includes(kw))
       const matchedDistributorGroup = distributorGroupFilter === 'all' || item.distributorGroup === distributorGroupFilter
       const matchedPolicyType = policyTypeFilter === 'all' || item.policyType === policyTypeFilter
@@ -274,7 +280,14 @@ export default function PricePolicyTypePage() {
 
   const openCreate = () => {
     setEditingId(null)
-    setForm({ ...emptyForm, regionalMatchRules: [emptyRegionalMatchRule()] })
+    setForm({
+      ...emptyForm,
+      domesticRegions: [],
+      overseasRegions: [],
+      scopes: ['domestic'],
+      otaChannels: [],
+      retailEqualsSettlement: false,
+    })
     setFormOpen(true)
   }
 
@@ -288,11 +301,11 @@ export default function PricePolicyTypePage() {
       priority: record.priority,
       effectiveStart: record.effectiveStart,
       effectiveEnd: record.effectiveEnd,
-      portMatchMode: record.portMatchMode,
-      departurePorts: [...record.departurePorts],
-      regionalMatchRules: record.regionalMatchRules.length > 0
-        ? record.regionalMatchRules.map((rule) => ({ ...rule, nationalities: [...rule.nationalities] }))
-        : [emptyRegionalMatchRule()],
+      scopes: [...record.scopes],
+      domesticRegions: record.domesticRegions.map((item) => ({ ...item, path: [...item.path] })),
+      overseasRegions: record.overseasRegions.map((item) => ({ ...item, path: [...item.path] })),
+      otaChannels: [...(record.otaChannels || [])],
+      retailEqualsSettlement: Boolean(record.retailEqualsSettlement),
       status: record.status,
       remark: record.remark,
     })
@@ -304,47 +317,92 @@ export default function PricePolicyTypePage() {
     setDetailOpen(true)
   }
 
+  const toggleScope = (scope: RegionScopeKind) => {
+    setForm((prev) => {
+      const exists = prev.scopes.includes(scope)
+      const scopes = exists
+        ? prev.scopes.filter((item) => item !== scope)
+        : [...prev.scopes, scope]
+      return {
+        ...prev,
+        scopes,
+        domesticRegions: scopes.includes('domestic') ? prev.domesticRegions : [],
+        overseasRegions: scopes.includes('overseas') ? prev.overseasRegions : [],
+      }
+    })
+  }
+
   const handleSubmit = () => {
     if (!form.name.trim()) {
       window.alert('请填写政策类型名称')
       return
     }
-    if (form.policyType === 'port' && form.portMatchMode === 'departure_port' && form.departurePorts.length === 0) {
-      window.alert('口岸价按出发港匹配时，请至少选择一个出发港')
-      return
-    }
-    if (form.policyType === 'regional') {
-      const rules = normalizeRegionalMatchRules(form.regionalMatchRules)
-      if (rules.length === 0) {
-        window.alert('请至少配置一条区域价匹配条件（身份证区划码或国籍）')
+
+    if (form.policyType === 'ota') {
+      if (form.otaChannels.length === 0) {
+        window.alert('请至少选择一个 OTA 渠道')
         return
       }
-      const invalidPrefix = rules.find(
-        (rule) => rule.matchType === 'id_card_prefix' && !isValidIdCardAreaPrefix(rule.prefix),
-      )
-      if (invalidPrefix) {
-        window.alert(`区域码 ${invalidPrefix.prefix || '（空）'} 无效，须为2~6位数字`)
+    } else {
+      if (form.scopes.length === 0) {
+        window.alert('请至少选择一个生效范围（境内或境外）')
         return
       }
-      const prefixes = rules
-        .filter((rule) => rule.matchType === 'id_card_prefix')
-        .map((rule) => rule.prefix)
-      if (new Set(prefixes).size !== prefixes.length) {
-        window.alert('存在重复的身份证区域码前缀')
-        return
-      }
-      const nationalities = rules
-        .filter((rule) => rule.matchType === 'nationality')
-        .flatMap((rule) => rule.nationalities)
-      if (new Set(nationalities).size !== nationalities.length) {
-        window.alert('存在重复的国籍配置')
-        return
+
+      if (form.policyType === 'regional') {
+        if (form.scopes.includes('domestic') && form.domesticRegions.length === 0) {
+          window.alert('已勾选境内，请至少选择一个境内区域')
+          return
+        }
+        if (form.scopes.includes('overseas') && form.overseasRegions.length === 0) {
+          window.alert('已勾选境外，请至少选择一个境外区域')
+          return
+        }
+
+        const peerRegional = records.filter(
+          (item) =>
+            item.id !== editingId
+            && item.policyType === 'regional'
+            && item.distributorGroup === form.distributorGroup,
+        )
+
+        if (form.scopes.includes('domestic')) {
+          for (const peer of peerRegional) {
+            const overlap = regionsOverlap(form.domesticRegions, peer.domesticRegions)
+            if (overlap.length > 0) {
+              window.alert(
+                `境内区域与「${peer.name}」重复：${overlap.map((item) => item.pathLabel).join('、')}。同一经销商分组的境内区域结算政策区域合集不可重复。`,
+              )
+              return
+            }
+          }
+        }
+
+        if (form.scopes.includes('overseas')) {
+          for (const peer of peerRegional) {
+            const overlap = regionsOverlap(form.overseasRegions, peer.overseasRegions)
+            if (overlap.length > 0) {
+              window.alert(
+                `境外区域与「${peer.name}」重复：${overlap.map((item) => item.pathLabel).join('、')}。同一经销商分组的境外区域结算政策区域合集不可重复。`,
+              )
+              return
+            }
+          }
+        }
       }
     }
 
-    const payload = {
+    const payload: PricePolicyTypeForm = {
       ...form,
-      regionalMatchRules: form.policyType === 'regional' ? normalizeRegionalMatchRules(form.regionalMatchRules) : [],
+      scopes: form.policyType === 'ota' ? [] : form.scopes,
+      domesticRegions: form.policyType === 'regional' && form.scopes.includes('domestic')
+        ? form.domesticRegions
+        : [],
+      overseasRegions: form.policyType === 'regional' && form.scopes.includes('overseas')
+        ? form.overseasRegions
+        : [],
+      otaChannels: form.policyType === 'ota' ? form.otaChannels : [],
+      retailEqualsSettlement: form.policyType === 'ota' ? form.retailEqualsSettlement : false,
     }
 
     if (editingId) {
@@ -371,56 +429,11 @@ export default function PricePolicyTypePage() {
     setConfirmId('')
   }
 
-  const toggleDeparturePort = (port: string) => {
-    setForm((prev) => ({
-      ...prev,
-      departurePorts: prev.departurePorts.includes(port)
-        ? prev.departurePorts.filter((item) => item !== port)
-        : [...prev.departurePorts, port],
-    }))
-  }
-
-  const addRegionalMatchRule = (matchType: RegionalMatchType = 'id_card_prefix') => {
-    setForm((prev) => ({
-      ...prev,
-      regionalMatchRules: [...prev.regionalMatchRules, emptyRegionalMatchRule(matchType)],
-    }))
-  }
-
-  const updateRegionalMatchRule = (id: string, patch: Partial<RegionalMatchRule>) => {
-    setForm((prev) => ({
-      ...prev,
-      regionalMatchRules: prev.regionalMatchRules.map((rule) => (
-        rule.id === id ? { ...rule, ...patch } : rule
-      )),
-    }))
-  }
-
-  const removeRegionalMatchRule = (id: string) => {
-    setForm((prev) => ({
-      ...prev,
-      regionalMatchRules: prev.regionalMatchRules.filter((rule) => rule.id !== id),
-    }))
-  }
-
-  const toggleNationality = (ruleId: string, nationality: string) => {
-    setForm((prev) => ({
-      ...prev,
-      regionalMatchRules: prev.regionalMatchRules.map((rule) => {
-        if (rule.id !== ruleId) return rule
-        const nationalities = rule.nationalities.includes(nationality)
-          ? rule.nationalities.filter((item) => item !== nationality)
-          : [...rule.nationalities, nationality]
-        return { ...rule, nationalities }
-      }),
-    }))
-  }
-
   return (
     <div>
       <PageHeader
         title="价格政策类型"
-        description="按分销商分组配置口岸价与区域价政策类型；区域价可按身份证区划码或入住人国籍匹配。"
+        description="按分销商分组配置区域价、全域价与 OTA 价；OTA 价可关联渠道，并支持零售价与结算价相同。"
       >
         <button
           type="button"
@@ -448,7 +461,7 @@ export default function PricePolicyTypePage() {
             <input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="政策类型编码 / 名称 / 分销商分组"
+              placeholder="政策类型编码 / 名称 / 渠道 / 区域"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -484,13 +497,13 @@ export default function PricePolicyTypePage() {
         columns={[
           { key: 'code', title: '政策类型编码', width: '130px' },
           { key: 'name', title: '政策类型名称', width: '180px' },
-          { key: 'distributorGroup', title: '分销商分组', width: '180px' },
+          { key: 'distributorGroup', title: '分销商分组', width: '120px' },
           {
             key: 'policyType',
             title: '价格政策类型',
             width: '110px',
             render: (record) => (
-              <span className={`rounded px-2 py-0.5 text-xs ${record.policyType === 'port' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
+              <span className={`rounded px-2 py-0.5 text-xs ${getPolicyTypeBadgeClass(record.policyType)}`}>
                 {getPolicyTypeLabel(record.policyType)}
               </span>
             ),
@@ -498,7 +511,7 @@ export default function PricePolicyTypePage() {
           {
             key: 'effectiveRule',
             title: '生效规则',
-            width: '220px',
+            width: '260px',
             render: (record) => formatEffectiveRule(record),
           },
           { key: 'priority', title: '优先级', width: '80px' },
@@ -561,9 +574,11 @@ export default function PricePolicyTypePage() {
                   setForm({
                     ...form,
                     policyType,
-                    regionalMatchRules: policyType === 'regional' && form.regionalMatchRules.length === 0
-                      ? [emptyRegionalMatchRule()]
-                      : form.regionalMatchRules,
+                    scopes: policyType === 'ota' ? [] : (form.scopes.length > 0 ? form.scopes : ['domestic']),
+                    domesticRegions: policyType === 'regional' ? form.domesticRegions : [],
+                    overseasRegions: policyType === 'regional' ? form.overseasRegions : [],
+                    otaChannels: policyType === 'ota' ? form.otaChannels : [],
+                    retailEqualsSettlement: policyType === 'ota' ? form.retailEqualsSettlement : false,
                   })
                 }}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
@@ -583,155 +598,128 @@ export default function PricePolicyTypePage() {
             <Field label="生效结束" value={form.effectiveEnd} onChange={(effectiveEnd) => setForm({ ...form, effectiveEnd })} type="date" />
           </div>
 
-          {form.policyType === 'port' ? (
-            <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4 space-y-4">
-              <h4 className="text-sm font-semibold text-gray-800">口岸价生效规则</h4>
-              <p className="text-xs text-gray-500">配置该分销商分组在何种条件下使用口岸价（P）计价。</p>
-              <label className="block text-sm">
-                <span className="mb-1 block text-gray-700">匹配方式</span>
-                <select
-                  value={form.portMatchMode}
-                  onChange={(event) => setForm({ ...form, portMatchMode: event.target.value as PortMatchMode })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
-                >
-                  {portMatchModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
-              {form.portMatchMode === 'departure_port' && (
-                <div>
-                  <div className="mb-2 text-sm text-gray-700">出发港（可多选）</div>
-                  <div className="flex flex-wrap gap-2">
-                    {departurePortOptions.map((port) => (
+          {form.policyType === 'ota' ? (
+            <div className="space-y-4 rounded-lg border border-amber-100 bg-amber-50/50 p-4">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800">OTA价生效规则</h4>
+                <p className="mt-1 text-xs text-gray-500">面向指定 OTA 渠道的结算政策；可勾选零售价与结算价相同。</p>
+              </div>
+              <div>
+                <div className="mb-2 text-sm text-gray-700">
+                  关联 OTA 渠道 <span className="text-red-500">*</span>
+                  <span className="ml-2 text-xs text-gray-400">可多选</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {otaChannelOptions.map((channel) => {
+                    const active = form.otaChannels.includes(channel)
+                    return (
                       <button
-                        key={port}
+                        key={channel}
                         type="button"
-                        onClick={() => toggleDeparturePort(port)}
-                        className={`rounded-full border px-3 py-1 text-sm transition ${
-                          form.departurePorts.includes(port)
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-gray-300 bg-white text-gray-600 hover:border-blue-300'
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            otaChannels: active
+                              ? prev.otaChannels.filter((item) => item !== channel)
+                              : [...prev.otaChannels, channel],
+                          }))
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                          active
+                            ? 'border-amber-600 bg-amber-600 text-white'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                         }`}
                       >
-                        {port}
+                        {channel}
                       </button>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-              )}
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.retailEqualsSettlement}
+                  onChange={(event) => setForm({ ...form, retailEqualsSettlement: event.target.checked })}
+                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                零售价与结算价相同
+              </label>
             </div>
           ) : (
-            <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-4 space-y-4">
-              <div className="flex items-center justify-between gap-3">
+            <div className={`rounded-lg border p-4 space-y-4 ${
+              form.policyType === 'regional'
+                ? 'border-purple-100 bg-purple-50/50'
+                : 'border-blue-100 bg-blue-50/50'
+            }`}
+            >
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800">
+                  {form.policyType === 'regional' ? '区域价生效规则' : '全域价生效规则'}
+                </h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  {form.policyType === 'regional'
+                    ? '面向指定区域游客的优惠结算价；生效范围可多选境内/境外，并在对应范围内选取具体区域。'
+                    : '保底结算价；生效范围可多选境内/境外（同时勾选即覆盖全部属地游客）。'}
+                </p>
+              </div>
+
+              <div>
+                <div className="mb-2 text-sm text-gray-700">
+                  生效范围 <span className="text-red-500">*</span>
+                  <span className="ml-2 text-xs text-gray-400">可多选</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {scopeOptions.map((option) => {
+                    const active = form.scopes.includes(option.value)
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => toggleScope(option.value)}
+                        className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                          active
+                            ? form.policyType === 'regional'
+                              ? 'border-purple-600 bg-purple-600 text-white'
+                              : 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="font-medium">{option.label}</div>
+                        <div className={`mt-0.5 text-[11px] ${active ? 'text-white/80' : 'text-gray-400'}`}>{option.hint}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {form.policyType === 'regional' && form.scopes.includes('domestic') && (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-800">区域价生效规则</h4>
-                  <p className="mt-1 text-xs text-gray-500">
-                    可配置多条匹配条件，入住人命中任一条即适用区域价。内宾用身份证区划码，外宾用国籍。
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => addRegionalMatchRule('id_card_prefix')}
-                    className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-white px-3 py-1.5 text-xs text-purple-700 hover:bg-purple-50"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    区划码
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => addRegionalMatchRule('nationality')}
-                    className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-white px-3 py-1.5 text-xs text-purple-700 hover:bg-purple-50"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    国籍
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {form.regionalMatchRules.map((rule, index) => (
-                  <div key={rule.id} className="rounded-lg border border-purple-100 bg-white p-3">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-gray-500">条件 {index + 1}</span>
-                        <select
-                          value={rule.matchType}
-                          onChange={(event) => {
-                            const matchType = event.target.value as RegionalMatchType
-                            updateRegionalMatchRule(rule.id, {
-                              matchType,
-                              prefix: matchType === 'id_card_prefix' ? rule.prefix : '',
-                              label: matchType === 'id_card_prefix' ? rule.label : '',
-                              nationalities: matchType === 'nationality' ? rule.nationalities : [],
-                            })
-                          }}
-                          className="rounded-md border border-gray-300 px-2 py-1 text-xs"
-                        >
-                          {regionalMatchTypeOptions.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {form.regionalMatchRules.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeRegionalMatchRule(rule.id)}
-                          className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          删除
-                        </button>
-                      )}
-                    </div>
-
-                    {rule.matchType === 'id_card_prefix' ? (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="block text-sm">
-                          <span className="mb-1 block text-gray-700">区域码前缀 <span className="text-red-500">*</span></span>
-                          <input
-                            value={rule.prefix}
-                            onChange={(event) => updateRegionalMatchRule(rule.id, { prefix: event.target.value.replace(/\D/g, '').slice(0, 6) })}
-                            placeholder="如 42、420500"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"
-                          />
-                        </label>
-                        <label className="block text-sm">
-                          <span className="mb-1 block text-gray-700">区域说明（选填）</span>
-                          <input
-                            value={rule.label}
-                            onChange={(event) => updateRegionalMatchRule(rule.id, { label: event.target.value })}
-                            placeholder="如 湖北省、宜昌市"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                          />
-                        </label>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="mb-2 text-sm text-gray-700">
-                          国籍 <span className="text-red-500">*</span>
-                          <span className="ml-2 text-xs text-gray-400">可多选，命中任一国籍即匹配本条件</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {NATIONALITY_OPTIONS.map((nationality) => (
-                            <button
-                              key={nationality}
-                              type="button"
-                              onClick={() => toggleNationality(rule.id, nationality)}
-                              className={`rounded-full border px-3 py-1 text-sm transition ${
-                                rule.nationalities.includes(nationality)
-                                  ? 'border-purple-600 bg-purple-600 text-white'
-                                  : 'border-gray-300 bg-white text-gray-600 hover:border-purple-300'
-                              }`}
-                            >
-                              {nationality}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  <div className="mb-2 text-sm font-medium text-gray-800">
+                    境内区域 <span className="text-red-500">*</span>
+                    <span className="ml-2 text-xs font-normal text-gray-400">省/直辖市 → 市 → 区</span>
                   </div>
-                ))}
-              </div>
+                  <PolicyRegionPicker
+                    scope="domestic"
+                    value={form.domesticRegions}
+                    onChange={(domesticRegions) => setForm({ ...form, domesticRegions })}
+                  />
+                </div>
+              )}
+
+              {form.policyType === 'regional' && form.scopes.includes('overseas') && (
+                <div>
+                  <div className="mb-2 text-sm font-medium text-gray-800">
+                    境外区域 <span className="text-red-500">*</span>
+                    <span className="ml-2 text-xs font-normal text-gray-400">洲 → 国家 / 港澳台</span>
+                  </div>
+                  <PolicyRegionPicker
+                    scope="overseas"
+                    value={form.overseasRegions}
+                    onChange={(overseasRegions) => setForm({ ...form, overseasRegions })}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -759,26 +747,51 @@ export default function PricePolicyTypePage() {
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
               <DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} ~ ${formatDate(detail.effectiveEnd)}`} />
             </DetailCard>
-            <DetailCard title={detail.policyType === 'port' ? '口岸价生效规则' : '区域价生效规则'}>
-              {detail.policyType === 'port' ? (
-                <>
-                  <DetailRow label="匹配方式" value={getPortMatchModeLabel(detail.portMatchMode)} />
-                  <DetailRow label="出发港" value={detail.departurePorts.length > 0 ? detail.departurePorts.join('、') : '不限'} />
-                </>
-              ) : (
-                <div className="space-y-2">
-                  {detail.regionalMatchRules.map((rule, index) => (
-                    <div key={rule.id} className="rounded-lg bg-gray-50 px-3 py-2 text-sm">
-                      <div className="text-xs text-gray-500">条件 {index + 1} · {getRegionalMatchTypeLabel(rule.matchType)}</div>
-                      <div className="mt-1 font-medium text-gray-900">{formatRegionalMatchRule(rule)}</div>
-                      {rule.matchType === 'id_card_prefix' && rule.prefix && (
-                        <div className="mt-0.5 text-xs text-gray-500">匹配证件号前{rule.prefix.length}位为 {rule.prefix}</div>
-                      )}
+            {detail.policyType === 'ota' ? (
+              <DetailCard title="OTA价生效规则">
+                <DetailRow
+                  label="关联 OTA 渠道"
+                  value={detail.otaChannels.length > 0 ? detail.otaChannels.join('、') : '-'}
+                />
+                <DetailRow
+                  label="零售价与结算价"
+                  value={detail.retailEqualsSettlement ? '相同' : '分设'}
+                />
+              </DetailCard>
+            ) : (
+              <DetailCard title={detail.policyType === 'regional' ? '区域价生效规则' : '全域价生效规则'}>
+                <DetailRow
+                  label="生效范围"
+                  value={detail.scopes.length > 0 ? detail.scopes.map(getScopeLabel).join('、') : '-'}
+                />
+                {detail.policyType === 'regional' && detail.scopes.includes('domestic') && (
+                  <div className="mt-3">
+                    <div className="mb-1 text-xs text-gray-500">境内区域</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {detail.domesticRegions.map((item) => (
+                        <span key={item.code} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                          <span className="mr-1 font-mono text-gray-400">{item.code}</span>
+                          {item.pathLabel}
+                        </span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </DetailCard>
+                  </div>
+                )}
+                {detail.policyType === 'regional' && detail.scopes.includes('overseas') && (
+                  <div className="mt-3">
+                    <div className="mb-1 text-xs text-gray-500">境外区域</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {detail.overseasRegions.map((item) => (
+                        <span key={item.code} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                          <span className="mr-1 font-mono text-gray-400">{item.code}</span>
+                          {item.pathLabel}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </DetailCard>
+            )}
             <DetailCard title="其他">
               <DetailRow label="备注" value={detail.remark || '-'} />
               <DetailRow label="更新人" value={detail.updatedBy} />

@@ -39,7 +39,6 @@ const menuItems: MenuItem[] = [
       { key: 'voyage_calendar_board', label: '日历看板', path: '/voyage/calendar-board' },
       { key: 'voyage_inv', label: '航次库存看板', path: '/voyage/inventory' },
       { key: 'voyage_allocation', label: '库存调配工作台', path: '/voyage/inventory-allocation' },
-      { key: 'voyage_transfer', label: '转船处置', path: '/voyage/transfers' },
       // { key: 'pricing_rule', label: '房型定价规则', path: '/voyage/pricing-rules' },
       // { key: 'sales_control', label: '销售控制', path: '/voyage/sales-control' },
       // { key: 'voyage_price', label: '价格日历', path: '/voyage/pricing' },

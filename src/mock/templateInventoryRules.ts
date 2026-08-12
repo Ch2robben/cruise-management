@@ -8,18 +8,29 @@ import type { ProductSegment, VoyageTemplate } from '@/types'
 
 export interface TemplateInventoryCell {
   physicalCapacity: number
-  onlineChannel: number
-  publicStock: number
-  dealerStockPool: number
+  /** 区域公共库存（区域结算价专用，全经销商共享） */
+  regionalPublicStock: number
+  /** 全域公共库存（全域结算价专用，全经销商共享） */
+  globalPublicStock: number
 }
 
 export type TemplateSegmentInventory = Record<string, TemplateInventoryCell>
 export type TemplateCabinInventoryRule = TemplateSegmentInventory
 export type TemplateInventoryRules = Record<string, TemplateCabinInventoryRule>
 
+export type DealerPrivateStockKind = 'regionalPrivate' | 'private'
+
+export const DEALER_PRIVATE_STOCK_KINDS: { value: DealerPrivateStockKind; label: string; hint: string }[] = [
+  { value: 'regionalPrivate', label: '区域私有库存', hint: '仅区域结算价可用' },
+  { value: 'private', label: '私有库存', hint: '区域/全域结算价均可用' },
+]
+
 export interface DealerStockAllocation {
   dealerId: string
-  quantity: number
+  /** 区域私有库存 */
+  regionalPrivateQty: number
+  /** 私有库存 */
+  privateQty: number
 }
 
 /** sellRoomTypeCode -> segmentKey -> dealer allocations */
@@ -30,12 +41,49 @@ const dealerInventoryStore: Record<string, TemplateDealerInventoryRules> = {}
 
 export const segmentKey = (segment: ProductSegment) => `${segment.startPort}-${segment.endPort}`
 
-function normalizeCell(cell: Partial<TemplateInventoryCell> & Record<string, unknown>): TemplateInventoryCell {
+/** 经销商私有库存池上限 = 物理容量 − 区域公共 − 全域公共（区域私有+私有共用此池） */
+export function getDealerStockPool(cell: TemplateInventoryCell) {
+  return Math.max(0, cell.physicalCapacity - cell.regionalPublicStock - cell.globalPublicStock)
+}
+
+export function getSellableTotal(cell: TemplateInventoryCell) {
+  return cell.regionalPublicStock + cell.globalPublicStock + getDealerStockPool(cell)
+}
+
+export function normalizeDealerAllocation(
+  raw: Partial<DealerStockAllocation> & { quantity?: number; dealerId: string },
+): DealerStockAllocation {
+  const legacyQty = Number(raw.quantity) || 0
+  const hasNewFields = raw.regionalPrivateQty != null || raw.privateQty != null
   return {
-    physicalCapacity: Number(cell.physicalCapacity) || 0,
-    onlineChannel: Number(cell.onlineChannel ?? cell.onlineRetail) || 0,
-    publicStock: Number(cell.publicStock ?? cell.sharedStock) || 0,
-    dealerStockPool: Number(cell.dealerStockPool ?? cell.dedicatedStock) || 0,
+    dealerId: raw.dealerId,
+    regionalPrivateQty: Number(raw.regionalPrivateQty) || (hasNewFields ? 0 : Math.floor(legacyQty * 0.4)),
+    privateQty: Number(raw.privateQty) || (hasNewFields ? 0 : legacyQty - Math.floor(legacyQty * 0.4)),
+  }
+}
+
+export function getDealerStockQty(allocation: DealerStockAllocation | undefined, kind: DealerPrivateStockKind) {
+  if (!allocation) return 0
+  return kind === 'regionalPrivate' ? allocation.regionalPrivateQty : allocation.privateQty
+}
+
+export function getDealerTotalQty(allocation: DealerStockAllocation | undefined) {
+  if (!allocation) return 0
+  return allocation.regionalPrivateQty + allocation.privateQty
+}
+
+function normalizeCell(cell: Partial<TemplateInventoryCell> & Record<string, unknown>): TemplateInventoryCell {
+  const physicalCapacity = Number(cell.physicalCapacity) || 0
+  const regionalPublicStock = Number(
+    cell.regionalPublicStock ?? cell.publicStock ?? cell.sharedStock,
+  ) || 0
+  const globalPublicStock = Number(
+    cell.globalPublicStock ?? cell.onlineChannel ?? cell.onlineRetail,
+  ) || 0
+  return {
+    physicalCapacity,
+    regionalPublicStock,
+    globalPublicStock,
   }
 }
 
@@ -68,16 +116,143 @@ export function getTemplateSegmentKeys(template: VoyageTemplate) {
 }
 
 function getDefaultDealerIds() {
+  const preferredNames = ['同程旅行邮轮事业部', '飞猪度假邮轮频道', '春秋旅游三峡专线']
+  const preferred = preferredNames
+    .map((name) => dealers.find((dealer) => dealer.name === name && dealer.status === 'cooperating')?.id)
+    .filter((id): id is string => Boolean(id))
+  if (preferred.length > 0) return preferred
   return dealers.filter((dealer) => dealer.status === 'cooperating').slice(0, 3).map((dealer) => dealer.id)
+}
+
+/**
+ * 三峡下水模板演示数据（与配置库存 Step2 原型一致）
+ * 顺序：套房 / 阳台房 / 海景房；经销商：同程 / 飞猪 / 春秋
+ */
+const DEMO_SEGMENT_ALLOCATION: Record<
+  string,
+  {
+    pools: [number, number, number]
+    regional: [number, number, number][]
+    private: [number, number, number][]
+  }
+> = {
+  '重庆港-丰都': {
+    pools: [15, 7, 10],
+    regional: [
+      [2, 1, 2],
+      [2, 1, 1],
+      [2, 0, 1],
+    ],
+    private: [
+      [3, 2, 2],
+      [3, 2, 2],
+      [3, 1, 2],
+    ],
+  },
+  '重庆港-奉节': {
+    pools: [17, 9, 12],
+    regional: [
+      [2, 1, 2],
+      [2, 1, 1],
+      [2, 1, 1],
+    ],
+    private: [
+      [4, 2, 3],
+      [4, 2, 3],
+      [3, 2, 2],
+    ],
+  },
+  '重庆港-宜昌港': {
+    pools: [19, 11, 14],
+    regional: [
+      [3, 2, 2],
+      [2, 1, 2],
+      [2, 1, 1],
+    ],
+    private: [
+      [4, 3, 3],
+      [4, 2, 3],
+      [4, 2, 3],
+    ],
+  },
+}
+
+function applyDemoInventoryPools(template: VoyageTemplate, rules: TemplateInventoryRules): TemplateInventoryRules {
+  if (template.id !== 'vt01') return rules
+  const sellRooms = getTemplateSellRoomTypes(template)
+  const ordered = ['套房', '阳台房', '海景房']
+    .map((name) => sellRooms.find((item) => item.name === name))
+    .filter((item): item is TemplateSellRoomType => Boolean(item))
+  if (ordered.length < 3) return rules
+
+  const next: TemplateInventoryRules = { ...rules }
+  Object.entries(DEMO_SEGMENT_ALLOCATION).forEach(([segKey, demo]) => {
+    ordered.forEach((room, roomIndex) => {
+      const cabinRule = { ...(next[room.code] || {}) }
+      const cell = cabinRule[segKey]
+      if (!cell) return
+      const pool = demo.pools[roomIndex]
+      const publicUsed = Math.max(0, cell.physicalCapacity - pool)
+      const regionalPublicStock = Math.floor(publicUsed * 0.45)
+      cabinRule[segKey] = {
+        ...cell,
+        regionalPublicStock,
+        globalPublicStock: publicUsed - regionalPublicStock,
+      }
+      next[room.code] = cabinRule
+    })
+  })
+  return next
+}
+
+function createDemoDealerInventoryRules(
+  template: VoyageTemplate,
+  inventoryRules: TemplateInventoryRules,
+): TemplateDealerInventoryRules {
+  const dealerIds = getDefaultDealerIds()
+  const sellRooms = getTemplateSellRoomTypes(template)
+  const ordered = ['套房', '阳台房', '海景房']
+    .map((name) => sellRooms.find((item) => item.name === name))
+    .filter((item): item is TemplateSellRoomType => Boolean(item))
+  const result: TemplateDealerInventoryRules = {}
+
+  sellRooms.forEach((sellRoom) => {
+    result[sellRoom.code] = {}
+    const cabinRule = inventoryRules[sellRoom.code] || {}
+    Object.entries(cabinRule).forEach(([segKey, cell]) => {
+      const demo = DEMO_SEGMENT_ALLOCATION[segKey]
+      const roomIndex = ordered.findIndex((item) => item.code === sellRoom.code)
+      if (demo && roomIndex >= 0 && dealerIds.length >= 3) {
+        result[sellRoom.code][segKey] = dealerIds.slice(0, 3).map((dealerId, dealerIndex) => ({
+          dealerId,
+          regionalPrivateQty: demo.regional[dealerIndex][roomIndex],
+          privateQty: demo.private[dealerIndex][roomIndex],
+        }))
+      } else {
+        result[sellRoom.code][segKey] = splitPoolAmongDealers(getDealerStockPool(cell), dealerIds)
+      }
+    })
+  })
+  return result
 }
 
 function splitPoolAmongDealers(pool: number, dealerIds: string[]): DealerStockAllocation[] {
   if (pool <= 0 || dealerIds.length === 0) return []
-  const base = Math.floor(pool / dealerIds.length)
-  const remainder = pool % dealerIds.length
+  const regionalPool = Math.floor(pool * 0.4)
+  const privatePool = pool - regionalPool
+
+  const split = (total: number) => {
+    const base = Math.floor(total / dealerIds.length)
+    const remainder = total % dealerIds.length
+    return dealerIds.map((_, index) => base + (index < remainder ? 1 : 0))
+  }
+
+  const regionalParts = split(regionalPool)
+  const privateParts = split(privatePool)
   return dealerIds.map((dealerId, index) => ({
     dealerId,
-    quantity: base + (index < remainder ? 1 : 0),
+    regionalPrivateQty: regionalParts[index],
+    privateQty: privateParts[index],
   }))
 }
 
@@ -93,11 +268,12 @@ export function createDefaultCabinInventoryRule(
 
   if (segments.length === 0) {
     const base = seed ? Math.max(0, physicalCapacity - 2) : 0
+    const regionalPublicStock = seed ? Math.floor(base * 0.35) : 0
+    const globalPublicStock = seed ? Math.floor(base * 0.4) : 0
     rule['全程'] = {
       physicalCapacity,
-      onlineChannel: seed ? Math.floor(base * 0.45) : 0,
-      publicStock: seed ? Math.floor(base * 0.35) : 0,
-      dealerStockPool: seed ? Math.max(0, base - Math.floor(base * 0.45) - Math.floor(base * 0.35)) : 0,
+      regionalPublicStock,
+      globalPublicStock,
     }
     return rule
   }
@@ -105,11 +281,12 @@ export function createDefaultCabinInventoryRule(
   segments.forEach((segment, segmentIndex) => {
     const key = segmentKey(segment)
     const base = seed ? Math.max(0, physicalCapacity - segmentIndex * 2) : 0
+    const regionalPublicStock = seed ? Math.floor(base * 0.35) : 0
+    const globalPublicStock = seed ? Math.floor(base * 0.4) : 0
     rule[key] = {
       physicalCapacity,
-      onlineChannel: seed ? Math.floor(base * 0.45) : 0,
-      publicStock: seed ? Math.floor(base * 0.35) : 0,
-      dealerStockPool: seed ? Math.max(0, base - Math.floor(base * 0.45) - Math.floor(base * 0.35)) : 0,
+      regionalPublicStock,
+      globalPublicStock,
     }
   })
   return rule
@@ -132,7 +309,7 @@ export function loadTemplateInventoryRules(template: VoyageTemplate, seedTemplat
     })
     rules[sellRoom.code] = normalized
   })
-  return rules
+  return shouldSeed ? applyDemoInventoryPools(template, rules) : rules
 }
 
 export function saveTemplateInventoryRules(templateId: string, rules: TemplateInventoryRules) {
@@ -154,7 +331,7 @@ export function createDefaultDealerInventoryRules(
     const cabinRule = inventoryRules[sellRoom.code] || {}
     Object.entries(cabinRule).forEach(([segKey, cell]) => {
       result[sellRoom.code][segKey] = seed
-        ? splitPoolAmongDealers(cell.dealerStockPool, dealerIds)
+        ? splitPoolAmongDealers(getDealerStockPool(cell), dealerIds)
         : []
     })
   })
@@ -168,6 +345,9 @@ export function loadDealerInventoryRules(
 ) {
   const shouldSeed = seedTemplateIds.includes(template.id)
   if (dealerInventoryStore[template.id]) return dealerInventoryStore[template.id]
+  if (shouldSeed && template.id === 'vt01') {
+    return createDemoDealerInventoryRules(template, inventoryRules)
+  }
   return createDefaultDealerInventoryRules(template, inventoryRules, shouldSeed)
 }
 
@@ -185,40 +365,74 @@ export function hasConfiguredTemplateInventory(templateId: string, sellRoomTypeC
 
 export function summarizeTemplateInventory(rules?: TemplateInventoryRules) {
   if (!rules) return null
-  let onlineChannel = 0
-  let publicStock = 0
+  let regionalPublicStock = 0
+  let globalPublicStock = 0
   let dealerStockPool = 0
   Object.values(rules).forEach((segmentRule) => {
     Object.values(segmentRule).forEach((cell) => {
-      onlineChannel += cell.onlineChannel
-      publicStock += cell.publicStock
-      dealerStockPool += cell.dealerStockPool
+      regionalPublicStock += cell.regionalPublicStock
+      globalPublicStock += cell.globalPublicStock
+      dealerStockPool += getDealerStockPool(cell)
     })
   })
   return {
-    totalAvailable: onlineChannel + publicStock + dealerStockPool,
-    onlineChannel,
-    publicStock,
+    totalAvailable: regionalPublicStock + globalPublicStock + dealerStockPool,
+    regionalPublicStock,
+    globalPublicStock,
     dealerStockPool,
+    /** @deprecated 兼容旧字段名 */
+    publicStock: regionalPublicStock,
+    onlineChannel: globalPublicStock,
   }
 }
 
 export function sumDealerAllocations(allocations: DealerStockAllocation[]) {
-  return allocations.reduce((sum, item) => sum + item.quantity, 0)
+  return allocations.reduce((sum, item) => sum + getDealerTotalQty(normalizeDealerAllocation(item)), 0)
 }
 
-export function getDealerQuantity(allocations: DealerStockAllocation[], dealerId: string) {
-  return allocations.find((item) => item.dealerId === dealerId)?.quantity ?? 0
+export function sumDealerAllocationsByKind(
+  allocations: DealerStockAllocation[],
+  kind: DealerPrivateStockKind,
+) {
+  return allocations.reduce(
+    (sum, item) => sum + getDealerStockQty(normalizeDealerAllocation(item), kind),
+    0,
+  )
+}
+
+export function getDealerQuantity(
+  allocations: DealerStockAllocation[],
+  dealerId: string,
+  kind: DealerPrivateStockKind = 'private',
+) {
+  const found = allocations.find((item) => item.dealerId === dealerId)
+  return getDealerStockQty(found ? normalizeDealerAllocation(found) : undefined, kind)
 }
 
 export function setDealerQuantity(
   allocations: DealerStockAllocation[],
   dealerId: string,
   quantity: number,
+  kind: DealerPrivateStockKind = 'private',
 ): DealerStockAllocation[] {
-  const exists = allocations.some((item) => item.dealerId === dealerId)
-  if (!exists) return [...allocations, { dealerId, quantity }]
-  return allocations.map((item) => (item.dealerId === dealerId ? { ...item, quantity } : item))
+  const normalized = allocations.map((item) => normalizeDealerAllocation(item))
+  const exists = normalized.some((item) => item.dealerId === dealerId)
+  if (!exists) {
+    return [
+      ...normalized,
+      normalizeDealerAllocation({
+        dealerId,
+        regionalPrivateQty: kind === 'regionalPrivate' ? quantity : 0,
+        privateQty: kind === 'private' ? quantity : 0,
+      }),
+    ]
+  }
+  return normalized.map((item) => {
+    if (item.dealerId !== dealerId) return item
+    return kind === 'regionalPrivate'
+      ? { ...item, regionalPrivateQty: quantity }
+      : { ...item, privateQty: quantity }
+  })
 }
 
 export function collectSelectedDealerIds(rules: TemplateDealerInventoryRules) {
@@ -226,7 +440,8 @@ export function collectSelectedDealerIds(rules: TemplateDealerInventoryRules) {
   Object.values(rules).forEach((segmentMap) => {
     Object.values(segmentMap).forEach((allocations) => {
       allocations.forEach((item) => {
-        if (item.quantity > 0 || ids.has(item.dealerId)) ids.add(item.dealerId)
+        const normalized = normalizeDealerAllocation(item)
+        if (getDealerTotalQty(normalized) > 0 || ids.has(item.dealerId)) ids.add(item.dealerId)
       })
     })
   })
@@ -249,8 +464,9 @@ export function findOverAllocations(
     Object.entries(segmentRule).forEach(([segKey, cell]) => {
       const allocations = dealerRules[sellRoomTypeCode]?.[segKey] || []
       const allocated = sumDealerAllocations(allocations)
-      if (allocated > cell.dealerStockPool) {
-        warnings.push({ sellRoomTypeCode, segmentKey: segKey, pool: cell.dealerStockPool, allocated })
+      const pool = getDealerStockPool(cell)
+      if (allocated > pool) {
+        warnings.push({ sellRoomTypeCode, segmentKey: segKey, pool, allocated })
       }
     })
   })
@@ -265,14 +481,15 @@ export function aggregateDealerStockPool(
   inventoryRules: TemplateInventoryRules,
   sellRoomTypeCode: string,
 ): number {
-  return aggregateInventoryField(inventoryRules, sellRoomTypeCode, 'dealerStockPool')
+  const segmentRule = inventoryRules[sellRoomTypeCode] || {}
+  return Object.values(segmentRule).reduce((sum, cell) => sum + getDealerStockPool(cell), 0)
 }
 
 export function aggregatePublicStock(
   inventoryRules: TemplateInventoryRules,
   sellRoomTypeCode: string,
 ): number {
-  return aggregateInventoryField(inventoryRules, sellRoomTypeCode, 'publicStock')
+  return aggregateInventoryField(inventoryRules, sellRoomTypeCode, 'regionalPublicStock')
 }
 
 export function aggregatePhysicalCapacity(
@@ -294,9 +511,11 @@ export function aggregateInventoryField(
 export function setAggregatedInventoryField(
   inventoryRules: TemplateInventoryRules,
   sellRoomTypeCode: string,
-  field: 'publicStock' | 'onlineChannel' | 'dealerStockPool',
+  field: 'regionalPublicStock' | 'globalPublicStock' | 'publicStock',
   totalQuantity: number,
 ): TemplateInventoryRules {
+  const resolvedField: keyof TemplateInventoryCell =
+    field === 'publicStock' ? 'regionalPublicStock' : field
   const segmentRule = { ...(inventoryRules[sellRoomTypeCode] || {}) }
   const segmentKeys = Object.keys(segmentRule)
   if (segmentKeys.length === 0) {
@@ -305,9 +524,8 @@ export function setAggregatedInventoryField(
       [sellRoomTypeCode]: {
         __whole: {
           physicalCapacity: 0,
-          onlineChannel: 0,
-          publicStock: field === 'publicStock' ? totalQuantity : 0,
-          dealerStockPool: field === 'dealerStockPool' ? totalQuantity : 0,
+          regionalPublicStock: resolvedField === 'regionalPublicStock' ? totalQuantity : 0,
+          globalPublicStock: resolvedField === 'globalPublicStock' ? totalQuantity : 0,
         },
       },
     }
@@ -318,7 +536,7 @@ export function setAggregatedInventoryField(
   const nextSegmentRule = { ...segmentRule }
   segmentKeys.forEach((segKey, index) => {
     const qty = base + (index < remainder ? 1 : 0)
-    nextSegmentRule[segKey] = { ...nextSegmentRule[segKey], [field]: qty }
+    nextSegmentRule[segKey] = { ...nextSegmentRule[segKey], [resolvedField]: qty }
   })
   return { ...inventoryRules, [sellRoomTypeCode]: nextSegmentRule }
 }
@@ -327,10 +545,11 @@ export function aggregateDealerQuantity(
   dealerRules: TemplateDealerInventoryRules,
   sellRoomTypeCode: string,
   dealerId: string,
+  kind: DealerPrivateStockKind = 'private',
 ): number {
   const segmentMap = dealerRules[sellRoomTypeCode] || {}
   return Object.values(segmentMap).reduce(
-    (sum, allocations) => sum + getDealerQuantity(allocations, dealerId),
+    (sum, allocations) => sum + getDealerQuantity(allocations, dealerId, kind),
     0,
   )
 }
@@ -340,6 +559,7 @@ export function setAggregatedDealerAllocation(
   sellRoomTypeCode: string,
   dealerId: string,
   totalQuantity: number,
+  kind: DealerPrivateStockKind = 'private',
 ): TemplateDealerInventoryRules {
   const segmentMap = dealerRules[sellRoomTypeCode] || {}
   const segmentKeys = Object.keys(segmentMap)
@@ -347,7 +567,7 @@ export function setAggregatedDealerAllocation(
     return {
       ...dealerRules,
       [sellRoomTypeCode]: {
-        __whole: setDealerQuantity([], dealerId, totalQuantity),
+        __whole: setDealerQuantity([], dealerId, totalQuantity, kind),
       },
     }
   }
@@ -357,7 +577,7 @@ export function setAggregatedDealerAllocation(
   const nextSegmentMap = { ...segmentMap }
   segmentKeys.forEach((segKey, index) => {
     const qty = base + (index < remainder ? 1 : 0)
-    nextSegmentMap[segKey] = setDealerQuantity(nextSegmentMap[segKey] || [], dealerId, qty)
+    nextSegmentMap[segKey] = setDealerQuantity(nextSegmentMap[segKey] || [], dealerId, qty, kind)
   })
   return {
     ...dealerRules,
@@ -380,7 +600,9 @@ export function findAggregatedOverAllocations(
     })
     let allocated = 0
     dealerIds.forEach((dealerId) => {
-      allocated += aggregateDealerQuantity(dealerRules, sellRoomTypeCode, dealerId)
+      allocated +=
+        aggregateDealerQuantity(dealerRules, sellRoomTypeCode, dealerId, 'regionalPrivate')
+        + aggregateDealerQuantity(dealerRules, sellRoomTypeCode, dealerId, 'private')
     })
     if (allocated > pool) {
       warnings.push({ sellRoomTypeCode, pool, allocated })

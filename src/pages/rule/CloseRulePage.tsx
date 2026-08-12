@@ -14,6 +14,7 @@ const defaultForm = {
   priority: 10,
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
+  longTerm: false,
   allowManualAdjust: true,
   remark: '',
 }

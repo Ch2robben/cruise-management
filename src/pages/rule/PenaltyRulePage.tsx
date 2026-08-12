@@ -14,6 +14,7 @@ const defaultForm = {
   priority: 10,
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
+  longTerm: false,
   allowManualAdjust: false,
   remark: '',
 }
@@ -40,8 +41,7 @@ export default function PenaltyRulePage() {
         amountTypeOptions: [
           { value: 'percent', label: '按订单比例' },
           { value: 'fixed', label: '固定金额' },
-          { value: 'perPerson', label: '按人收取' },
-          { value: 'formula', label: '公式系数' },
+          { value: 'perPerson', label: '按销售维度收取' },
         ],
         initialData: [
           createRuleRecord({ ...defaultForm, code: 'PEN-001', name: '全体分销商船款逾期罚金', channel: '全部分销商', triggerPoint: '船款逾期', amountType: 'percent', amountValue: 5, dueDays: 1, remark: '全部分销商超过船款截止日后按未付金额5%计罚。' }),

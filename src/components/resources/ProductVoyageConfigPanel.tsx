@@ -4,6 +4,7 @@ import { generateId } from '@/utils/format'
 import type { HierarchicalDictOption } from '@/utils/hierarchicalDict'
 import { loadHierarchicalDictOptions } from '@/utils/hierarchicalDict'
 import type { ProductSegmentOption } from '@/utils/productVoyageConfig'
+import { initialAdditionalProducts, additionalProductCategories, getAdditionalCategoryPath } from '@/mock/additionalProducts'
 
 export interface ProductVoyageConfigValue {
   deposits: TemplateDeposit[]
@@ -14,9 +15,10 @@ export interface ProductVoyageConfigValue {
   cutoffDays: number
   refundPolicy: string
   materialReq: string[]
+  additionalProductIds: string[]
 }
 
-const TABS = ['房型配置', '航次定金', '销售规则', '小费配置', '礼遇配置'] as const
+const TABS = ['房型配置', '航次定金', '销售规则', '小费配置', '礼遇配置', '附加产品'] as const
 const refundPolicies = ['标准退改', '严格退改', '灵活退改']
 const materialOptions = ['宣传册', '行程单', '保险单', '签证指南']
 
@@ -35,6 +37,7 @@ export const emptyProductVoyageConfig = (): ProductVoyageConfigValue => ({
   cutoffDays: 0,
   refundPolicy: '',
   materialReq: [],
+  additionalProductIds: [],
 })
 
 const toggleArray = (arr: string[], val: string): string[] =>
@@ -61,6 +64,8 @@ export default function ProductVoyageConfigPanel({
   availableRoomTypes = roomTypeOptions,
 }: ProductVoyageConfigPanelProps) {
   const [privilegeOptions, setPrivilegeOptions] = useState<HierarchicalDictOption[]>([])
+  const [apSearch, setApSearch] = useState('')
+  const [apCategory, setApCategory] = useState('all')
   const defaultSegmentKey = segmentOptions[0]?.key || ''
   const configuredRoomTypes = value.configuredRoomTypes
 
@@ -386,6 +391,147 @@ export default function ProductVoyageConfigPanel({
             <p className="mt-2 text-xs text-gray-400">礼遇项来自分级字典「礼遇类型」，需关联到已配置房型。</p>
           </div>
         )
+      case 5: {
+        const associatedIds = value.additionalProductIds || []
+
+        const toggleAssociation = (apId: string) => {
+          const nextIds = associatedIds.includes(apId)
+            ? associatedIds.filter((id) => id !== apId)
+            : [...associatedIds, apId]
+          onChange({ ...value, additionalProductIds: nextIds })
+        }
+
+        const filteredAps = initialAdditionalProducts.filter((item) => {
+          const matchKey = !apSearch.trim() || item.name.includes(apSearch.trim()) || (item.externalCode && item.externalCode.includes(apSearch.trim()))
+          const matchCat = apCategory === 'all' || item.categoryId === apCategory
+          return matchKey && matchCat
+        })
+
+        return (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">附加产品配置</h4>
+                <p className="mt-1 text-sm text-gray-500">点选附加产品直接为本产品关联/取消关联增值服务、餐食及门票。</p>
+              </div>
+              <div className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+                已点选关联 <span className="font-bold text-blue-900">{associatedIds.length}</span> 项附加产品
+              </div>
+            </div>
+
+            {/* 检索过滤面板 */}
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50/60 p-3">
+              <input
+                type="text"
+                value={apSearch}
+                onChange={(e) => setApSearch(e.target.value)}
+                placeholder="搜索附加产品名称/编码..."
+                className="w-56 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm"
+              />
+              <select
+                value={apCategory}
+                onChange={(e) => setApCategory(e.target.value)}
+                className="w-44 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm"
+              >
+                <option value="all">全部分类</option>
+                {additionalProductCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.level === 2 ? `└ ${c.name}` : c.name}
+                  </option>
+                ))}
+              </select>
+              {(apSearch || apCategory !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => { setApSearch(''); setApCategory('all') }}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  清空筛选
+                </button>
+              )}
+            </div>
+
+            {/* 附加产品点选表格 */}
+            <div className="overflow-hidden rounded-lg border border-gray-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="w-12 px-3 py-2 text-center text-xs text-gray-500">勾选</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-500">附加产品名称</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-500">产品分类</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-500">计费方式</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-500">金额</th>
+                    <th className="px-3 py-2 text-left text-xs text-gray-500">服务来源</th>
+                    <th className="w-32 px-3 py-2 text-center text-xs text-gray-500">关联动作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredAps.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-8 text-center text-sm text-gray-400">
+                        未找到匹配的附加产品
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAps.map((ap) => {
+                      const isSelected = associatedIds.includes(ap.id)
+                      return (
+                        <tr
+                          key={ap.id}
+                          onClick={() => toggleAssociation(ap.id)}
+                          className={`cursor-pointer transition ${
+                            isSelected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleAssociation(ap.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-medium text-gray-900">
+                            {ap.name}
+                            {ap.required && (
+                              <span className="ml-1.5 rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 font-medium">必选</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-500">{getAdditionalCategoryPath(ap.categoryId)}</td>
+                          <td className="px-3 py-2 text-xs text-gray-600">
+                            {ap.chargeMethod === 'per_person' ? '按人计费' : '按房计费'}
+                          </td>
+                          <td className="px-3 py-2 text-xs font-semibold text-gray-900">
+                            ¥{ap.amount}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-500">{ap.sourceName}</td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleAssociation(ap.id)
+                              }}
+                              className={`rounded px-3 py-1 text-xs font-medium transition ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                  : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {isSelected ? '已关联 ✓' : '+ 点选关联'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2.5 text-xs text-gray-400">点击列表任意整行，或点击右侧操作按钮，即可一键关联该附加产品到本产品。</p>
+          </div>
+        )
+      }
       default:
         return null
     }

@@ -30,10 +30,202 @@ const initBoatTickets = [
   { id: 'bt6', channel: '抖音团购', productName: '长江三峡5日游', otaName: '三峡游轮5日团购特惠', ticketType: '成人票', costPrice: 1200, marketPrice: 1680, retailPrice: 1480, settlementPrice: 1250, merchantId: 'DY_77123', attractionId: 'AT_77111', status: '已上架', multiStore: false, semiDirect: false },
 ]
 
-const initPackageProducts = [
-  { id: 'pp1', channel: '美团', productName: '三峡亲子套票', otaName: '【亲子出游】长江三峡豪华游轮亲子套票', ticketType: '亲子票（成人+儿童）', costPrice: 1680, marketPrice: 2380, retailPrice: 2180, settlementPrice: 1880, merchantId: 'MT_8812345', attractionId: 'AT_88290', status: '已上架', multiStore: false, semiDirect: false },
-  { id: 'pp2', channel: '携程', productName: '豪华舱双人套餐', otaName: '长江三峡豪华舱双人游轮套餐', ticketType: '双人票', costPrice: 2600, marketPrice: 3600, retailPrice: 3400, settlementPrice: 2900, merchantId: 'CX_99234', attractionId: 'AT_99300', status: '已上架', multiStore: false, semiDirect: false },
-  { id: 'pp3', channel: '抖音', productName: '船餐套餐', otaName: '三峡游轮船票+特色餐饮套餐', ticketType: '成人套餐', costPrice: 1380, marketPrice: 1880, retailPrice: 1720, settlementPrice: 1480, merchantId: 'DY_77123', attractionId: 'AT_77400', status: '已上架', multiStore: false, semiDirect: false },
+type OtaCruiseTicketStatus = '已上架' | '已下架'
+type OtaCruiseConnectMode = '半直连' | '直连' | '非直连'
+
+interface OtaCruiseTicket {
+  id: string
+  ticketId: string
+  productCode: string
+  ticketName: string
+  mode: OtaCruiseConnectMode
+  costPrice: number
+  marketPrice: number
+  retailPrice: number
+  windowPrice: number
+  settlementPrice: number
+  status: OtaCruiseTicketStatus
+}
+
+interface OtaCruiseProductGroup {
+  id: string
+  channel: string
+  productName: string
+  productId: string
+  multiStore: boolean
+  merchantId: string
+  attractionId: string
+  categoryId: string
+  semiDirect: boolean
+  tickets: OtaCruiseTicket[]
+}
+
+const CRUISE_CHANNELS = ['侠侣', '美团', '携程', '同程', '旅集', '抖音', '抖音团购', '抖音预售', '省轮总', '东方航空']
+
+const CRUISE_PRODUCT_OPTIONS = [
+  { id: 'cp_lj', name: '鹭江夜游' },
+  { id: 'cp_sx', name: '长江三峡5日游' },
+  { id: 'cp_hj', name: '黄金水道4日游' },
+  { id: 'cp_rj', name: '三峡人家精华游3日' },
+]
+
+const CRUISE_TICKET_OPTIONS = [
+  { id: 'ct_adult_std', name: '成人票-普通舱', segment: '和平码头→和平码头' },
+  { id: 'ct_adult_vip', name: '成人票-豪华舱', segment: '朝天门→丰都' },
+  { id: 'ct_child', name: '儿童票', segment: '和平码头→和平码头' },
+  { id: 'ct_senior', name: '老年票', segment: '宜昌港→重庆港' },
+  { id: 'ct_family', name: '亲子票（成人+儿童）', segment: '重庆港→宜昌港' },
+]
+
+function createCruiseTicket(partial?: Partial<OtaCruiseTicket> & { ticketOptionId?: string }): OtaCruiseTicket {
+  const option = CRUISE_TICKET_OPTIONS.find((item) => item.id === partial?.ticketOptionId) ?? CRUISE_TICKET_OPTIONS[0]
+  const stamp = String(Date.now()).slice(-8)
+  return {
+    id: partial?.id ?? `oct_${stamp}_${Math.random().toString(36).slice(2, 6)}`,
+    ticketId: partial?.ticketId ?? `20${stamp}${Math.floor(Math.random() * 90 + 10)}`,
+    productCode: partial?.productCode ?? `PC${stamp}`,
+    ticketName: partial?.ticketName ?? `${option.name} (${option.segment})`,
+    mode: partial?.mode ?? '半直连',
+    costPrice: partial?.costPrice ?? 1680,
+    marketPrice: partial?.marketPrice ?? 2380,
+    retailPrice: partial?.retailPrice ?? 2180,
+    windowPrice: partial?.windowPrice ?? 2280,
+    settlementPrice: partial?.settlementPrice ?? 1880,
+    status: partial?.status ?? '已下架',
+  }
+}
+
+const initCruiseProducts: OtaCruiseProductGroup[] = [
+  {
+    id: 'ocg1',
+    channel: '抖音',
+    productName: '鹭江夜游',
+    productId: '2063176465172889601',
+    multiStore: true,
+    merchantId: 'DY_MER_88120',
+    attractionId: 'DY_POI_55210',
+    categoryId: '游轮船票',
+    semiDirect: true,
+    tickets: [
+      createCruiseTicket({
+        id: 'oct1',
+        ticketId: '2063176465172891001',
+        productCode: 'LJYY-ADULT',
+        ticketName: '成人票-普通舱 (和平码头→和平码头)',
+        mode: '半直连',
+        costPrice: 68,
+        marketPrice: 128,
+        retailPrice: 98,
+        windowPrice: 108,
+        settlementPrice: 78,
+        status: '已下架',
+      }),
+      createCruiseTicket({
+        id: 'oct2',
+        ticketId: '2063176465172891002',
+        productCode: 'LJYY-VIP',
+        ticketName: '成人票-豪华舱 (和平码头→和平码头)',
+        mode: '半直连',
+        costPrice: 98,
+        marketPrice: 168,
+        retailPrice: 138,
+        windowPrice: 148,
+        settlementPrice: 108,
+        status: '已上架',
+      }),
+    ],
+  },
+  {
+    id: 'ocg2',
+    channel: '抖音',
+    productName: '长江三峡5日游',
+    productId: '2063176465172900102',
+    multiStore: false,
+    merchantId: 'DY_MER_88120',
+    attractionId: 'DY_POI_66001',
+    categoryId: '游轮船票',
+    semiDirect: false,
+    tickets: [
+      createCruiseTicket({
+        id: 'oct3',
+        ticketId: '2063176465172901101',
+        productCode: 'CJSX-ADULT',
+        ticketName: '成人票 (重庆港→宜昌港)',
+        mode: '直连',
+        costPrice: 1200,
+        marketPrice: 1680,
+        retailPrice: 1580,
+        windowPrice: 1620,
+        settlementPrice: 1280,
+        status: '已上架',
+      }),
+      createCruiseTicket({
+        id: 'oct4',
+        ticketId: '2063176465172901102',
+        productCode: 'CJSX-CHILD',
+        ticketName: '儿童票 (重庆港→宜昌港)',
+        mode: '直连',
+        costPrice: 600,
+        marketPrice: 840,
+        retailPrice: 780,
+        windowPrice: 800,
+        settlementPrice: 640,
+        status: '已上架',
+      }),
+    ],
+  },
+  {
+    id: 'ocg3',
+    channel: '美团',
+    productName: '三峡亲子家庭游',
+    productId: '1988200455171008803',
+    multiStore: false,
+    merchantId: 'MT_8812345',
+    attractionId: 'AT_88290',
+    categoryId: '亲子产品',
+    semiDirect: false,
+    tickets: [
+      createCruiseTicket({
+        id: 'oct5',
+        ticketId: '1988200455171010011',
+        productCode: 'SXQZ-FAMILY',
+        ticketName: '亲子票（成人+儿童） (重庆港→宜昌港)',
+        mode: '非直连',
+        costPrice: 1680,
+        marketPrice: 2380,
+        retailPrice: 2180,
+        windowPrice: 2280,
+        settlementPrice: 1880,
+        status: '已上架',
+      }),
+    ],
+  },
+  {
+    id: 'ocg4',
+    channel: '携程',
+    productName: '黄金水道4日游',
+    productId: '1756601122099884404',
+    multiStore: true,
+    merchantId: 'CX_99234',
+    attractionId: 'AT_99233',
+    categoryId: '游轮船票',
+    semiDirect: true,
+    tickets: [
+      createCruiseTicket({
+        id: 'oct6',
+        ticketId: '1756601122099885501',
+        productCode: 'HJSD-ADULT',
+        ticketName: '成人票-普通舱 (宜昌港→重庆港)',
+        mode: '半直连',
+        costPrice: 980,
+        marketPrice: 1380,
+        retailPrice: 1320,
+        windowPrice: 1350,
+        settlementPrice: 1050,
+        status: '已上架',
+      }),
+    ],
+  },
 ]
 
 const initPeriodProducts = [
@@ -446,6 +638,523 @@ function ProductTable({ initData, channelTabs }: { initData: typeof initBoatTick
   )
 }
 
+// ======================== OTA游轮产品 ========================
+
+function CruiseRenameModal({
+  title = '修改名称',
+  label = '名称',
+  productName,
+  onClose,
+  onSave,
+}: {
+  title?: string
+  label?: string
+  productName: string
+  onClose: () => void
+  onSave: (name: string) => void
+}) {
+  const [name, setName] = useState(productName)
+  return (
+    <Modal title={title} onClose={onClose}>
+      <FormRow label={label} required>
+        <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder={`请输入${label}`} />
+      </FormRow>
+      <div className="mt-4 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button onClick={() => { onSave(name.trim()); onClose() }} disabled={!name.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">确定</button>
+      </div>
+    </Modal>
+  )
+}
+
+function CruiseBindIdModal({
+  group,
+  onClose,
+  onSave,
+}: {
+  group: OtaCruiseProductGroup
+  onClose: () => void
+  onSave: (payload: { merchantId: string; attractionId: string; categoryId: string }) => void
+}) {
+  const [merchantId, setMerchantId] = useState(group.merchantId)
+  const [attractionId, setAttractionId] = useState(group.attractionId)
+  const [categoryId, setCategoryId] = useState(group.categoryId || CATEGORIES[0])
+  return (
+    <Modal title="ID绑定" onClose={onClose}>
+      <FormRow label="商家ID(账号ID)绑定" required>
+        <input value={merchantId} onChange={(e) => setMerchantId(e.target.value)} className={inputCls} placeholder="请输入商家账号ID" />
+      </FormRow>
+      <FormRow label="景点ID(门店ID)绑定" required>
+        <input value={attractionId} onChange={(e) => setAttractionId(e.target.value)} className={inputCls} placeholder="请输入景点/门店ID" />
+      </FormRow>
+      <FormRow label="分类ID">
+        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={selectCls}>
+          {CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+        </select>
+      </FormRow>
+      <div className="mt-4 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button
+          onClick={() => { onSave({ merchantId, attractionId, categoryId }); onClose() }}
+          disabled={!merchantId.trim() || !attractionId.trim()}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          确定
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function CruiseAddProductModal({
+  channelName,
+  onClose,
+  onSave,
+}: {
+  channelName: string
+  onClose: () => void
+  onSave: (group: OtaCruiseProductGroup) => void
+}) {
+  const [productOptionId, setProductOptionId] = useState(CRUISE_PRODUCT_OPTIONS[0].id)
+  const [ticketIds, setTicketIds] = useState<string[]>([CRUISE_TICKET_OPTIONS[0].id])
+  const [productName, setProductName] = useState(CRUISE_PRODUCT_OPTIONS[0].name)
+  const [merchantId, setMerchantId] = useState('')
+  const [attractionId, setAttractionId] = useState('')
+  const [categoryId, setCategoryId] = useState(CATEGORIES[0])
+  const [multiStore, setMultiStore] = useState(false)
+  const [semiDirect, setSemiDirect] = useState(true)
+
+  const toggleTicket = (id: string) => {
+    setTicketIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
+  return (
+    <Modal title="新增" onClose={onClose} width="max-w-xl">
+      <FormRow label="产品" required>
+        <select
+          value={productOptionId}
+          onChange={(e) => {
+            const nextId = e.target.value
+            const option = CRUISE_PRODUCT_OPTIONS.find((item) => item.id === nextId)
+            setProductOptionId(nextId)
+            if (option) setProductName(option.name)
+          }}
+          className={selectCls}
+        >
+          {CRUISE_PRODUCT_OPTIONS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </FormRow>
+      <FormRow label="票" required>
+        <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-gray-200 px-3 py-2">
+          {CRUISE_TICKET_OPTIONS.map((item) => (
+            <label key={item.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={ticketIds.includes(item.id)} onChange={() => toggleTicket(item.id)} />
+              <span>{item.name}（{item.segment}）</span>
+            </label>
+          ))}
+        </div>
+      </FormRow>
+      <FormRow label="产品名称" required>
+        <input value={productName} onChange={(e) => setProductName(e.target.value)} className={inputCls} placeholder="请输入产品名称" />
+      </FormRow>
+      <FormRow label="商家ID(账号ID)绑定">
+        <input value={merchantId} onChange={(e) => setMerchantId(e.target.value)} className={inputCls} placeholder={`${channelName}商家账号ID`} />
+      </FormRow>
+      <FormRow label="景点ID(门店ID)绑定">
+        <input value={attractionId} onChange={(e) => setAttractionId(e.target.value)} className={inputCls} placeholder={`${channelName}景点/门店ID`} />
+      </FormRow>
+      <FormRow label="分类ID">
+        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={selectCls}>
+          {CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+        </select>
+      </FormRow>
+      <FormRow label="是否多门店">
+        <div className="flex items-center gap-6 pt-2 text-sm text-gray-700">
+          <label className="inline-flex items-center gap-2"><input type="radio" checked={multiStore} onChange={() => setMultiStore(true)} />是</label>
+          <label className="inline-flex items-center gap-2"><input type="radio" checked={!multiStore} onChange={() => setMultiStore(false)} />否</label>
+        </div>
+      </FormRow>
+      <FormRow label="是否半直连">
+        <div className="flex items-center gap-6 pt-2 text-sm text-gray-700">
+          <label className="inline-flex items-center gap-2"><input type="radio" checked={semiDirect} onChange={() => setSemiDirect(true)} />是</label>
+          <label className="inline-flex items-center gap-2"><input type="radio" checked={!semiDirect} onChange={() => setSemiDirect(false)} />否</label>
+        </div>
+      </FormRow>
+      <div className="mt-4 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button
+          onClick={() => {
+            if (!productName.trim() || ticketIds.length === 0) return
+            const stamp = String(Date.now())
+            onSave({
+              id: `ocg_${stamp}`,
+              channel: channelName,
+              productName: productName.trim(),
+              productId: stamp,
+              multiStore,
+              merchantId,
+              attractionId,
+              categoryId,
+              semiDirect,
+              tickets: ticketIds.map((ticketOptionId) => createCruiseTicket({
+                ticketOptionId,
+                mode: semiDirect ? '半直连' : '直连',
+                status: '已下架',
+              })),
+            })
+            onClose()
+          }}
+          disabled={!productName.trim() || ticketIds.length === 0}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          保存
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function CruiseAddTicketModal({
+  group,
+  onClose,
+  onSave,
+}: {
+  group: OtaCruiseProductGroup
+  onClose: () => void
+  onSave: (tickets: OtaCruiseTicket[]) => void
+}) {
+  const existingNames = new Set(group.tickets.map((item) => item.ticketName.split(' (')[0]))
+  const available = CRUISE_TICKET_OPTIONS.filter((item) => !existingNames.has(item.name))
+  const [ticketIds, setTicketIds] = useState<string[]>(available.slice(0, 1).map((item) => item.id))
+
+  return (
+    <Modal title="新增票" onClose={onClose}>
+      <p className="mb-3 text-sm text-gray-500">为「{group.productName}」追加票类。</p>
+      {available.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">暂无可新增票类</div>
+      ) : (
+        <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-200 px-3 py-2">
+          {available.map((item) => (
+            <label key={item.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={ticketIds.includes(item.id)}
+                onChange={() => setTicketIds((prev) => (prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]))}
+              />
+              <span>{item.name}（{item.segment}）</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="mt-4 flex justify-end gap-3">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button
+          disabled={ticketIds.length === 0}
+          onClick={() => {
+            onSave(ticketIds.map((ticketOptionId) => createCruiseTicket({
+              ticketOptionId,
+              mode: group.semiDirect ? '半直连' : '直连',
+              status: '已下架',
+            })))
+            onClose()
+          }}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          保存
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function TabCruiseProducts() {
+  const [groups, setGroups] = useState(initCruiseProducts)
+  const [activeChannel, setActiveChannel] = useState('抖音')
+  const [productKeyword, setProductKeyword] = useState('')
+  const [ticketKeyword, setTicketKeyword] = useState('')
+  const [appliedProductKeyword, setAppliedProductKeyword] = useState('')
+  const [appliedTicketKeyword, setAppliedTicketKeyword] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<OtaCruiseProductGroup | null>(null)
+  const [bindTarget, setBindTarget] = useState<OtaCruiseProductGroup | null>(null)
+  const [addTicketTarget, setAddTicketTarget] = useState<OtaCruiseProductGroup | null>(null)
+  const [ticketRenameTarget, setTicketRenameTarget] = useState<{ groupId: string; ticket: OtaCruiseTicket } | null>(null)
+  const [toast, setToast] = useState('')
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
+
+  const filteredGroups = groups
+    .filter((group) => group.channel === activeChannel)
+    .map((group) => {
+      const productMatched = !appliedProductKeyword
+        || group.productName.includes(appliedProductKeyword)
+        || group.productId.includes(appliedProductKeyword)
+      if (!productMatched) return null
+      const tickets = group.tickets.filter((ticket) => (
+        !appliedTicketKeyword
+        || ticket.ticketName.includes(appliedTicketKeyword)
+        || ticket.ticketId.includes(appliedTicketKeyword)
+        || ticket.productCode.includes(appliedTicketKeyword)
+      ))
+      if (appliedTicketKeyword && tickets.length === 0) return null
+      return { ...group, tickets: appliedTicketKeyword ? tickets : group.tickets }
+    })
+    .filter(Boolean) as OtaCruiseProductGroup[]
+
+  const updateGroup = (groupId: string, updater: (group: OtaCruiseProductGroup) => OtaCruiseProductGroup) => {
+    setGroups((prev) => prev.map((group) => (group.id === groupId ? updater(group) : group)))
+  }
+
+  const updateTicket = (groupId: string, ticketId: string, updater: (ticket: OtaCruiseTicket) => OtaCruiseTicket) => {
+    updateGroup(groupId, (group) => ({
+      ...group,
+      tickets: group.tickets.map((ticket) => (ticket.id === ticketId ? updater(ticket) : ticket)),
+    }))
+  }
+
+  return (
+    <div>
+      {toast && <div className="fixed top-6 left-1/2 z-[999] -translate-x-1/2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
+
+      <div className="mb-4 border-b border-gray-200">
+        <div className="flex gap-0 overflow-x-auto">
+          {CRUISE_CHANNELS.map((channel) => (
+            <button
+              key={channel}
+              type="button"
+              onClick={() => setActiveChannel(channel)}
+              className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeChannel === channel ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {channel}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs text-gray-500">产品</span>
+          <input
+            value={productKeyword}
+            onChange={(e) => setProductKeyword(e.target.value)}
+            placeholder="请输入产品名称/产品ID"
+            className="h-9 w-56 rounded-lg border border-gray-300 bg-white px-3 text-sm"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs text-gray-500">票类</span>
+          <input
+            value={ticketKeyword}
+            onChange={(e) => setTicketKeyword(e.target.value)}
+            placeholder="请输入票类名称/票ID"
+            className="h-9 w-56 rounded-lg border border-gray-300 bg-white px-3 text-sm"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setAppliedProductKeyword(productKeyword.trim())
+            setAppliedTicketKeyword(ticketKeyword.trim())
+          }}
+          className="h-9 rounded-lg bg-blue-600 px-4 text-sm text-white hover:bg-blue-700"
+        >
+          查询
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setProductKeyword('')
+            setTicketKeyword('')
+            setAppliedProductKeyword('')
+            setAppliedTicketKeyword('')
+          }}
+          className="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          重置
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-sm text-white hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" />新增
+        </button>
+      </div>
+
+      {filteredGroups.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-16 text-center text-sm text-gray-400">
+          暂无 {activeChannel} 渠道游轮产品，点击【新增】添加
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredGroups.map((group) => (
+            <section key={group.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-slate-50/70 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">{group.productName}</h3>
+                    {group.multiStore && (
+                      <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200">多门店</span>
+                    )}
+                    <span className="font-mono text-xs text-gray-400">(ID: {group.productId})</span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <span>商家ID(账号ID)绑定：{group.merchantId || <span className="text-gray-300">未绑定</span>}</span>
+                    <span>景点ID(门店ID)绑定：{group.attractionId || <span className="text-gray-300">未绑定</span>}</span>
+                    <span>分类：{group.categoryId}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <button type="button" onClick={() => setAddTicketTarget(group)} className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">新增票</button>
+                  <button type="button" onClick={() => setRenameTarget(group)} className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">修改名称</button>
+                  <button type="button" onClick={() => showToast('图文编辑为原型占位，后续可接富文本')} className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 hover:bg-gray-50">编辑图文</button>
+                  <button type="button" onClick={() => setBindTarget(group)} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-blue-700 hover:bg-blue-100">绑定ID</button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left font-medium">票ID</th>
+                      <th className="px-4 py-2.5 text-left font-medium">产品码</th>
+                      <th className="px-4 py-2.5 text-left font-medium">票名称</th>
+                      <th className="px-4 py-2.5 text-center font-medium">模式</th>
+                      <th className="px-4 py-2.5 text-right font-medium">成本价</th>
+                      <th className="px-4 py-2.5 text-right font-medium">门市价</th>
+                      <th className="px-4 py-2.5 text-right font-medium">零售价</th>
+                      <th className="px-4 py-2.5 text-right font-medium">窗口价</th>
+                      <th className="px-4 py-2.5 text-right font-medium">结算价</th>
+                      <th className="px-4 py-2.5 text-center font-medium">上线状态</th>
+                      <th className="px-4 py-2.5 text-center font-medium">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {group.tickets.map((ticket) => (
+                      <tr key={ticket.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{ticket.ticketId}</td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{ticket.productCode}</td>
+                        <td className="max-w-[260px] px-4 py-2.5 text-gray-800">{ticket.ticketName}</td>
+                        <td className="px-4 py-2.5 text-center text-gray-600">{ticket.mode}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-500">¥{ticket.costPrice}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-700">¥{ticket.marketPrice}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-700">¥{ticket.retailPrice}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-700">¥{ticket.windowPrice}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-blue-700">¥{ticket.settlementPrice}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            ticket.status === '已上架' ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-600'
+                          }`}>
+                            {ticket.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                            {ticket.status === '已上架' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateTicket(group.id, ticket.id, (item) => ({ ...item, status: '已下架' }))
+                                  showToast('已下架')
+                                }}
+                                className="text-orange-500 hover:text-orange-600"
+                              >
+                                下架
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateTicket(group.id, ticket.id, (item) => ({ ...item, status: '已上架' }))
+                                  showToast('已上架')
+                                }}
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                上架
+                              </button>
+                            )}
+                            <button type="button" onClick={() => showToast('票类图文编辑为原型占位')} className="text-blue-600 hover:text-blue-700">编辑图文</button>
+                            <button
+                              type="button"
+                              onClick={() => setTicketRenameTarget({ groupId: group.id, ticket })}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              修改名称
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {group.tickets.length === 0 && (
+                      <tr>
+                        <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400">暂无票类，请点击【新增票】</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <CruiseAddProductModal
+          channelName={activeChannel}
+          onClose={() => setShowAdd(false)}
+          onSave={(group) => {
+            setGroups((prev) => [group, ...prev])
+            showToast('游轮产品已新增')
+          }}
+        />
+      )}
+      {renameTarget && (
+        <CruiseRenameModal
+          productName={renameTarget.productName}
+          label="产品名称"
+          onClose={() => setRenameTarget(null)}
+          onSave={(name) => {
+            updateGroup(renameTarget.id, (group) => ({ ...group, productName: name }))
+            showToast('产品名称已修改')
+          }}
+        />
+      )}
+      {bindTarget && (
+        <CruiseBindIdModal
+          group={bindTarget}
+          onClose={() => setBindTarget(null)}
+          onSave={(payload) => {
+            updateGroup(bindTarget.id, (group) => ({ ...group, ...payload }))
+            showToast('ID绑定成功')
+          }}
+        />
+      )}
+      {addTicketTarget && (
+        <CruiseAddTicketModal
+          group={addTicketTarget}
+          onClose={() => setAddTicketTarget(null)}
+          onSave={(tickets) => {
+            updateGroup(addTicketTarget.id, (group) => ({ ...group, tickets: [...group.tickets, ...tickets] }))
+            showToast(`已新增 ${tickets.length} 个票类`)
+          }}
+        />
+      )}
+      {ticketRenameTarget && (
+        <CruiseRenameModal
+          productName={ticketRenameTarget.ticket.ticketName}
+          label="票名称"
+          onClose={() => setTicketRenameTarget(null)}
+          onSave={(name) => {
+            updateTicket(ticketRenameTarget.groupId, ticketRenameTarget.ticket.id, (item) => ({ ...item, ticketName: name }))
+            showToast('票名称已更新')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 // ======================== OTA兑换券航次 ========================
 
 function VoucherVoyageModal({
@@ -682,13 +1391,12 @@ function TabVoucherVoyages() {
 // ======================== 主页面 ========================
 
 const BOAT_CHANNELS = ['美团', '携程', '抖音', '抖音团购']
-const PACKAGE_CHANNELS = ['美团', '携程', '抖音']
 const PERIOD_CHANNELS = ['美团', '携程']
 
 const TABS = [
   { key: 'ota_manage', label: 'OTA管理' },
   { key: 'boat_tickets', label: 'OTA船票产品' },
-  { key: 'packages', label: 'OTA套票产品' },
+  { key: 'packages', label: 'OTA游轮产品' },
   { key: 'period', label: 'OTA期票产品' },
   { key: 'voucher_voyages', label: 'OTA兑换券航次' },
 ]
@@ -708,7 +1416,7 @@ export default function OtaDistributionPage() {
       </div>
       {activeTab === 'ota_manage' && <TabOtaManage />}
       {activeTab === 'boat_tickets' && <ProductTable key="boat" initData={initBoatTickets} channelTabs={BOAT_CHANNELS} />}
-      {activeTab === 'packages' && <ProductTable key="package" initData={initPackageProducts} channelTabs={PACKAGE_CHANNELS} />}
+      {activeTab === 'packages' && <TabCruiseProducts />}
       {activeTab === 'period' && <ProductTable key="period" initData={initPeriodProducts} channelTabs={PERIOD_CHANNELS} />}
       {activeTab === 'voucher_voyages' && <TabVoucherVoyages />}
     </div>
