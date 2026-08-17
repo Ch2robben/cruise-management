@@ -30,6 +30,18 @@ export interface AgeGroup extends BaseEntity {
   remark: string
 }
 
+/** 配额模式：共享余量 / 按经销商拆额度 */
+export type InventoryPoolQuotaMode = 'shared' | 'byDealer'
+
+/** 库存池：可售名额容器。谁能用由绑定的价格政策决定，本实体不配置授权范围 */
+export interface InventoryPool extends BaseEntity {
+  code: string
+  name: string
+  quotaMode: InventoryPoolQuotaMode
+  sort: number
+  remark: string
+}
+
 // ========== 用户相关 ==========
 export interface User {
   id: string

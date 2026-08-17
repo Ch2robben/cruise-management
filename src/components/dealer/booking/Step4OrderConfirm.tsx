@@ -4,6 +4,7 @@ import type { DealerBookingDraft } from '@/components/dealer/booking/bookingType
 import {
   buildMatchedPricePolicies,
   defaultMatchedPolicies,
+  deductMatchedPolicyPools,
   policyTypeClass,
   type MatchedPricePolicy,
 } from '@/mock/dealerBookingPolicy'
@@ -124,6 +125,7 @@ export default function Step4OrderConfirm({
   onPrev: () => void
 }) {
   const [guestListExpanded, setGuestListExpanded] = useState(false)
+  const [poolToast, setPoolToast] = useState('')
   const cart = data?.cart ?? []
   const hasCart = cart.length > 0
   const roomGroups = (data?.touristData?.roomGroups ?? []) as RoomGroupLike[]
@@ -132,6 +134,21 @@ export default function Step4OrderConfirm({
 
   const matchedPolicies: MatchedPricePolicy[] =
     data?.matchedPolicies ?? (hasCart ? buildMatchedPricePolicies(cart) : defaultMatchedPolicies())
+
+  const handleConfirmNext = () => {
+    const results = deductMatchedPolicyPools(matchedPolicies, { templateId: 'vt01' })
+    const okCount = results.filter((item) => item.ok).length
+    const failCount = results.length - okCount
+    const msg =
+      failCount > 0
+        ? `已扣减 ${okCount} 条池配额；${failCount} 条因余量不足未扣减（mock 仍可继续）`
+        : `已从命中政策绑定的库存池扣减 ${okCount} 笔名额`
+    setPoolToast(msg)
+    setTimeout(() => {
+      setPoolToast('')
+      onNext()
+    }, 600)
+  }
 
   const totalRooms = hasCart ? cart.reduce((sum, line) => sum + line.count, 0) : 3
   const totalPax = hasCart ? cart.reduce((sum, line) => sum + cartLinePax(line.roomType, line.count), 0) : 5
@@ -423,18 +440,18 @@ export default function Step4OrderConfirm({
             </span>
           </div>
           <p className="mt-1 text-xs text-blue-600/80">
-            结算价已按当前命中的价格政策计算；名额超额时将自动回退至下一优先级政策
+            结算价按命中价格政策计算；确认下单时从政策绑定的库存池扣减可售名额（共享池共用余量）。
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-white">
-                {['航段', '房型', '命中政策', '类型', '优先级', '优惠', '结算价', '名额', '有效期'].map((col) => (
+                {['航段', '房型', '命中政策', '类型', '扣减库存池', '池余量', '优惠', '结算价', '有效期'].map((col) => (
                   <th
                     key={col}
                     className={`px-4 py-3 text-xs font-medium text-gray-500 ${
-                      ['优惠', '结算价', '优先级'].includes(col) ? 'text-right' : 'text-left'
+                      ['优惠', '结算价', '池余量'].includes(col) ? 'text-right' : 'text-left'
                     }`}
                   >
                     {col}
@@ -459,14 +476,21 @@ export default function Step4OrderConfirm({
                       {policy.policyType}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700">{policy.priority}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">{policy.inventoryPoolName || '-'}</div>
+                    <div className={`mt-0.5 text-xs ${policy.poolOk === false ? 'text-rose-500' : 'text-gray-500'}`}>
+                      {policy.poolHint || policy.quotaLabel}
+                    </div>
+                  </td>
+                  <td className={`px-4 py-3 text-right tabular-nums whitespace-nowrap ${policy.poolOk === false ? 'text-rose-600' : 'text-gray-800'}`}>
+                    {policy.poolRemaining != null ? `${policy.poolRemaining} / ${policy.poolQuota ?? 0}` : policy.quotaLabel}
+                  </td>
                   <td className="px-4 py-3 text-right tabular-nums text-green-600">
                     -{formatCurrency(policy.discountAmount)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
                     {formatCurrency(policy.settlementPrice)}
                   </td>
-                  <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{policy.quotaLabel}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{policy.validPeriod}</td>
                 </tr>
               ))}
@@ -692,11 +716,16 @@ export default function Step4OrderConfirm({
         <button
           type="button"
           className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
-          onClick={onNext}
+          onClick={handleConfirmNext}
         >
           确认并支付定金
         </button>
       </div>
+      {poolToast && (
+        <div className="fixed left-1/2 top-6 z-[999] -translate-x-1/2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm text-white shadow-lg">
+          {poolToast}
+        </div>
+      )}
     </div>
   )
 }

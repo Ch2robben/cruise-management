@@ -185,6 +185,7 @@ import {
   approvalFlows,
   hierarchicalDictItems,
 } from './data'
+import { inventoryPools } from './inventoryPools'
 import type {
   Port,
   PortDistance,
@@ -217,6 +218,7 @@ import type {
   ReconciliationBatch,
   DataReportEntry,
   ApprovalFlow,
+  InventoryPool,
 } from '@/types'
 
 export const shipApi = createCrudApi<Ship>(ships, {
@@ -265,6 +267,9 @@ export const approvalFlowApi = createCrudApi<ApprovalFlow>(approvalFlows, {
 export const holidayApi = createCrudApi<Holiday>(holidays, { searchFields: ['name', 'type'] })
 export const idTypeApi = createCrudApi<IdType>(idTypes, { searchFields: ['name', 'code'] })
 export const ageGroupApi = createCrudApi<AgeGroup>(ageGroups, { searchFields: ['name'] })
+export const inventoryPoolApi = createCrudApi<InventoryPool>(inventoryPools, {
+  searchFields: ['name', 'code', 'remark'],
+})
 
 // ========== 航线专用 API ==========
 export const routeApi = {

@@ -5,11 +5,10 @@ import { products, ships, voyages } from '@/mock/data'
 import TemplateLinkedVoyagesCell from '@/components/voyage/TemplateLinkedVoyagesCell'
 import { groupVoyagesByTemplateId } from '@/utils/templateLinkedVoyages'
 import {
-  hasConfiguredTemplateInventory,
-  summarizeTemplateInventory,
-  loadTemplateInventoryRules,
-  getTemplateSellRoomTypes,
-} from '@/mock/templateInventoryRules'
+  hasConfiguredTemplatePoolQuotas,
+  summarizeTemplatePoolQuotas,
+  loadTemplatePoolQuotas,
+} from '@/mock/templatePoolQuotas'
 import type { PaginatedResult, SearchParams, VoyageTemplate } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
@@ -114,11 +113,11 @@ export default function VoyageInventoryTemplatePage() {
     },
     {
       key: 'inventorySummary',
-      title: '总可售',
+      title: '已分配',
       width: '90px',
       render: (record: VoyageTemplate) => {
-        const summary = summarizeTemplateInventory(loadTemplateInventoryRules(record))
-        return summary ? summary.totalAvailable : <span className="text-gray-400">-</span>
+        const summary = summarizeTemplatePoolQuotas(loadTemplatePoolQuotas(record))
+        return summary ? summary.allocated : <span className="text-gray-400">-</span>
       },
     },
     {
@@ -126,11 +125,7 @@ export default function VoyageInventoryTemplatePage() {
       title: '库存配置',
       width: '100px',
       render: (record: VoyageTemplate) => {
-        const sellRoomTypes = getTemplateSellRoomTypes(record)
-        const configured = hasConfiguredTemplateInventory(
-          record.id,
-          sellRoomTypes.map((item) => item.code),
-        )
+        const configured = hasConfiguredTemplatePoolQuotas(record.id)
         return (
           <span className={`text-sm ${configured ? 'text-emerald-600' : 'text-gray-400'}`}>
             {configured ? '已配置' : '默认'}
@@ -183,7 +178,7 @@ export default function VoyageInventoryTemplatePage() {
     <div>
       <PageHeader
         title="航次库存配置"
-        description="按航次模板维护各房型、各航段的区域公共库存与全域公共库存，并分配经销商私有库存。"
+        description="按航次模板维护各销售房型、各航段在库存池上的可下单配额；锁配额池可再拆到经销商。"
       />
 
       <SearchPanel

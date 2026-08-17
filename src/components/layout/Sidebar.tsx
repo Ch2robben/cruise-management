@@ -69,7 +69,7 @@ const menuItems: MenuItem[] = [
       { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
       { key: 'price_policy_type', label: '价格政策类型', path: '/rule/price-type' },
       { key: 'ota', label: 'OTA平台分销', path: '/distribution/ota' },
-      { key: 'discount_management', label: '优惠管理', path: '/distribution/discounts' },
+      { key: 'discount_management', label: '营销规则管理', path: '/distribution/discounts' },
     ],
   },
   {
@@ -112,6 +112,7 @@ const menuItems: MenuItem[] = [
       { key: 'id_type', label: '证件类型管理', path: '/basic/id-types' },
       { key: 'age_group', label: '年龄段管理', path: '/basic/age-groups' },
       { key: 'activity_category', label: '分级字典', path: '/basic/hierarchical-dictionaries' },
+      { key: 'inventory_pool', label: '库存池管理', path: '/basic/inventory-pools' },
     ],
   },
   {

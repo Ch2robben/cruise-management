@@ -59,6 +59,7 @@ import HolidayPage from '@/pages/basic/HolidayPage'
 import IdTypePage from '@/pages/basic/IdTypePage'
 import AgeGroupPage from '@/pages/basic/AgeGroupPage'
 import HierarchicalDictionaryPage from '@/pages/basic/HierarchicalDictionaryPage'
+import InventoryPoolPage from '@/pages/basic/InventoryPoolPage'
 import ApprovalFlowPage from '@/pages/system/ApprovalFlowPage'
 
 import DealerHomePage from '@/pages/dealer/DealerHomePage'
@@ -187,6 +188,7 @@ export const router = createHashRouter([
       { path: '/basic/id-types', element: <IdTypePage /> },
       { path: '/basic/age-groups', element: <AgeGroupPage /> },
       { path: '/basic/hierarchical-dictionaries', element: <HierarchicalDictionaryPage /> },
+      { path: '/basic/inventory-pools', element: <InventoryPoolPage /> },
       { path: '/basic/activity-categories', element: <HierarchicalDictionaryPage /> },
       { path: '/system/users', element: <UserPage /> },
       { path: '/system/roles', element: <RolePage /> },

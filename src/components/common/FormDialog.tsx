@@ -5,6 +5,7 @@ interface FormDialogProps {
   open: boolean
   title: string
   width?: string
+  maxHeight?: string
   loading?: boolean
   children: ReactNode
   onCancel: () => void
@@ -16,6 +17,7 @@ export default function FormDialog({
   open,
   title,
   width = 'max-w-xl',
+  maxHeight = 'max-h-[80vh]',
   loading,
   children,
   onCancel,
@@ -25,9 +27,9 @@ export default function FormDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[4vh]">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className={`relative bg-white rounded-lg shadow-xl w-full ${width} mx-4 max-h-[80vh] flex flex-col`}>
+      <div className={`relative bg-white rounded-lg shadow-xl w-full ${width} mx-4 ${maxHeight} flex flex-col`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h3 className="text-base font-semibold text-gray-900">{title}</h3>
           <button onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600 rounded">

@@ -1,3 +1,16 @@
+import { listDistPricePolicies } from '@/mock/pricePolicies'
+import { inventoryPools } from '@/mock/inventoryPools'
+import {
+  deductPoolSold,
+  getEnabledInventoryPools,
+  getPoolRemaining,
+  getPoolSold,
+  getTemplateSegmentKeys,
+  loadTemplatePoolQuotas,
+} from '@/mock/templatePoolQuotas'
+import { voyageTemplates } from '@/mock/data'
+import { getTemplateSellRoomTypes } from '@/mock/sellRoomTypeConfig'
+
 export interface MatchedPricePolicy {
   id: string
   segmentLabel: string
@@ -12,6 +25,15 @@ export interface MatchedPricePolicy {
   quotaLabel: string
   validPeriod: string
   fallbackPolicy?: string
+  /** 扣减库存池 */
+  inventoryPoolId?: string
+  inventoryPoolName?: string
+  poolQuota?: number
+  poolSold?: number
+  poolRemaining?: number
+  deductQty?: number
+  poolOk?: boolean
+  poolHint?: string
 }
 
 interface CartLineLike {
@@ -90,15 +112,98 @@ function resolvePolicyMeta(segmentLabel: string, roomType: string) {
   }
 }
 
-export function buildMatchedPricePolicies(cart: CartLineLike[]): MatchedPricePolicy[] {
-  if (cart.length === 0) {
-    return defaultMatchedPolicies()
+function pickDistPolicy(index: number) {
+  const list = listDistPricePolicies().filter((item) => item.status === '已发布' || item.status === '审批中')
+  if (list.length === 0) return listDistPricePolicies()[0]
+  return list[index % list.length]
+}
+
+function resolveSellRoomCode(templateId: string, roomType: string) {
+  const template = voyageTemplates.find((item) => item.id === templateId)
+  if (!template) return ''
+  const rooms = getTemplateSellRoomTypes(template)
+  const exact = rooms.find((item) => item.name === roomType)
+  if (exact) return exact.code
+  const fuzzy = rooms.find(
+    (item) => roomType.includes(item.name) || item.name.includes(roomType.replace('豪华', '')),
+  )
+  return fuzzy?.code || rooms[0]?.code || ''
+}
+
+function resolveSegmentKey(templateId: string, segmentLabel: string) {
+  const template = voyageTemplates.find((item) => item.id === templateId)
+  if (!template) return '全程'
+  const keys = getTemplateSegmentKeys(template)
+  const normalized = normalizeSegment(segmentLabel)
+  const hit = keys.find((key) => normalizeSegment(key) === normalized || key.includes(normalized.split('-').pop() || ''))
+  return hit || keys[keys.length - 1] || '全程'
+}
+
+function attachPoolInfo(
+  meta: ReturnType<typeof resolvePolicyMeta>,
+  line: CartLineLike,
+  index: number,
+  templateId = 'vt01',
+): Pick<
+  MatchedPricePolicy,
+  | 'inventoryPoolId'
+  | 'inventoryPoolName'
+  | 'poolQuota'
+  | 'poolSold'
+  | 'poolRemaining'
+  | 'deductQty'
+  | 'poolOk'
+  | 'poolHint'
+  | 'quotaLabel'
+> {
+  const distPolicy = pickDistPolicy(index)
+  const pools = getEnabledInventoryPools()
+  const poolId = distPolicy?.inventoryPoolId || pools[0]?.id || ''
+  const poolName = distPolicy?.inventoryPoolName || pools.find((p) => p.id === poolId)?.name || '未绑定库存池'
+
+  const template = voyageTemplates.find((item) => item.id === templateId)
+  const quotas = template ? loadTemplatePoolQuotas(template) : undefined
+  const sellRoomCode = resolveSellRoomCode(templateId, line.roomType)
+  const segKey = resolveSegmentKey(templateId, line.segmentLabel)
+  const poolQuota = quotas?.[sellRoomCode]?.[segKey]?.poolQty[poolId] ?? 0
+  const poolSold = getPoolSold(templateId, sellRoomCode, segKey, poolId)
+  const poolRemaining = getPoolRemaining(templateId, sellRoomCode, segKey, poolId, poolQuota)
+  const deductQty = Math.max(1, line.count)
+  const poolOk = Boolean(poolId) && poolRemaining >= deductQty
+  const poolHint = !poolId
+    ? '未绑定扣减池'
+    : poolOk
+      ? `将扣减「${poolName}」${deductQty} 间`
+      : `「${poolName}」剩余 ${poolRemaining}，不足扣减 ${deductQty}`
+
+  return {
+    inventoryPoolId: poolId,
+    inventoryPoolName: poolName,
+    poolQuota,
+    poolSold,
+    poolRemaining,
+    deductQty,
+    poolOk,
+    poolHint,
+    quotaLabel: poolId ? `池余 ${poolRemaining} / 配额 ${poolQuota}` : meta.quotaLabel,
   }
+}
+
+export function buildMatchedPricePolicies(
+  cart: CartLineLike[],
+  options?: { templateId?: string; dealerGroupId?: string },
+): MatchedPricePolicy[] {
+  if (cart.length === 0) {
+    return defaultMatchedPolicies(options)
+  }
+
+  const templateId = options?.templateId ?? 'vt01'
 
   return cart.map((line, index) => {
     const meta = resolvePolicyMeta(line.segmentLabel, line.roomType)
     const basePrice = Math.round(line.price * 1.08)
     const discountAmount = Math.max(0, basePrice - line.price)
+    const poolInfo = attachPoolInfo(meta, line, index, templateId)
     return {
       id: `policy-${index}-${line.segmentLabel}-${line.roomType}`,
       segmentLabel: line.segmentLabel,
@@ -107,16 +212,68 @@ export function buildMatchedPricePolicies(cart: CartLineLike[]): MatchedPricePol
       discountAmount,
       settlementPrice: line.price,
       ...meta,
+      ...poolInfo,
     }
   })
 }
 
-export function defaultMatchedPolicies(): MatchedPricePolicy[] {
-  return buildMatchedPricePolicies([
-    { segmentLabel: '重庆 → 宜昌', roomType: '标准间', price: 2980, count: 2 },
-    { segmentLabel: '重庆 → 宜昌', roomType: '标准间', price: 2980, count: 2 },
-    { segmentLabel: '丰都 → 奉节', roomType: '豪华套房', price: 6880, count: 1 },
-  ])
+export function defaultMatchedPolicies(options?: { templateId?: string; dealerGroupId?: string }): MatchedPricePolicy[] {
+  return buildMatchedPricePolicies(
+    [
+      { segmentLabel: '重庆 → 宜昌', roomType: '标准间', price: 2980, count: 2 },
+      { segmentLabel: '重庆 → 宜昌', roomType: '标准间', price: 2980, count: 2 },
+      { segmentLabel: '丰都 → 奉节', roomType: '豪华套房', price: 6880, count: 1 },
+    ],
+    options,
+  )
+}
+
+/** 确认下单时扣减命中政策绑定的库存池 */
+export function deductMatchedPolicyPools(
+  policies: MatchedPricePolicy[],
+  options?: { templateId?: string },
+) {
+  const templateId = options?.templateId ?? 'vt01'
+  const results: { policyId: string; poolName: string; qty: number; ok: boolean; remaining: number }[] = []
+
+  policies.forEach((policy) => {
+    if (!policy.inventoryPoolId || !policy.deductQty) {
+      results.push({
+        policyId: policy.id,
+        poolName: policy.inventoryPoolName || '-',
+        qty: 0,
+        ok: false,
+        remaining: policy.poolRemaining ?? 0,
+      })
+      return
+    }
+    const sellRoomCode = resolveSellRoomCode(templateId, policy.roomType)
+    const segKey = resolveSegmentKey(templateId, policy.segmentLabel)
+    const template = voyageTemplates.find((item) => item.id === templateId)
+    const quotas = template ? loadTemplatePoolQuotas(template) : undefined
+    const poolQuota = quotas?.[sellRoomCode]?.[segKey]?.poolQty[policy.inventoryPoolId] ?? 0
+    const remainingBefore = getPoolRemaining(templateId, sellRoomCode, segKey, policy.inventoryPoolId, poolQuota)
+    const ok = remainingBefore >= policy.deductQty
+    if (ok) {
+      deductPoolSold({
+        templateId,
+        sellRoomTypeCode: sellRoomCode,
+        segmentKey: segKey,
+        poolId: policy.inventoryPoolId,
+        qty: policy.deductQty,
+      })
+    }
+    const remaining = getPoolRemaining(templateId, sellRoomCode, segKey, policy.inventoryPoolId, poolQuota)
+    results.push({
+      policyId: policy.id,
+      poolName: policy.inventoryPoolName || inventoryPools.find((p) => p.id === policy.inventoryPoolId)?.name || '-',
+      qty: ok ? policy.deductQty : 0,
+      ok,
+      remaining,
+    })
+  })
+
+  return results
 }
 
 export const policyTypeClass: Record<MatchedPricePolicy['policyType'], string> = {

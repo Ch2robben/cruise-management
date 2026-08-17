@@ -46,7 +46,7 @@ export default function TemplateInventoryConfigDialog({
         <div className="shrink-0 border-b border-gray-200 px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-semibold text-gray-900">配置库存</h3>
+              <h3 className="text-base font-semibold text-gray-900">配置库存池配额</h3>
               {template && (
                 <p className="mt-1 text-xs text-gray-500">
                   {template.name} · {template.shipName} · {template.productName}

@@ -4,11 +4,14 @@ import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import { dealers } from '@/mock/data'
 
 type DiscountType = '立减优惠' | '年龄优惠' | '限时优惠' | '折扣优惠' | '渠道优惠'
 type DiscountStatus = '启用' | '停用'
 type DiscountScene = '2B' | '2C'
 type ChannelDiscountMode = '满减优惠' | '团队全陪票'
+
+const activeDealers = dealers.filter((item) => item.status === 'cooperating')
 
 interface DiscountRule {
   id: string
@@ -29,6 +32,8 @@ interface DiscountRule {
   validPeriod: string
   status: DiscountStatus
   updatedAt: string
+  /** 关联经销商 */
+  dealerIds: string[]
 }
 
 const initialRules: DiscountRule[] = [
@@ -46,6 +51,7 @@ const initialRules: DiscountRule[] = [
     validPeriod: '2026-07-06 至 2026-08-24',
     status: '启用',
     updatedAt: '2026-07-01 15:30',
+    dealerIds: activeDealers.slice(0, 3).map((item) => item.id),
   },
   {
     id: 'DR20260618002',
@@ -61,6 +67,7 @@ const initialRules: DiscountRule[] = [
     validPeriod: '2026-07-06 至 2026-09-21',
     status: '启用',
     updatedAt: '2026-06-28 09:18',
+    dealerIds: activeDealers.slice(1, 4).map((item) => item.id),
   },
   {
     id: 'DR20260612003',
@@ -76,6 +83,7 @@ const initialRules: DiscountRule[] = [
     validPeriod: '2026-07-06 至 2026-07-27',
     status: '停用',
     updatedAt: '2026-06-22 11:45',
+    dealerIds: activeDealers.slice(0, 2).map((item) => item.id),
   },
   {
     id: 'DR20260526004',
@@ -91,6 +99,7 @@ const initialRules: DiscountRule[] = [
     validPeriod: '2026-08-03 至 2026-09-07',
     status: '启用',
     updatedAt: '2026-06-20 16:08',
+    dealerIds: activeDealers.slice(2, 5).map((item) => item.id),
   },
   {
     id: 'DR20260704005',
@@ -109,6 +118,7 @@ const initialRules: DiscountRule[] = [
     validPeriod: '2026-07-06 至 2026-08-10',
     status: '启用',
     updatedAt: '2026-07-04 11:20',
+    dealerIds: activeDealers.slice(0, 4).map((item) => item.id),
   },
 ]
 
@@ -199,12 +209,22 @@ const scopeOptions: ScopeOption[] = [
 const inputClass =
   'h-10 rounded border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
 
-export default function DiscountManagementPage() {
+function formatDealerNames(dealerIds: string[]) {
+  if (!dealerIds.length) return '未关联'
+  const names = dealerIds
+    .map((id) => activeDealers.find((item) => item.id === id)?.name)
+    .filter(Boolean) as string[]
+  if (names.length <= 2) return names.join('、')
+  return `${names.slice(0, 2).join('、')} 等${names.length}家`
+}
+
+export default function DiscountManagementPage({ embedded = false }: { embedded?: boolean }) {
   const [rules, setRules] = useState(initialRules)
   const [keyword, setKeyword] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [appliedFilters, setAppliedFilters] = useState({ keyword: '', type: '', status: '' })
+  const [dealerFilter, setDealerFilter] = useState('all')
+  const [appliedFilters, setAppliedFilters] = useState({ keyword: '', type: '', status: '', dealerId: 'all' })
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<DiscountRule | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DiscountRule | null>(null)
@@ -221,7 +241,8 @@ export default function DiscountManagementPage() {
         (rule) =>
           (!appliedFilters.keyword || `${rule.name}${rule.id}`.includes(appliedFilters.keyword)) &&
           (!appliedFilters.type || rule.type === appliedFilters.type) &&
-          (!appliedFilters.status || rule.status === appliedFilters.status),
+          (!appliedFilters.status || rule.status === appliedFilters.status) &&
+          (appliedFilters.dealerId === 'all' || rule.dealerIds.includes(appliedFilters.dealerId)),
       ),
     [rules, appliedFilters],
   )
@@ -247,14 +268,14 @@ export default function DiscountManagementPage() {
       },
       ...current,
     ])
-    showToast('优惠规则已复制，请编辑后启用')
+    showToast('营销规则已复制，请编辑后启用')
   }
 
   const columns = [
     { key: 'id', title: '规则编号', width: '150px', render: (rule: DiscountRule) => <span className="font-medium text-gray-900">{rule.id}</span> },
     {
       key: 'name',
-      title: '优惠规则',
+      title: '营销规则',
       render: (rule: DiscountRule) => (
         <div>
           <div className="font-medium text-gray-900">{rule.name}</div>
@@ -267,6 +288,16 @@ export default function DiscountManagementPage() {
       title: '优惠类型',
       width: '110px',
       render: (rule: DiscountRule) => <span className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">{rule.type}</span>,
+    },
+    {
+      key: 'dealers',
+      title: '适用经销商',
+      width: '180px',
+      render: (rule: DiscountRule) => (
+        <span className="text-sm text-gray-700" title={formatDealerNames(rule.dealerIds)}>
+          {formatDealerNames(rule.dealerIds)}
+        </span>
+      ),
     },
     {
       key: 'scenes',
@@ -348,21 +379,36 @@ export default function DiscountManagementPage() {
         </div>
       )}
 
-      <PageHeader title="优惠管理">
-        <button onClick={openCreate} className="flex h-10 items-center gap-2 rounded bg-blue-600 px-4 text-sm text-white hover:bg-blue-700">
-          <Plus className="h-4 w-4" />
-          新增优惠规则
-        </button>
-      </PageHeader>
+      {!embedded && (
+        <PageHeader title="营销规则管理" description="维护营销优惠规则，并关联具体经销商生效范围。">
+          <button onClick={openCreate} className="flex h-10 items-center gap-2 rounded bg-blue-600 px-4 text-sm text-white hover:bg-blue-700">
+            <Plus className="h-4 w-4" />
+            新增营销规则
+          </button>
+        </PageHeader>
+      )}
 
-      <div className="overflow-hidden border border-gray-200 bg-white">
+      <div className={`overflow-hidden border border-gray-200 bg-white ${embedded ? 'rounded-lg' : ''}`}>
+        {embedded && (
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">营销规则</h3>
+              <p className="mt-0.5 text-xs text-gray-500">规则需关联具体经销商后才对该经销商生效</p>
+            </div>
+            <button onClick={openCreate} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm text-white hover:bg-blue-700">
+              <Plus className="h-4 w-4" />
+              新增营销规则
+            </button>
+          </div>
+        )}
         <SearchPanel
-          onSearch={() => setAppliedFilters({ keyword, type: typeFilter, status: statusFilter })}
+          onSearch={() => setAppliedFilters({ keyword, type: typeFilter, status: statusFilter, dealerId: dealerFilter })}
           onReset={() => {
             setKeyword('')
             setTypeFilter('')
             setStatusFilter('')
-            setAppliedFilters({ keyword: '', type: '', status: '' })
+            setDealerFilter('all')
+            setAppliedFilters({ keyword: '', type: '', status: '', dealerId: 'all' })
           }}
         >
           <label className="space-y-2">
@@ -381,6 +427,15 @@ export default function DiscountManagementPage() {
             </select>
           </label>
           <label className="space-y-2">
+            <span className="block text-sm text-gray-600">适用经销商</span>
+            <select value={dealerFilter} onChange={(event) => setDealerFilter(event.target.value)} className={`${inputClass} w-48`}>
+              <option value="all">全部经销商</option>
+              {activeDealers.map((dealer) => (
+                <option key={dealer.id} value={dealer.id}>{dealer.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
             <span className="block text-sm text-gray-600">状态</span>
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={`${inputClass} w-36`}>
               <option value="">全部状态</option>
@@ -390,8 +445,8 @@ export default function DiscountManagementPage() {
           </label>
         </SearchPanel>
         <div className="flex items-center justify-between px-9 py-5">
-          <span className="text-sm text-gray-500">共 {filteredRules.length} 条优惠规则</span>
-          <span className="text-xs text-gray-400">优惠按优先级和创建时间自动匹配，不与同类型优惠叠加</span>
+          <span className="text-sm text-gray-500">共 {filteredRules.length} 条营销规则</span>
+          <span className="text-xs text-gray-400">规则按关联经销商生效；同类型优惠默认不叠加</span>
         </div>
         <DataTable columns={columns} dataSource={filteredRules} rowKey="id" />
       </div>
@@ -403,7 +458,7 @@ export default function DiscountManagementPage() {
           onSave={(form) => {
             if (editing) {
               setRules((current) => current.map((item) => (item.id === editing.id ? { ...item, ...form, updatedAt: '2026-07-04 10:00' } : item)))
-              showToast('优惠规则已更新')
+              showToast('营销规则已更新')
             } else {
               setRules((current) => [
                 {
@@ -413,7 +468,7 @@ export default function DiscountManagementPage() {
                 },
                 ...current,
               ])
-              showToast('优惠规则已新增')
+              showToast('营销规则已新增')
             }
             setEditorOpen(false)
           }}
@@ -422,7 +477,7 @@ export default function DiscountManagementPage() {
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="删除优惠规则"
+        title="删除营销规则"
         message={`确定删除“${deleteTarget?.name ?? ''}”吗？删除后无法恢复。`}
         confirmText="删除"
         danger
@@ -430,7 +485,7 @@ export default function DiscountManagementPage() {
         onConfirm={() => {
           if (deleteTarget) setRules((current) => current.filter((item) => item.id !== deleteTarget.id))
           setDeleteTarget(null)
-          showToast('优惠规则已删除')
+          showToast('营销规则已删除')
         }}
       />
     </div>
@@ -454,6 +509,7 @@ interface EditorForm {
   cabinCount: number
   validPeriod: string
   status: DiscountStatus
+  dealerIds: string[]
 }
 
 function DiscountEditor({
@@ -486,6 +542,8 @@ function DiscountEditor({
   const [selectedCabins, setSelectedCabins] = useState<string[]>(
     initialRule ? balconyCabins.slice(0, Math.min(initialRule.cabinCount, balconyCabins.length)) : [],
   )
+  const [dealerIds, setDealerIds] = useState<string[]>(initialRule?.dealerIds ?? [])
+  const [dealerKeyword, setDealerKeyword] = useState('')
 
   const productOptions = useMemo(() => Array.from(new Set(scopeOptions.map((item) => item.product))), [])
   const routeOptions = useMemo(
@@ -554,6 +612,16 @@ function DiscountEditor({
     setScenes((current) => (current.includes(scene) ? current.filter((item) => item !== scene) : [...current, scene]))
   }
 
+  const toggleDealer = (dealerId: string) => {
+    setDealerIds((current) => (current.includes(dealerId) ? current.filter((id) => id !== dealerId) : [...current, dealerId]))
+  }
+
+  const filteredDealerOptions = useMemo(() => {
+    const kw = dealerKeyword.trim()
+    if (!kw) return activeDealers
+    return activeDealers.filter((item) => item.name.includes(kw) || item.code.includes(kw))
+  }, [dealerKeyword])
+
   const toggleAllCurrentCabins = () => {
     const allSelected = currentCabins.every((item) => selectedCabins.includes(item))
     setSelectedCabins((current) =>
@@ -572,6 +640,7 @@ function DiscountEditor({
     name.trim() &&
     stock > 0 &&
     scenes.length > 0 &&
+    dealerIds.length > 0 &&
     selectedSailings.length > 0 &&
     selectedCabins.length > 0 &&
     (type === '渠道优惠' ? channelRuleValid : discountValue > 0)
@@ -580,7 +649,7 @@ function DiscountEditor({
     <div className="fixed inset-0 z-50 bg-black/40 p-4">
       <div className="mx-auto flex h-full max-w-[1500px] flex-col overflow-hidden bg-white shadow-2xl">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-6">
-          <h3 className="text-lg font-semibold text-gray-900">{initialRule ? '编辑优惠规则' : '新增优惠规则'}</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{initialRule ? '编辑营销规则' : '新增营销规则'}</h3>
           <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
             <X className="h-5 w-5" />
           </button>
@@ -588,10 +657,10 @@ function DiscountEditor({
 
         <div className="flex-1 overflow-y-auto px-7 py-6">
           <section>
-            <h4 className="mb-5 font-semibold text-gray-900">优惠规则</h4>
+            <h4 className="mb-5 font-semibold text-gray-900">营销规则</h4>
             <div className="mx-auto grid max-w-4xl grid-cols-[120px_1fr_120px_1fr] items-center gap-x-4 gap-y-4">
               <FormLabel required>规则名称</FormLabel>
-              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="请输入优惠规则名称" className={`${inputClass} w-full`} />
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="请输入营销规则名称" className={`${inputClass} w-full`} />
               <FormLabel required>优惠类型</FormLabel>
               <select value={type} onChange={(event) => setType(event.target.value as DiscountType)} className={`${inputClass} w-full`}>
                 <option>立减优惠</option>
@@ -736,6 +805,68 @@ function DiscountEditor({
           </section>
 
           <section className="mt-8 border-t border-gray-200 pt-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="font-semibold text-gray-900">
+                  关联经销商 <span className="text-red-500">*</span>
+                </h4>
+                <p className="mt-1 text-xs text-gray-500">规则仅对勾选的经销商生效；已选 {dealerIds.length} 家</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={dealerKeyword}
+                  onChange={(event) => setDealerKeyword(event.target.value)}
+                  placeholder="搜索经销商名称/编码"
+                  className={`${inputClass} w-56`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDealerIds(activeDealers.map((item) => item.id))}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  全选
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDealerIds([])}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  清空
+                </button>
+              </div>
+            </div>
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-slate-50/60 p-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredDealerOptions.map((dealer) => {
+                  const checked = dealerIds.includes(dealer.id)
+                  return (
+                    <label
+                      key={dealer.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                        checked ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-transparent bg-white text-gray-700 hover:border-gray-200'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDealer(dealer.id)}
+                        className="accent-blue-600"
+                      />
+                      <span className="min-w-0 truncate" title={dealer.name}>{dealer.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              {filteredDealerOptions.length === 0 && (
+                <div className="py-8 text-center text-sm text-gray-400">未找到匹配经销商</div>
+              )}
+            </div>
+            {dealerIds.length === 0 && (
+              <p className="mt-2 text-xs text-rose-500">请至少关联一家经销商</p>
+            )}
+          </section>
+
+          <section className="mt-8 border-t border-gray-200 pt-6">
             <div className="mb-5 flex items-center justify-between">
               <h4 className="font-semibold text-gray-900">适用舱房</h4>
               <span className="text-sm text-gray-500">
@@ -854,6 +985,7 @@ function DiscountEditor({
                 cabinCount: selectedCabins.length,
                 validPeriod: `${selectedSailings[0]} 至 ${selectedSailings[selectedSailings.length - 1]}`,
                 status: initialRule?.status ?? '启用',
+                dealerIds,
               })
             }
             disabled={!isValid}

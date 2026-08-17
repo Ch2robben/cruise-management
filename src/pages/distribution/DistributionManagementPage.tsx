@@ -2,6 +2,15 @@ import { useState } from 'react'
 import { Plus, Check, X } from 'lucide-react'
 import PageHeader from '@/components/common/PageHeader'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
+import DiscountManagementPage from '@/pages/distribution/DiscountManagementPage'
+import { inventoryPoolApi } from '@/mock/api'
+import {
+  listDistPricePolicies,
+  upsertDistPricePolicy,
+  patchDistPricePolicy,
+  removeDistPricePolicy,
+  type DistPricePolicy,
+} from '@/mock/pricePolicies'
 
 // ======================== Mock 数据 ========================
 
@@ -31,12 +40,6 @@ const initPolicyTypes = [
   { id: 'pt1', name: '散客预定', minOrder: 0, priority: 1, productCount: 3, status: '启用', createdAt: '2025-01-01' },
   { id: 'pt2', name: '团队预定', minOrder: 10, priority: 2, productCount: 2, status: '启用', createdAt: '2025-01-01' },
   { id: 'pt3', name: '大团队预定', minOrder: 30, priority: 3, productCount: 1, status: '启用', createdAt: '2025-03-15' },
-]
-
-const initPricePolicies = [
-  { id: 'pp1', name: '国庆特惠政策', productName: '长江三峡5日游', ticketType: '成人票', policyType: '散客预定', groupId: 'g1', groupName: '重庆地区', startDate: '2026-09-29', endDate: '2026-10-08', minOrder: 0, retailPrice: 1580, settlementPrice: 1320, priority: 1, status: '已发布' },
-  { id: 'pp2', name: '暑期团队政策', productName: '黄金水道4日游', ticketType: '成人票', policyType: '团队预定', groupId: 'g2', groupName: '湖北地区', startDate: '2026-07-01', endDate: '2026-08-31', minOrder: 15, retailPrice: 1250, settlementPrice: 980, priority: 2, status: '审批中' },
-  { id: 'pp3', name: '五一散客专享', productName: '长江三峡5日游', ticketType: '成人票', policyType: '散客预定', groupId: 'g3', groupName: 'OTA渠道', startDate: '2026-04-30', endDate: '2026-05-05', minOrder: 0, retailPrice: 1620, settlementPrice: 1250, priority: 1, status: '已下架' },
 ]
 
 const initRefundPolicies = [
@@ -321,17 +324,30 @@ function TabPolicyTypes() {
 
 // ======================== Tab: 价格政策 ========================
 
+function getEnabledInventoryPools() {
+  return inventoryPoolApi
+    .getData()
+    .filter((item) => item.status === 'enabled')
+    .sort((a, b) => a.sort - b.sort || a.code.localeCompare(b.code))
+}
+
 function TabPricePolicies() {
   const [filter, setFilter] = useState('全部')
   const [groupFilter, setGroupFilter] = useState('all')
-  const [policies, setPolicies] = useState(initPricePolicies)
-  const [showAdd, setShowAdd] = useState(false)
+  const [poolFilter, setPoolFilter] = useState('all')
+  const [policies, setPolicies] = useState<DistPricePolicy[]>(() => listDistPricePolicies())
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const enabledPools = getEnabledInventoryPools()
+  const defaultPoolId = enabledPools[0]?.id ?? ''
+
   const [form, setForm] = useState({
     name: '',
     productName: PRODUCTS[0],
     ticketType: TICKET_TYPES[0],
     policyType: '散客预定',
     groupId: GROUPS_DIST[0].id,
+    inventoryPoolId: defaultPoolId,
     startDate: '',
     endDate: '',
     minOrder: '0',
@@ -339,24 +355,39 @@ function TabPricePolicies() {
     settlementPrice: '',
     priority: '1',
   })
+  const [formError, setFormError] = useState('')
   const [toast, setToast] = useState('')
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
+
+  const syncPolicies = (next: DistPricePolicy[]) => {
+    setPolicies(next)
+  }
+
+  const refreshFromStore = () => syncPolicies(listDistPricePolicies())
 
   const opts = ['全部', '审批中', '已发布', '已下架']
   const filtered = policies.filter(p => {
     if (filter !== '全部' && p.status !== filter) return false
     if (groupFilter !== 'all' && p.groupId !== groupFilter) return false
+    if (poolFilter !== 'all' && p.inventoryPoolId !== poolFilter) return false
     return true
   })
   const statusColor: Record<string, string> = { '已发布': 'bg-green-50 text-green-700', '审批中': 'bg-yellow-50 text-yellow-700', '已下架': 'bg-gray-100 text-gray-500' }
 
+  const selectedPool = enabledPools.find((p) => p.id === form.inventoryPoolId)
+    ?? inventoryPoolApi.getData().find((p) => p.id === form.inventoryPoolId)
+
   const openAdd = () => {
+    const pools = getEnabledInventoryPools()
+    setEditingId(null)
+    setFormError('')
     setForm({
       name: '',
       productName: PRODUCTS[0],
       ticketType: TICKET_TYPES[0],
       policyType: '散客预定',
       groupId: GROUPS_DIST[0].id,
+      inventoryPoolId: pools[0]?.id ?? '',
       startDate: '',
       endDate: '',
       minOrder: '0',
@@ -364,14 +395,89 @@ function TabPricePolicies() {
       settlementPrice: '',
       priority: '1',
     })
-    setShowAdd(true)
+    setShowForm(true)
   }
+
+  const openEdit = (row: DistPricePolicy) => {
+    setEditingId(row.id)
+    setFormError('')
+    setForm({
+      name: row.name,
+      productName: row.productName,
+      ticketType: row.ticketType,
+      policyType: row.policyType,
+      groupId: row.groupId,
+      inventoryPoolId: row.inventoryPoolId,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      minOrder: String(row.minOrder),
+      retailPrice: String(row.retailPrice),
+      settlementPrice: String(row.settlementPrice),
+      priority: String(row.priority),
+    })
+    setShowForm(true)
+  }
+
+  const handleSubmit = () => {
+    if (!form.name || !form.retailPrice || !form.settlementPrice) {
+      setFormError('请填写政策名称、零售价与结算价')
+      return
+    }
+    if (!form.inventoryPoolId) {
+      setFormError('请选择扣减库存池')
+      return
+    }
+    const pool = inventoryPoolApi.getData().find((item) => item.id === form.inventoryPoolId)
+    if (!pool || pool.status !== 'enabled') {
+      setFormError('所选库存池不存在或已停用，请重新选择')
+      return
+    }
+    const group = GROUPS_DIST.find((g) => g.id === form.groupId) ?? GROUPS_DIST[0]
+    const payload: DistPricePolicy = {
+      id: editingId ?? `pp${Date.now()}`,
+      name: form.name,
+      productName: form.productName,
+      ticketType: form.ticketType,
+      policyType: form.policyType,
+      groupId: group.id,
+      groupName: group.name,
+      inventoryPoolId: pool.id,
+      inventoryPoolName: pool.name,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      minOrder: +form.minOrder,
+      retailPrice: +form.retailPrice,
+      settlementPrice: +form.settlementPrice,
+      priority: +form.priority,
+      status: editingId
+        ? (policies.find((p) => p.id === editingId)?.status ?? '审批中')
+        : '审批中',
+    }
+    upsertDistPricePolicy(payload)
+    refreshFromStore()
+    setShowForm(false)
+    showToast(
+      editingId
+        ? `政策已保存（扣减池：${pool.name}）`
+        : `价格政策已提交审批（扣减池：${pool.name}）`,
+    )
+  }
+
+  const poolOptionsForSelect = (() => {
+    const enabled = getEnabledInventoryPools()
+    if (!form.inventoryPoolId) return enabled
+    const current = inventoryPoolApi.getData().find((p) => p.id === form.inventoryPoolId)
+    if (current && current.status !== 'enabled' && !enabled.some((p) => p.id === current.id)) {
+      return [current, ...enabled]
+    }
+    return enabled
+  })()
 
   return (
     <div>
       {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[999] rounded-lg bg-gray-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
       <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
-        价格政策按分销商分组关联生效；分组内分销商共享同一套零售价/结算价，不再按单个分销商挂政策。
+        价格政策按分销商分组关联生效；每条政策须指定唯一「扣减库存池」，下单命中政策后从该池扣减可售名额。
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex gap-2">
@@ -385,6 +491,18 @@ function TabPricePolicies() {
           <option value="all">全部分组</option>
           {GROUPS_DIST.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
+        <select
+          value={poolFilter}
+          onChange={(e) => setPoolFilter(e.target.value)}
+          className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700"
+        >
+          <option value="all">全部库存池</option>
+          {inventoryPoolApi.getData().map((pool) => (
+            <option key={pool.id} value={pool.id}>
+              {pool.name}{pool.status === 'disabled' ? '（停用）' : ''}
+            </option>
+          ))}
+        </select>
         <button onClick={openAdd} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 ml-auto"><Plus className="h-4 w-4" />新增价格政策</button>
       </div>
       <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -395,6 +513,7 @@ function TabPricePolicies() {
               <th className="px-4 py-3 text-left font-medium">产品/票类</th>
               <th className="px-4 py-3 text-left font-medium">政策类型</th>
               <th className="px-4 py-3 text-left font-medium">适用分销商分组</th>
+              <th className="px-4 py-3 text-left font-medium">扣减库存池</th>
               <th className="px-4 py-3 text-left font-medium">生效日期</th>
               <th className="px-4 py-3 text-right font-medium">起订量</th>
               <th className="px-4 py-3 text-right font-medium">零售价</th>
@@ -404,7 +523,10 @@ function TabPricePolicies() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.map(p => (
+            {filtered.map(p => {
+              const poolAlive = inventoryPoolApi.getData().find((item) => item.id === p.inventoryPoolId)
+              const poolWarn = !poolAlive || poolAlive.status !== 'enabled'
+              return (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
                 <td className="px-4 py-3"><div className="text-gray-900">{p.productName}</div><div className="text-xs text-gray-400">{p.ticketType}</div></td>
@@ -414,6 +536,10 @@ function TabPricePolicies() {
                     {p.groupName}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <div className="text-sm text-gray-900">{p.inventoryPoolName || '-'}</div>
+                  {poolWarn && <div className="mt-0.5 text-xs text-rose-500">池已停用/缺失，发布前请更换</div>}
+                </td>
                 <td className="px-4 py-3 text-xs text-gray-500">{p.startDate} ~ {p.endDate}</td>
                 <td className="px-4 py-3 text-right text-gray-700">{p.minOrder > 0 ? `≥${p.minOrder}人` : '-'}</td>
                 <td className="px-4 py-3 text-right text-gray-700">¥{p.retailPrice}</td>
@@ -421,25 +547,42 @@ function TabPricePolicies() {
                 <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[p.status] ?? ''}`}>{p.status}</span></td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-2 text-xs">
-                    <button className="text-blue-600 hover:text-blue-700">编辑</button>
-                    {p.status === '已发布' && <button onClick={() => { setPolicies(prev => prev.map(x => x.id === p.id ? { ...x, status: '已下架' } : x)); showToast('已下架') }} className="text-gray-600 hover:text-gray-700">下架</button>}
-                    {p.status === '已下架' && <button onClick={() => { setPolicies(prev => prev.map(x => x.id === p.id ? { ...x, status: '已发布' } : x)); showToast('已重新发布') }} className="text-green-600 hover:text-green-700">发布</button>}
-                    {p.status === '审批中' && <button onClick={() => { setPolicies(prev => prev.filter(x => x.id !== p.id)); showToast('已删除') }} className="text-red-500 hover:text-red-600">删除</button>}
+                    <button onClick={() => openEdit(p)} className="text-blue-600 hover:text-blue-700">编辑</button>
+                    {p.status === '已发布' && <button onClick={() => { patchDistPricePolicy(p.id, { status: '已下架' }); refreshFromStore(); showToast('已下架') }} className="text-gray-600 hover:text-gray-700">下架</button>}
+                    {p.status === '已下架' && (
+                      <button
+                        onClick={() => {
+                          const pool = inventoryPoolApi.getData().find((item) => item.id === p.inventoryPoolId)
+                          if (!pool || pool.status !== 'enabled') {
+                            showToast('扣减库存池已停用或缺失，请先编辑更换后再发布')
+                            return
+                          }
+                          patchDistPricePolicy(p.id, { status: '已发布' })
+                          refreshFromStore()
+                          showToast('已重新发布')
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        发布
+                      </button>
+                    )}
+                    {p.status === '审批中' && <button onClick={() => { removeDistPricePolicy(p.id); refreshFromStore(); showToast('已删除') }} className="text-red-500 hover:text-red-600">删除</button>}
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center text-sm text-gray-400">暂无匹配的价格政策</td>
+                <td colSpan={11} className="px-4 py-12 text-center text-sm text-gray-400">暂无匹配的价格政策</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {showAdd && (
-        <Modal title="新增价格政策" onClose={() => setShowAdd(false)} width="max-w-2xl">
+      {showForm && (
+        <Modal title={editingId ? '编辑价格政策' : '新增价格政策'} onClose={() => setShowForm(false)} width="max-w-2xl">
+          {formError && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-600">{formError}</div>}
           <div className="grid grid-cols-2 gap-x-8">
             <div>
               <FormRow label="政策名称" required><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="如：国庆节特惠政策" /></FormRow>
@@ -450,6 +593,26 @@ function TabPricePolicies() {
                 <select value={form.groupId} onChange={e => setForm(f => ({ ...f, groupId: e.target.value }))} className={selectCls}>
                   {GROUPS_DIST.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
+              </FormRow>
+              <FormRow label="扣减库存池" required>
+                <select
+                  value={form.inventoryPoolId}
+                  onChange={e => setForm(f => ({ ...f, inventoryPoolId: e.target.value }))}
+                  className={selectCls}
+                >
+                  {poolOptionsForSelect.length === 0 && <option value="">暂无启用中的库存池</option>}
+                  {poolOptionsForSelect.map((pool) => (
+                    <option key={pool.id} value={pool.id}>
+                      {pool.name}（{pool.quotaMode === 'shared' ? '共享' : '按经销商'}）
+                      {pool.status !== 'enabled' ? ' · 已停用' : ''}
+                    </option>
+                  ))}
+                </select>
+                {selectedPool && (
+                  <p className="mt-1.5 text-xs leading-5 text-gray-500">
+                    下单命中本政策时，从「{selectedPool.name}」扣减可售名额（{selectedPool.quotaMode === 'shared' ? '共享余量' : '按经销商拆额度'}）。适用范围即本政策的分销商分组。
+                  </p>
+                )}
               </FormRow>
             </div>
             <div>
@@ -462,28 +625,14 @@ function TabPricePolicies() {
             </div>
           </div>
           <div className="mt-4 flex justify-end gap-3">
-            <button onClick={() => setShowAdd(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-            <button onClick={() => {
-              if (!form.name || !form.retailPrice || !form.settlementPrice) return
-              const group = GROUPS_DIST.find((g) => g.id === form.groupId) ?? GROUPS_DIST[0]
-              setPolicies(prev => [...prev, {
-                id: `pp${Date.now()}`,
-                name: form.name,
-                productName: form.productName,
-                ticketType: form.ticketType,
-                policyType: form.policyType,
-                groupId: group.id,
-                groupName: group.name,
-                startDate: form.startDate,
-                endDate: form.endDate,
-                minOrder: +form.minOrder,
-                retailPrice: +form.retailPrice,
-                settlementPrice: +form.settlementPrice,
-                priority: +form.priority,
-                status: '审批中',
-              }])
-              setShowAdd(false); showToast('价格政策已提交审批')
-            }} disabled={!form.name || !form.retailPrice || !form.settlementPrice} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">提交审批</button>
+            <button onClick={() => setShowForm(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+            <button
+              onClick={handleSubmit}
+              disabled={!form.name || !form.retailPrice || !form.settlementPrice || !form.inventoryPoolId}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {editingId ? '保存' : '提交审批'}
+            </button>
           </div>
         </Modal>
       )}
@@ -660,13 +809,14 @@ const TABS = [
   { key: 'policy_types', label: '价格政策类型' },
   { key: 'price_policies', label: '价格政策' },
   { key: 'refund_policies', label: '退改政策' },
+  { key: 'marketing_rules', label: '营销规则' },
 ]
 
 export default function DistributionManagementPage() {
   const [activeTab, setActiveTab] = useState('dist_products')
   return (
     <div>
-      <PageHeader title="分销管理" description="维护分销产品与分销商分组的授权关系；价格政策、退改政策均以分销商分组为维度关联。" />
+      <PageHeader title="分销管理" description="维护分销产品与分销商分组授权；价格政策须绑定扣减库存池，退改政策与营销规则按渠道/经销商维度关联。" />
       <div className="border-b border-gray-200 mb-6">
         <div className="flex gap-0">
           {TABS.map(tab => (
@@ -678,6 +828,7 @@ export default function DistributionManagementPage() {
       {activeTab === 'policy_types' && <TabPolicyTypes />}
       {activeTab === 'price_policies' && <TabPricePolicies />}
       {activeTab === 'refund_policies' && <TabRefundPolicies />}
+      {activeTab === 'marketing_rules' && <DiscountManagementPage embedded />}
     </div>
   )
 }

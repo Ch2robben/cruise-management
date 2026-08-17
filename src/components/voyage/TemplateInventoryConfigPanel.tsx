@@ -1,47 +1,55 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { templateApi } from '@/mock/api'
-import { dealers, products } from '@/mock/data'
-import DealerInventoryAllocationTable from '@/components/voyage/DealerInventoryAllocationTable'
+import { dealers } from '@/mock/data'
 import {
-  collectSelectedDealerIds,
-  findOverAllocations,
-  getSellableTotal,
-  getTemplateSellRoomTypes,
-  loadDealerInventoryRules,
-  loadTemplateInventoryRules,
-  saveDealerInventoryRules,
-  saveTemplateInventoryRules,
+  collectPoolDealerIds,
+  findDealerOverAllocations,
+  findPoolOverAllocations,
+  getByDealerPools,
+  getEnabledInventoryPools,
+  getPoolAllocatedTotal,
+  getPoolUnallocated,
+  getProductSegments,
+  loadTemplatePoolDealerRules,
+  loadTemplatePoolQuotas,
+  saveTemplatePoolDealerRules,
+  saveTemplatePoolQuotas,
   segmentKey,
-  setDealerQuantity,
-  type DealerPrivateStockKind,
-  type TemplateDealerInventoryRules,
-  type TemplateInventoryCell,
-  type TemplateInventoryRules,
-} from '@/mock/templateInventoryRules'
-import type { TemplateSellRoomType } from '@/mock/sellRoomTypeConfig'
-import type { ProductSegment, VoyageTemplate } from '@/types'
+  setPoolDealerQuantity,
+  type TemplatePoolDealerRules,
+  type TemplatePoolQuotaCell,
+  type TemplatePoolQuotaRules,
+} from '@/mock/templatePoolQuotas'
+import { getTemplateSellRoomTypes, type TemplateSellRoomType } from '@/mock/sellRoomTypeConfig'
+import type { InventoryPool, ProductSegment, VoyageTemplate } from '@/types'
 
 type ConfigStep = 1 | 2
-type ChannelField = 'regionalPublicStock' | 'globalPublicStock'
 
 const stepLabels: Record<ConfigStep, string> = {
-  1: '渠道库存配置',
-  2: '经销商库存分配',
+  1: '库存池配额',
+  2: '经销商额度',
 }
 
 function getCell(
-  rules: TemplateInventoryRules,
+  rules: TemplatePoolQuotaRules,
   sellRoomTypeCode: string,
   segKey: string,
-): TemplateInventoryCell {
-  return (
-    rules[sellRoomTypeCode]?.[segKey] || {
-      physicalCapacity: 0,
-      regionalPublicStock: 0,
-      globalPublicStock: 0,
-    }
-  )
+  poolIds: string[],
+): TemplatePoolQuotaCell {
+  const existing = rules[sellRoomTypeCode]?.[segKey]
+  if (existing) {
+    const poolQty = { ...existing.poolQty }
+    poolIds.forEach((id) => {
+      if (poolQty[id] == null) poolQty[id] = 0
+    })
+    return { ...existing, poolQty }
+  }
+  const poolQty: Record<string, number> = {}
+  poolIds.forEach((id) => {
+    poolQty[id] = 0
+  })
+  return { physicalCapacity: 0, poolQty }
 }
 
 export interface TemplateInventoryConfigPanelProps {
@@ -62,14 +70,19 @@ export default function TemplateInventoryConfigPanel({
   onClose,
 }: TemplateInventoryConfigPanelProps) {
   const [template, setTemplate] = useState<VoyageTemplate | null>(null)
-  const [inventoryRules, setInventoryRules] = useState<TemplateInventoryRules>({})
-  const [dealerRules, setDealerRules] = useState<TemplateDealerInventoryRules>({})
+  const [quotaRules, setQuotaRules] = useState<TemplatePoolQuotaRules>({})
+  const [dealerRules, setDealerRules] = useState<TemplatePoolDealerRules>({})
   const [selectedDealers, setSelectedDealers] = useState<string[]>([])
   const [sellRoomTypes, setSellRoomTypes] = useState<TemplateSellRoomType[]>([])
   const [currentStep, setCurrentStep] = useState<ConfigStep>(1)
+  const [activeDealerPoolId, setActiveDealerPoolId] = useState<string>('')
   const [editMode, setEditMode] = useState(false)
   const [saveWarning, setSaveWarning] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const enabledPools = useMemo(() => getEnabledInventoryPools(), [])
+  const byDealerPools = useMemo(() => getByDealerPools(), [])
+  const poolIds = useMemo(() => enabledPools.map((item) => item.id), [enabledPools])
 
   useEffect(() => {
     if (!active || !templateId) {
@@ -93,13 +106,15 @@ export default function TemplateInventoryConfigPanel({
       }
 
       const roomTypes = getTemplateSellRoomTypes(t)
-      const channelRules = loadTemplateInventoryRules(t)
-      const dealerAllocRules = loadDealerInventoryRules(t, channelRules)
+      const quotas = loadTemplatePoolQuotas(t)
+      const dealerAlloc = loadTemplatePoolDealerRules(t, quotas)
+      const dealerPoolList = getByDealerPools()
       setTemplate(t)
       setSellRoomTypes(roomTypes)
-      setInventoryRules(channelRules)
-      setDealerRules(dealerAllocRules)
-      setSelectedDealers(collectSelectedDealerIds(dealerAllocRules))
+      setQuotaRules(quotas)
+      setDealerRules(dealerAlloc)
+      setSelectedDealers(collectPoolDealerIds(dealerAlloc))
+      setActiveDealerPoolId(dealerPoolList[0]?.id ?? '')
       setLoading(false)
     }
 
@@ -109,11 +124,7 @@ export default function TemplateInventoryConfigPanel({
     }
   }, [active, templateId])
 
-  const productObj = useMemo(
-    () => (template ? products.find((p) => p.id === template.productId) : undefined),
-    [template],
-  )
-  const segmentsList = productObj?.segments || []
+  const segmentsList = useMemo(() => (template ? getProductSegments(template) : []), [template])
   const activeDealers = useMemo(() => dealers.filter((dealer) => dealer.status === 'cooperating'), [])
 
   const segmentEntries = useMemo(
@@ -124,32 +135,38 @@ export default function TemplateInventoryConfigPanel({
     [segmentsList],
   )
 
-  const overAllocations = useMemo(
-    () => findOverAllocations(inventoryRules, dealerRules),
-    [inventoryRules, dealerRules],
+  const poolOvers = useMemo(() => findPoolOverAllocations(quotaRules), [quotaRules])
+  const dealerOvers = useMemo(
+    () => findDealerOverAllocations(quotaRules, dealerRules),
+    [quotaRules, dealerRules],
   )
 
   const saveConfig = () => {
     if (!template) return
-    const warnings = findOverAllocations(inventoryRules, dealerRules)
-    setSaveWarning(
-      warnings.length > 0 ? `有 ${warnings.length} 个航段销售房型分配超额，已允许保存（mock 阶段仅提示）` : '',
-    )
-    saveTemplateInventoryRules(template.id, inventoryRules)
-    saveDealerInventoryRules(template.id, dealerRules)
+    const poolWarnings = findPoolOverAllocations(quotaRules)
+    const dealerWarnings = findDealerOverAllocations(quotaRules, dealerRules)
+    const parts: string[] = []
+    if (poolWarnings.length > 0) parts.push(`${poolWarnings.length} 处池配额超过物理容量`)
+    if (dealerWarnings.length > 0) parts.push(`${dealerWarnings.length} 处经销商额度超过池配额`)
+    setSaveWarning(parts.length > 0 ? `${parts.join('；')}，已允许保存（mock 仅提示）` : '')
+    saveTemplatePoolQuotas(template.id, quotaRules)
+    saveTemplatePoolDealerRules(template.id, dealerRules)
     setEditMode(false)
     onSaved?.()
     onClose?.()
   }
 
-  const updateCell = (sellRoomTypeCode: string, segKey: string, field: ChannelField, value: number) => {
-    setInventoryRules((prev) => {
-      const cabinRule = prev[sellRoomTypeCode] || {}
+  const updatePoolQty = (sellRoomTypeCode: string, segKey: string, poolId: string, value: number) => {
+    setQuotaRules((prev) => {
+      const cell = getCell(prev, sellRoomTypeCode, segKey, poolIds)
       return {
         ...prev,
         [sellRoomTypeCode]: {
-          ...cabinRule,
-          [segKey]: { ...getCell(prev, sellRoomTypeCode, segKey), [field]: value },
+          ...(prev[sellRoomTypeCode] || {}),
+          [segKey]: {
+            ...cell,
+            poolQty: { ...cell.poolQty, [poolId]: value },
+          },
         },
       }
     })
@@ -157,47 +174,62 @@ export default function TemplateInventoryConfigPanel({
 
   const syncDealerRows = (dealerIds: string[]) => {
     setDealerRules((prev) => {
-      const nextRules: TemplateDealerInventoryRules = { ...prev }
+      const next: TemplatePoolDealerRules = { ...prev }
       sellRoomTypes.forEach((sellRoom) => {
-        const cabinMap = { ...(nextRules[sellRoom.code] || {}) }
+        const cabinMap = { ...(next[sellRoom.code] || {}) }
         segmentEntries.forEach(({ key }) => {
-          const current = cabinMap[key] || []
-          cabinMap[key] = dealerIds.map((dealerId) => {
-            const existing = current.find((item) => item.dealerId === dealerId)
-            return existing || { dealerId, regionalPrivateQty: 0, privateQty: 0 }
+          const poolMap = { ...(cabinMap[key] || {}) }
+          byDealerPools.forEach((pool) => {
+            const current = poolMap[pool.id] || []
+            poolMap[pool.id] = dealerIds.map((dealerId) => {
+              const existing = current.find((item) => item.dealerId === dealerId)
+              return existing || { dealerId, qty: 0 }
+            })
           })
+          cabinMap[key] = poolMap
         })
-        nextRules[sellRoom.code] = cabinMap
+        next[sellRoom.code] = cabinMap
       })
-      return nextRules
+      return next
     })
   }
 
-  const updateDealerAllocation = (
+  const updateDealerQty = (
     sellRoomTypeCode: string,
     segKey: string,
+    poolId: string,
     dealerId: string,
-    stockKind: DealerPrivateStockKind,
     value: number,
   ) => {
     setDealerRules((prev) => {
       const cabinMap = { ...(prev[sellRoomTypeCode] || {}) }
-      const current = cabinMap[segKey] || []
+      const poolMap = { ...(cabinMap[segKey] || {}) }
+      const current = poolMap[poolId] || []
       return {
         ...prev,
         [sellRoomTypeCode]: {
           ...cabinMap,
-          [segKey]: setDealerQuantity(current, dealerId, value, stockKind),
+          [segKey]: {
+            ...poolMap,
+            [poolId]: setPoolDealerQuantity(current, dealerId, value),
+          },
         },
       }
     })
   }
 
   const goNextStep = () => {
+    if (byDealerPools.length === 0) {
+      saveConfig()
+      return
+    }
     if (selectedDealers.length === 0) {
       const defaultIds = activeDealers.slice(0, 3).map((dealer) => dealer.id)
       setSelectedDealers(defaultIds)
       syncDealerRows(defaultIds)
+    }
+    if (!activeDealerPoolId && byDealerPools[0]) {
+      setActiveDealerPoolId(byDealerPools[0].id)
     }
     setCurrentStep(2)
   }
@@ -226,8 +258,15 @@ export default function TemplateInventoryConfigPanel({
       )),
     )
 
+  const activeDealerPool = byDealerPools.find((item) => item.id === activeDealerPoolId) ?? byDealerPools[0]
+
+  const dealerPoolHint = (pool: InventoryPool | undefined) => {
+    if (!pool) return ''
+    return pool.quotaMode === 'byDealer' ? '按经销商拆额度' : '共享余量'
+  }
+
   return (
-    <div className={`flex min-h-0 flex-1 flex-col ${embedded ? '' : ''}`}>
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className={`shrink-0 border-b border-gray-200 ${embedded ? 'px-6 py-3' : 'px-6 py-4'}`}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -235,10 +274,13 @@ export default function TemplateInventoryConfigPanel({
               <div key={step} className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(step)}
+                  onClick={() => {
+                    if (step === 2 && byDealerPools.length === 0) return
+                    setCurrentStep(step)
+                  }}
                   className={`flex items-center gap-2 rounded-lg px-2 py-1 text-sm ${
                     currentStep === step ? 'font-medium text-blue-700' : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                  } ${step === 2 && byDealerPools.length === 0 ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   <span
                     className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${
@@ -267,7 +309,7 @@ export default function TemplateInventoryConfigPanel({
         {batchHint && <p className="mt-2 text-xs text-amber-700">{batchHint}</p>}
         {template && embedded && (
           <p className="mt-2 text-xs text-gray-500">
-            数据来源：航次模板「{template.name}」· 销售房型按房型管理配置
+            数据来源：航次模板「{template.name}」· 按启用中的库存池分配可售名额
           </p>
         )}
       </div>
@@ -277,6 +319,10 @@ export default function TemplateInventoryConfigPanel({
           <div className="py-16 text-center text-sm text-gray-400">未关联航次模板，无法配置库存</div>
         ) : loading || !template || sellRoomTypes.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-500">加载中...</div>
+        ) : enabledPools.length === 0 ? (
+          <div className="py-16 text-center text-sm text-gray-400">
+            暂无启用中的库存池，请先在「基础设置 → 库存池管理」启用至少一个池
+          </div>
         ) : currentStep === 1 ? (
           <div className="space-y-4">
             <div className="overflow-x-auto">
@@ -286,52 +332,67 @@ export default function TemplateInventoryConfigPanel({
                     <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">航段</th>
                     <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">销售房型</th>
                     <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">物理容量</th>
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">区域公共库存</th>
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">全域公共库存</th>
+                    {enabledPools.map((pool) => (
+                      <th
+                        key={pool.id}
+                        className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500"
+                        title={`${pool.code} · ${dealerPoolHint(pool)}`}
+                      >
+                        <div>{pool.name}</div>
+                        <div className="mt-0.5 font-normal text-gray-400">
+                          {pool.quotaMode === 'shared' ? '共享' : '锁配额'}
+                        </div>
+                      </th>
+                    ))}
                     <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">未分配</th>
-                    <th className="border-b px-3 py-2 text-right text-xs font-medium text-gray-500">可售合计</th>
+                    <th className="border-b px-3 py-2 text-right text-xs font-medium text-gray-500">已分配合计</th>
                   </tr>
                 </thead>
                 <tbody>
                   {renderSegmentCabinRows((segKey, sellRoomTypeCode) => {
-                    const cell = getCell(inventoryRules, sellRoomTypeCode, segKey)
-                    const total = getSellableTotal(cell)
-                    const unallocated = Math.max(
-                      0,
-                      cell.physicalCapacity - cell.regionalPublicStock - cell.globalPublicStock,
-                    )
+                    const cell = getCell(quotaRules, sellRoomTypeCode, segKey, poolIds)
+                    const allocated = getPoolAllocatedTotal(cell)
+                    const unallocated = getPoolUnallocated(cell)
+                    const over = allocated > cell.physicalCapacity
                     return (
                       <>
                         <td className="border-r border-b px-3 py-2 text-right text-gray-600">{cell.physicalCapacity}</td>
-                        {(['regionalPublicStock', 'globalPublicStock'] as ChannelField[]).map((field) => (
-                          <td key={field} className="border-r border-b px-3 py-2 text-right">
+                        {enabledPools.map((pool) => (
+                          <td key={pool.id} className="border-r border-b px-3 py-2 text-right">
                             {editMode ? (
                               <input
                                 type="number"
                                 min={0}
-                                value={cell[field]}
+                                value={cell.poolQty[pool.id] ?? 0}
                                 onChange={(e) =>
-                                  updateCell(
+                                  updatePoolQty(
                                     sellRoomTypeCode,
                                     segKey,
-                                    field,
+                                    pool.id,
                                     Math.max(0, Number(e.target.value) || 0),
                                   )
                                 }
                                 className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-sm"
                               />
                             ) : (
-                              cell[field]
+                              cell.poolQty[pool.id] ?? 0
                             )}
                           </td>
                         ))}
-                        <td className={`border-r border-b px-3 py-2 text-right font-medium tabular-nums ${
-                          unallocated === 0 ? 'text-slate-400' : 'text-amber-700'
-                        }`}
+                        <td
+                          className={`border-r border-b px-3 py-2 text-right font-medium tabular-nums ${
+                            unallocated === 0 ? 'text-slate-400' : 'text-amber-700'
+                          }`}
                         >
                           {unallocated}
                         </td>
-                        <td className="border-b px-3 py-2 text-right font-medium text-blue-600">{total}</td>
+                        <td
+                          className={`border-b px-3 py-2 text-right font-medium tabular-nums ${
+                            over ? 'text-rose-600' : 'text-blue-600'
+                          }`}
+                        >
+                          {allocated}
+                        </td>
                       </>
                     )
                   })}
@@ -339,34 +400,156 @@ export default function TemplateInventoryConfigPanel({
               </table>
             </div>
             <p className="text-xs text-gray-500">
-              按航段 × 销售房型维护区域/全域公共库存；「未分配」= 物理容量 − 区域公共 − 全域公共，将作为 Step2 经销商私有库存池上限。
+              按航段 × 销售房型为各库存池录入可下单数量；未分配 = 物理容量 − 各池之和（默认不可售）。
+              共享池下单时共用余量；锁配额池需在下一步拆到经销商。
             </p>
+            {poolOvers.length > 0 && (
+              <p className="text-xs text-amber-600">有 {poolOvers.length} 处已分配合计超过物理容量。</p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-xs text-gray-500">
-              按航段卡片平铺展示；房型横向、经销商纵向，区分区域私有 / 私有库存。
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500">锁配额池：</span>
+              {byDealerPools.map((pool) => (
+                <button
+                  key={pool.id}
+                  type="button"
+                  onClick={() => setActiveDealerPoolId(pool.id)}
+                  className={`rounded-lg px-3 py-1.5 text-sm ${
+                    activeDealerPool?.id === pool.id
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {pool.name}
+                </button>
+              ))}
+              <div className="ml-auto flex flex-wrap gap-2">
+                {activeDealers.slice(0, 6).map((dealer) => {
+                  const checked = selectedDealers.includes(dealer.id)
+                  return (
+                    <label
+                      key={dealer.id}
+                      className={`flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-xs ${
+                        checked ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!editMode}
+                        onChange={() => {
+                          const next = checked
+                            ? selectedDealers.filter((id) => id !== dealer.id)
+                            : [...selectedDealers, dealer.id]
+                          setSelectedDealers(next)
+                          syncDealerRows(next)
+                        }}
+                        className="accent-blue-600"
+                      />
+                      <span className="max-w-[7rem] truncate" title={dealer.name}>
+                        {dealer.name}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
 
-            {selectedDealers.length === 0 ? (
+            {!activeDealerPool ? (
               <div className="rounded-lg border border-dashed py-12 text-center text-sm text-gray-400">
-                暂无经销商分配
+                当前无「按经销商拆额度」类型的库存池
+              </div>
+            ) : selectedDealers.length === 0 ? (
+              <div className="rounded-lg border border-dashed py-12 text-center text-sm text-gray-400">
+                请勾选需要拆分额度的经销商
               </div>
             ) : (
-              <DealerInventoryAllocationTable
-                sellRoomTypes={sellRoomTypes}
-                segmentEntries={segmentEntries}
-                inventoryRules={inventoryRules}
-                dealerRules={dealerRules}
-                selectedDealers={selectedDealers}
-                activeDealers={activeDealers}
-                editMode={editMode}
-                showSegments
-                onUpdateDealerAllocation={updateDealerAllocation}
-              />
+              <div className="overflow-x-auto">
+                <table className="min-w-full border border-gray-200 text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">航段</th>
+                      <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">销售房型</th>
+                      <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">
+                        池配额
+                      </th>
+                      {selectedDealers.map((dealerId) => {
+                        const dealer = activeDealers.find((item) => item.id === dealerId)
+                        return (
+                          <th
+                            key={dealerId}
+                            className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500"
+                          >
+                            <span className="inline-block max-w-[6rem] truncate" title={dealer?.name}>
+                              {dealer?.name || dealerId}
+                            </span>
+                          </th>
+                        )
+                      })}
+                      <th className="border-b px-3 py-2 text-right text-xs font-medium text-gray-500">经销商合计</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {renderSegmentCabinRows((segKey, sellRoomTypeCode) => {
+                      const poolId = activeDealerPool.id
+                      const poolQty = getCell(quotaRules, sellRoomTypeCode, segKey, poolIds).poolQty[poolId] ?? 0
+                      const allocations = dealerRules[sellRoomTypeCode]?.[segKey]?.[poolId] || []
+                      const dealerSum = selectedDealers.reduce((sum, dealerId) => {
+                        const row = allocations.find((item) => item.dealerId === dealerId)
+                        return sum + (row?.qty || 0)
+                      }, 0)
+                      const over = dealerSum > poolQty
+                      return (
+                        <>
+                          <td className="border-r border-b px-3 py-2 text-right text-gray-600">{poolQty}</td>
+                          {selectedDealers.map((dealerId) => {
+                            const row = allocations.find((item) => item.dealerId === dealerId)
+                            const qty = row?.qty ?? 0
+                            return (
+                              <td key={dealerId} className="border-r border-b px-3 py-2 text-right">
+                                {editMode ? (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={qty}
+                                    onChange={(e) =>
+                                      updateDealerQty(
+                                        sellRoomTypeCode,
+                                        segKey,
+                                        poolId,
+                                        dealerId,
+                                        Math.max(0, Number(e.target.value) || 0),
+                                      )
+                                    }
+                                    className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                  />
+                                ) : (
+                                  qty
+                                )}
+                              </td>
+                            )
+                          })}
+                          <td
+                            className={`border-b px-3 py-2 text-right font-medium tabular-nums ${
+                              over ? 'text-rose-600' : 'text-blue-600'
+                            }`}
+                          >
+                            {dealerSum}
+                          </td>
+                        </>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
-            {overAllocations.length > 0 && (
-              <p className="text-xs text-amber-600">有 {overAllocations.length} 个航段销售房型分配超额。</p>
+            <p className="text-xs text-gray-500">
+              仅「按经销商拆额度」的库存池需要本步配置；经销商额度合计不应超过该池在 Step1 的配额。
+            </p>
+            {dealerOvers.length > 0 && (
+              <p className="text-xs text-amber-600">有 {dealerOvers.length} 处经销商额度超过池配额。</p>
             )}
             {saveWarning && <p className="text-xs text-amber-600">{saveWarning}</p>}
           </div>
@@ -374,7 +557,9 @@ export default function TemplateInventoryConfigPanel({
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-t border-gray-200 px-6 py-4">
-        <span className="text-xs text-gray-500">Step {currentStep}/2</span>
+        <span className="text-xs text-gray-500">
+          Step {currentStep}/{byDealerPools.length > 0 ? 2 : 1}
+        </span>
         <div className="flex items-center gap-3">
           {onClose && (
             <button
@@ -400,7 +585,7 @@ export default function TemplateInventoryConfigPanel({
               onClick={goNextStep}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              下一步
+              {byDealerPools.length > 0 ? '下一步' : editMode ? '保存' : '完成'}
             </button>
           ) : editMode ? (
             <button
@@ -410,7 +595,15 @@ export default function TemplateInventoryConfigPanel({
             >
               保存
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              完成
+            </button>
+          )}
         </div>
       </div>
     </div>

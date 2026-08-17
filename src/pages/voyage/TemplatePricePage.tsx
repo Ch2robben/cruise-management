@@ -30,7 +30,7 @@ import {
 import type { VoyageTemplate } from '@/types'
 
 function VariableToken({ code }: { code: TemplatePricingVariableKey }) {
-  if (code === 'P' || code === 'Q' || code === 'K') {
+  if (code === 'P' || code === 'Q' || code === 'K' || code === 'S') {
     return <span className="text-lg font-bold">{code}</span>
   }
 
@@ -45,29 +45,24 @@ function VariableToken({ code }: { code: TemplatePricingVariableKey }) {
 
 const variableRows: Array<{
   key: TemplatePricingVariableKey
-  category: 'P' | 'S' | 'Q'
+  category: 'P' | 'Q' | 'S'
   rowSpan: number
+  prefix: 'P' | 'Q' | 'S'
+  policyLabel: string
 }> = [
-  { key: 'P', category: 'P', rowSpan: 3 },
-  { key: 'P_AREA', category: 'P', rowSpan: 0 },
-  { key: 'K', category: 'P', rowSpan: 0 },
-  { key: 'S1F', category: 'S', rowSpan: 3 },
-  { key: 'S2F', category: 'S', rowSpan: 0 },
-  { key: 'S3F', category: 'S', rowSpan: 0 },
-  { key: 'Q', category: 'Q', rowSpan: 1 },
+  { key: 'P', category: 'P', rowSpan: 3, prefix: 'P', policyLabel: '口岸' },
+  { key: 'P_AREA', category: 'P', rowSpan: 0, prefix: 'P', policyLabel: '区域' },
+  { key: 'K', category: 'P', rowSpan: 0, prefix: 'P', policyLabel: '标准' },
+  { key: 'Q', category: 'Q', rowSpan: 3, prefix: 'Q', policyLabel: '口岸' },
+  { key: 'Q_AREA', category: 'Q', rowSpan: 0, prefix: 'Q', policyLabel: '区域' },
+  { key: 'Q_K', category: 'Q', rowSpan: 0, prefix: 'Q', policyLabel: '标准' },
+  { key: 'S', category: 'S', rowSpan: 1, prefix: 'S', policyLabel: '楼层费' },
 ]
 
 function formatCoefficientTerm(coefficient: number, variable: string) {
   if (coefficient === 0) return ''
   if (coefficient === 1) return variable
   return `${parseFloat(coefficient.toFixed(4))}${variable}`
-}
-
-function getFloorSVariable(floor: string) {
-  if (floor === '1F') return 'S1F'
-  if (floor === '2F') return 'S2F'
-  if (floor === '3F') return 'S3F'
-  return 'S2F'
 }
 
 function buildVoyageFormula(rule: FormulaPricingRule) {
@@ -81,7 +76,7 @@ function buildVoyageFormula(rule: FormulaPricingRule) {
   )
   const parts = [
     formatCoefficientTerm(totals.p, 'P'),
-    formatCoefficientTerm(totals.s, getFloorSVariable(rule.floor)),
+    formatCoefficientTerm(totals.s, 'S'),
     formatCoefficientTerm(totals.q, 'Q'),
   ].filter(Boolean)
   return parts.length > 0 ? parts.join(' + ') : '0'
@@ -140,9 +135,9 @@ export default function TemplatePricePage() {
     setPriceRules((prev) => {
       const current = prev[activeCabin]
       if (!current) return prev
-      const arr = [...current.variables[key]]
-      arr[index] = value
-      return { ...prev, [activeCabin]: { ...current, variables: { ...current.variables, [key]: arr } } }
+      const currentArr = current.variables[key] ? [...current.variables[key]] : Array(segmentsCount).fill(0)
+      currentArr[index] = value
+      return { ...prev, [activeCabin]: { ...current, variables: { ...current.variables, [key]: currentArr } } }
     })
   }
 
@@ -349,7 +344,7 @@ export default function TemplatePricePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {variableRows.map(({ key, category, rowSpan }) => (
+                  {variableRows.map(({ key, category, rowSpan, prefix, policyLabel }) => (
                     <tr key={key} className="hover:bg-gray-50/50">
                       {rowSpan > 0 && (
                         <td
@@ -362,32 +357,13 @@ export default function TemplatePricePage() {
                       <td className="sticky left-16 z-10 whitespace-nowrap border-r border-gray-100 bg-white px-4 py-3 shadow-[1px_0_0_0_#f3f4f6]">
                         <div className="flex flex-col">
                           <span className="font-mono text-gray-900">
-                            {key === 'P' && (
-                              <>
-                                <span className="text-lg font-bold">P</span>
-                                <span className="ml-0.5 font-sans text-xs">口岸</span>
-                              </>
-                            )}
-                            {key === 'P_AREA' && (
-                              <>
-                                <span className="text-lg font-bold">P</span>
-                                <span className="ml-0.5 font-sans text-xs">区域</span>
-                              </>
-                            )}
-                            {key === 'K' && (
-                              <>
-                                <span className="text-lg font-bold">P</span>
-                                <span className="ml-0.5 font-sans text-xs">标准</span>
-                              </>
-                            )}
-                            {key === 'Q' && (
-                              <>
-                                <span className="text-lg font-bold">Q</span>
-                                <span className="ml-1 font-sans text-xs">常数</span>
-                              </>
-                            )}
-                            {key !== 'P' && key !== 'P_AREA' && key !== 'Q' && key !== 'K' && (
+                            {category === 'S' ? (
                               <VariableToken code={key} />
+                            ) : (
+                              <>
+                                <span className="text-lg font-bold">{prefix}</span>
+                                <span className="ml-0.5 font-sans text-xs">{policyLabel}</span>
+                              </>
                             )}
                           </span>
                           <span className="mt-0.5 font-sans text-xs text-gray-400">{templateVariableLabels[key]}</span>
@@ -399,13 +375,13 @@ export default function TemplatePricePage() {
                             <input
                               type="number"
                               step="any"
-                              value={priceRule.variables[key][i] ?? 0}
+                              value={priceRule.variables[key]?.[i] ?? 0}
                               onChange={(e) => updatePriceVariableArray(key, i, Number(e.target.value))}
                               className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                             />
                           ) : (
                             <span className="text-sm font-medium text-gray-900">
-                              {priceRule.variables[key][i]?.toLocaleString() ?? 0}
+                              {priceRule.variables[key]?.[i]?.toLocaleString() ?? 0}
                             </span>
                           )}
                         </td>
@@ -551,13 +527,13 @@ export default function TemplatePricePage() {
                         {evaluateTemplateFormula(
                           formula,
                           {
-                            P: priceRule.variables.P[0] ?? 0,
-                            P_AREA: priceRule.variables.P_AREA[0] ?? 0,
-                            Q: priceRule.variables.Q[0] ?? 0,
-                            K: priceRule.variables.K[0] ?? 0,
-                            S1F: priceRule.variables.S1F[0] ?? 0,
-                            S2F: priceRule.variables.S2F[0] ?? 0,
-                            S3F: priceRule.variables.S3F[0] ?? 0,
+                            P: priceRule.variables.P?.[0] ?? 0,
+                            P_AREA: priceRule.variables.P_AREA?.[0] ?? 0,
+                            K: priceRule.variables.K?.[0] ?? 0,
+                            Q: priceRule.variables.Q?.[0] ?? 0,
+                            Q_AREA: priceRule.variables.Q_AREA?.[0] ?? 0,
+                            Q_K: priceRule.variables.Q_K?.[0] ?? 0,
+                            S: priceRule.variables.S?.[0] ?? priceRule.variables.S2F?.[0] ?? 180,
                           },
                         ).toLocaleString()}
                       </td>

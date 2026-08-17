@@ -6,7 +6,17 @@ import {
   type FormulaPricingRule,
 } from '@/utils/cabinPriceCoefficient'
 
-export type TemplatePricingVariableKey = 'P' | 'P_AREA' | 'K' | 'S1F' | 'S2F' | 'S3F' | 'Q'
+export type TemplatePricingVariableKey =
+  | 'P'
+  | 'P_AREA'
+  | 'K'
+  | 'Q'
+  | 'Q_AREA'
+  | 'Q_K'
+  | 'S'
+  | 'S1F'
+  | 'S2F'
+  | 'S3F'
 
 export type TemplateFloorPricingRule = {
   floor: number
@@ -27,10 +37,13 @@ export const templateVariableLabels: Record<TemplatePricingVariableKey, string> 
   P: '公式基数(口岸)',
   P_AREA: '公式基数(区域)',
   K: '公式基数(标准)',
+  Q: '定价常数(口岸)',
+  Q_AREA: '定价常数(区域)',
+  Q_K: '定价常数(标准)',
+  S: '楼层费',
   S1F: '楼层费(1F)',
   S2F: '楼层费(2F)',
   S3F: '楼层费(3F)',
-  Q: '舱房定价常数',
 }
 
 export const templateDeckOptions = ['全部', '1F', '2F', '3F']
@@ -60,15 +73,18 @@ export function createDefaultTemplatePricingRule(segmentsCount = 1): TemplateCab
       P: Array(segmentsCount).fill(1200),
       P_AREA: Array(segmentsCount).fill(1.0),
       K: Array(segmentsCount).fill(1.0),
+      Q: Array(segmentsCount).fill(500),
+      Q_AREA: Array(segmentsCount).fill(500),
+      Q_K: Array(segmentsCount).fill(500),
+      S: Array(segmentsCount).fill(180),
       S1F: Array(segmentsCount).fill(0),
       S2F: Array(segmentsCount).fill(180),
       S3F: Array(segmentsCount).fill(360),
-      Q: Array(segmentsCount).fill(500),
     },
     floorRules: [
-      { floor: 1, label: '1F', formulaPrefix: 'P + S1F', floorLevel: 0 },
-      { floor: 2, label: '2F', formulaPrefix: 'P + S2F', floorLevel: 1 },
-      { floor: 3, label: '3F', formulaPrefix: 'P + S3F', floorLevel: 2 },
+      { floor: 1, label: '1F', formulaPrefix: 'P + S', floorLevel: 0 },
+      { floor: 2, label: '2F', formulaPrefix: 'P + S', floorLevel: 1 },
+      { floor: 3, label: '3F', formulaPrefix: 'P + S', floorLevel: 2 },
     ],
     formulaRules: defaultTemplateFormulaRules.map((item) =>
       normalizeFormulaRule({
@@ -87,9 +103,19 @@ export function loadTemplatePriceRules(template: VoyageTemplate) {
   const segmentsCount = getTemplateSegmentsCount(template)
   const rules: Record<string, TemplateCabinPricingRule> = {}
   getTemplateCabinTypes(template).forEach((cabin) => {
-    rules[cabin] =
-      mockRulesStore[getTemplatePriceRuleKey(template.id, cabin)] ||
-      createDefaultTemplatePricingRule(segmentsCount)
+    const existing = mockRulesStore[getTemplatePriceRuleKey(template.id, cabin)]
+    if (existing) {
+      const defaultVars = createDefaultTemplatePricingRule(segmentsCount).variables
+      rules[cabin] = {
+        ...existing,
+        variables: {
+          ...defaultVars,
+          ...existing.variables,
+        },
+      }
+    } else {
+      rules[cabin] = createDefaultTemplatePricingRule(segmentsCount)
+    }
   })
   return rules
 }
@@ -104,16 +130,13 @@ export function hasConfiguredTemplatePrice(templateId: string, cabinTypes: strin
   return cabinTypes.some((cabin) => Boolean(mockRulesStore[getTemplatePriceRuleKey(templateId, cabin)]))
 }
 
-export function evaluateTemplateFormula(formula: string, variables: Partial<Record<TemplatePricingVariableKey | 'S', number>>): number {
+export function evaluateTemplateFormula(formula: string, variables: Partial<Record<TemplatePricingVariableKey, number>>): number {
   if (!formula) return 0
   try {
     let expr = formula.replace(/(\d+(?:\.\d+)?)\s*(?=[PQS(])/g, '$1*')
-    const replaceOrder = ['P_AREA', 'S1F', 'S2F', 'S3F', 'P', 'Q', 'K', 'S'] as const
+    const replaceOrder = ['P_AREA', 'Q_AREA', 'Q_K', 'S1F', 'S2F', 'S3F', 'P', 'Q', 'K', 'S'] as const
     replaceOrder.forEach((key) => {
-      const value =
-        key === 'S'
-          ? variables.S ?? variables.S2F ?? 0
-          : variables[key] ?? 0
+      const value = variables[key] ?? 0
       expr = expr.replace(new RegExp(key, 'g'), String(value))
     })
     // eslint-disable-next-line no-new-func

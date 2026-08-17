@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { groupItineraryRows, itineraryActivityColumns, formatItineraryDayLabel } from '@/components/voyage/ItineraryEditor'
+import VoyagePoolQuotaPanel from '@/components/voyage/VoyagePoolQuotaPanel'
+import VoyagePoolDealerPanel from '@/components/voyage/VoyagePoolDealerPanel'
 import VoyageTipManagementPanel, { type RouteSegmentOption } from '@/components/voyage/VoyageTipManagementPanel'
-import VoyageChannelDealerInventoryPanel from '@/components/voyage/VoyageChannelDealerInventoryPanel'
 import { templateApi } from '@/mock/api'
 import { voyageInventories, voyageTemplates, voyages, products } from '@/mock/data'
 import {
@@ -69,8 +70,8 @@ interface PriceRow {
 }
 
 const baseTabs: Array<{ key: ControlTab; label: string }> = [
-  { key: 'inventory', label: '公共库存' },
-  { key: 'private', label: '私有库存' },
+  { key: 'inventory', label: '库存池配额' },
+  { key: 'private', label: '锁配额经销商' },
   { key: 'sales', label: '价格政策' },
   { key: 'itinerary', label: '航次行程' },
   { key: 'warning', label: '库存预警' },
@@ -305,9 +306,9 @@ export function SalesControlWorkspace({
 
       <div className="overflow-hidden p-2.5">
         {activeTab === 'inventory' ? (
-          <PublicInventoryTab voyage={resolvedVoyage} />
+          <VoyagePoolQuotaPanel voyage={resolvedVoyage} voyageInventories={voyageInventories} />
         ) : activeTab === 'private' ? (
-          <VoyageChannelDealerInventoryPanel voyage={resolvedVoyage} />
+          <VoyagePoolDealerPanel voyage={resolvedVoyage} />
         ) : activeTab === 'warning' ? (
           <InventoryWarningTab />
         ) : activeTab === 'tip' ? (
