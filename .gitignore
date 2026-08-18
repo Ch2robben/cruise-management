@@ -22,3 +22,15 @@ docs/
 *.xlsx
 .vercel
 .env*
+reference/
+docs_prompt/
+docs/
+.agents/
+.agent/
+.github/workflows
+*.zip
+AGENTS.md
+HANDOFF_ANTIGRAVITY.md
+*DEPLOY_SKILL.md
+*.skill
+feishu-search-auth.png

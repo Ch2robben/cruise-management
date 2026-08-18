@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { Info, Plus, Upload, Camera, Trash2, ChevronDown, X, BedDouble, Users } from 'lucide-react'
 import { defaultRoomReserveData, bookingSegmentOptions } from '@/mock/data'
 import {
+  BOOKING_PRICE_POLICIES,
   calculateGuestBaseTicket,
   parseAgeFromIdCard,
   parseGenderFromIdCard,
   resolveGuestPriceInfo,
   type GuestPriceInfo,
+  type GuestPriceType,
 } from '@/components/dealer/booking/guestPricingUtils'
 import { formatCurrency } from '@/utils/format'
 import { getAdditionalCategoryPath, getAdditionalProductsForProduct } from '@/mock/additionalProducts'
@@ -132,7 +134,6 @@ interface TouristGuest {
   gender: string
   age: string
   nationality: string
-  floorFeeFloor: string
   province: string
   idType: string
   idNum: string
@@ -142,6 +143,7 @@ interface TouristGuest {
   comboProducts: string[]
   guestType: string
   paymentSource: string
+  pricePolicyId?: string
 }
 
 interface TourTeam {
@@ -157,6 +159,8 @@ interface RoomGroup {
   teamId: string
   segmentId: string
   segmentLabel: string
+  floorFeeFloor: string
+  remark?: string
   additionalProductIds: string[]
   guests: TouristGuest[]
 }
@@ -164,8 +168,10 @@ interface RoomGroup {
 interface EscortTicket {
   id: string
   name: string
+  role: '导游' | '领队'
   idType: string
   idNum: string
+  guideCert: string
   phone: string
   remark: string
 }
@@ -196,7 +202,6 @@ function createGuest(id: number, stayType = '标准'): TouristGuest {
     gender: '男',
     age: '',
     nationality: '中国',
-    floorFeeFloor: '不收楼层费',
     province: '',
     idType: '身份证',
     idNum: '',
@@ -206,6 +211,7 @@ function createGuest(id: number, stayType = '标准'): TouristGuest {
     comboProducts: [],
     guestType: '内宾',
     paymentSource: '自付',
+    pricePolicyId: 'auto',
   }
 }
 
@@ -215,6 +221,8 @@ function createRoomGroup(
   guestCount?: number,
   teamId = '',
   segmentId = bookingSegmentOptions[0].id,
+  floorFeeFloor = '不收楼层费',
+  remark = '',
 ): RoomGroup {
   const count = guestCount ?? defaultGuestCount(roomType)
   const stayType = defaultStayType(roomType)
@@ -226,6 +234,8 @@ function createRoomGroup(
     teamId,
     segmentId,
     segmentLabel: getSegmentLabel(segmentId),
+    floorFeeFloor,
+    remark,
     additionalProductIds: [],
     guests: Array.from({ length: count }, (_, index) => createGuest(baseId + index, stayType)),
   }
@@ -262,6 +272,8 @@ function flattenRoomGroups(roomGroups: RoomGroup[], teams: TourTeam[]) {
       roomSeq: room.roomSeq,
       segmentId: room.segmentId,
       segmentLabel: room.segmentLabel,
+      floorFeeFloor: room.floorFeeFloor || '不收楼层费',
+      roomRemark: room.remark || '',
       teamName: teamMap.get(room.teamId)?.name || '',
       teamRemark: teamMap.get(room.teamId)?.remark || '',
     })),
@@ -300,6 +312,8 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       teamId: teamIds.team1,
       segmentId: bookingSegmentOptions[0].id,
       segmentLabel: getSegmentLabel(bookingSegmentOptions[0].id),
+      floorFeeFloor: '不收楼层费',
+      remark: '靠近船中',
       additionalProductIds: [],
       guests: [
         guest(baseId, '张明', '420106198801011234', '13812345678', '男', '标准'),
@@ -313,6 +327,8 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       teamId: teamIds.team1,
       segmentId: bookingSegmentOptions[1]?.id ?? bookingSegmentOptions[0].id,
       segmentLabel: getSegmentLabel(bookingSegmentOptions[1]?.id ?? bookingSegmentOptions[0].id),
+      floorFeeFloor: '不收楼层费',
+      remark: '无烟房',
       additionalProductIds: [],
       guests: [
         guest(baseId + 2, '王强', 'P12345678', '13712345670', '男', '单间', '成人', '外宾', '护照'),
@@ -325,6 +341,8 @@ function buildMockImportRoomGroups(teamIds: { team1: string; team2: string }): R
       teamId: teamIds.team2,
       segmentId: bookingSegmentOptions[2]?.id ?? bookingSegmentOptions[0].id,
       segmentLabel: getSegmentLabel(bookingSegmentOptions[2]?.id ?? bookingSegmentOptions[0].id),
+      floorFeeFloor: '不收楼层费',
+      remark: '带婴儿需婴儿床',
       additionalProductIds: [],
       guests: [
         guest(baseId + 3, '赵丽', '420106199204041237', '13612345671', '女', '标准'),
@@ -398,6 +416,7 @@ function flattenPreviewGuests(
 interface RoomPriceLine {
   desc: string
   price: number
+  priceType: GuestPriceType
   priceTypeLabel: string
 }
 
@@ -430,6 +449,7 @@ function calculateRoomPrice(room: RoomGroup, roomData: Record<string, { price?: 
     return {
       desc,
       price: priceInfo.ticketPrice ?? 0,
+      priceType: priceInfo.priceType,
       priceTypeLabel: priceInfo.priceTypeLabel,
     }
   })
@@ -463,6 +483,8 @@ export default function Step3TouristInfo({
   const [newRoomType, setNewRoomType] = useState('标准间')
   const [newRoomTeamId, setNewRoomTeamId] = useState('')
   const [newRoomSegmentId, setNewRoomSegmentId] = useState(bookingSegmentOptions[0].id)
+  const [newRoomFloorFee, setNewRoomFloorFee] = useState('不收楼层费')
+  const [newRoomRemark, setNewRoomRemark] = useState('')
   const [newTeamName, setNewTeamName] = useState('')
   const [importPreview, setImportPreview] = useState<ImportPreviewGuest[]>([])
   const [importTip, setImportTip] = useState('')
@@ -605,9 +627,9 @@ export default function Step3TouristInfo({
     })
     if (incomplete.length > 0) return `第 ${incomplete.join('、')} 行信息未补全（姓名/证件号码必填）`
     const escortIncomplete = escortTickets
-      .map((ticket, index) => (!ticket.name.trim() || !ticket.idNum.trim() ? index + 1 : null))
+      .map((ticket, index) => (!ticket.name.trim() || !ticket.idNum.trim() || !ticket.guideCert.trim() ? index + 1 : null))
       .filter((value): value is number => value !== null)
-    if (escortIncomplete.length > 0) return `全陪票第 ${escortIncomplete.join('、')} 行信息未补全（姓名/证件号码必填）`
+    if (escortIncomplete.length > 0) return `全陪票第 ${escortIncomplete.join('、')} 行信息未补全（姓名/证件号码/导游证号必填）`
     return ''
   }, [escortTickets, roomGroups, touristList.length])
 
@@ -659,7 +681,18 @@ export default function Step3TouristInfo({
       alert('请先新增团名')
       return
     }
-    setRoomGroups((prev) => [...prev, createRoomGroup(nextRoomSeq, newRoomType, undefined, teamId, newRoomSegmentId)])
+    setRoomGroups((prev) => [
+      ...prev,
+      createRoomGroup(
+        nextRoomSeq,
+        newRoomType,
+        undefined,
+        teamId,
+        newRoomSegmentId,
+        newRoomFloorFee,
+        newRoomRemark,
+      ),
+    ])
     setAddRoomOpen(false)
   }
 
@@ -704,10 +737,32 @@ export default function Step3TouristInfo({
     )
   }
 
+  const updateRoomFloorFee = (roomId: string, floorFeeFloor: string) => {
+    setRoomGroups((prev) =>
+      prev.map((room) =>
+        room.id === roomId
+          ? { ...room, floorFeeFloor }
+          : room,
+      ),
+    )
+  }
+
+  const updateRoomRemark = (roomId: string, remark: string) => {
+    setRoomGroups((prev) =>
+      prev.map((room) =>
+        room.id === roomId
+          ? { ...room, remark }
+          : room,
+      ),
+    )
+  }
+
   const openAddRoom = (teamId?: string) => {
     setNewRoomType(roomTypeOptions[0] || '标准间')
     setNewRoomTeamId(teamId || teams[0]?.id || '')
     setNewRoomSegmentId(bookingSegmentOptions[0].id)
+    setNewRoomFloorFee('不收楼层费')
+    setNewRoomRemark('')
     setAddRoomOpen(true)
   }
 
@@ -802,8 +857,10 @@ export default function Step3TouristInfo({
       {
         id: `escort-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: '',
+        role: '导游',
         idType: '身份证',
         idNum: '',
+        guideCert: '',
         phone: '',
         remark: '',
       },
@@ -855,7 +912,7 @@ export default function Step3TouristInfo({
         <Info className="w-5 h-5 shrink-0" />
         <span>
           {mode === 'order-edit' && orderNo ? `订单号 ${orderNo} · ` : ''}
-          可按团名分组录入，同一团下可包含多种房型；团备注对该团下全部房间生效。姓名和证件号码为必填项；性别、年龄、票价、价格类型根据证件自动识别，不可手动修改。
+          可按团名分组录入，同一团下可包含多种房型；团备注对该团下全部房间生效。姓名和证件号码为必填项；性别、年龄根据证件自动识别；价格政策支持下拉选择或默认自动匹配。
         </span>
       </div>
 
@@ -994,6 +1051,24 @@ export default function Step3TouristInfo({
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={room.floorFeeFloor || '不收楼层费'}
+                    onChange={(e) => updateRoomFloorFee(room.id, e.target.value)}
+                    className="h-8 min-w-[110px] rounded border border-gray-300 bg-white px-2 text-xs text-gray-600 outline-none focus:border-blue-500"
+                    title="楼层费（按房收取）"
+                  >
+                    {floorFeeOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="房备注（如：靠近船中、婴儿床、连通房等）"
+                    value={room.remark || ''}
+                    onChange={(e) => updateRoomRemark(room.id, e.target.value)}
+                    className="h-8 w-60 rounded border border-gray-300 bg-white px-2 text-xs text-gray-700 outline-none focus:border-blue-500 placeholder:text-gray-400"
+                    title="房间备注"
+                  />
                   <span className="text-xs text-gray-500">{room.guests.length} 人</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1036,23 +1111,22 @@ export default function Step3TouristInfo({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1420px] text-left text-sm whitespace-nowrap">
+                <table className="w-full min-w-[1440px] text-left text-sm whitespace-nowrap">
                   <thead className="border-b border-gray-100 bg-white text-gray-600">
                     <tr>
-                      <th className="w-10 px-3 py-3 text-center">序</th>
-                      <th className="w-24 px-3 py-3">入住类型</th>
-                      <th className="w-28 px-3 py-3">姓名 <span className="text-red-500">*</span></th>
-                      <th className="w-24 px-3 py-3">国籍</th>
-                      <th className="w-24 px-3 py-3">楼层费</th>
-                      <th className="w-24 px-3 py-3">证件类型</th>
-                      <th className="w-32 px-3 py-3">证件号码 <span className="text-red-500">*</span></th>
-                      <th className="w-16 px-3 py-3 text-gray-400">性别</th>
-                      <th className="w-16 px-3 py-3 text-gray-400">年龄</th>
-                      <th className="w-24 px-3 py-3 text-right text-gray-400">票价</th>
-                      <th className="w-20 px-3 py-3 text-gray-400">价格类型</th>
-                      <th className="w-28 px-3 py-3">手机号</th>
-                      <th className="w-36 px-3 py-3">按人附加产品</th>
-                      <th className="w-12 px-3 py-3 text-center">操作</th>
+                      <th className="w-10 px-2 py-3 text-center">序</th>
+                      <th className="w-28 px-2 py-3">入住类型</th>
+                      <th className="w-32 px-2 py-3">姓名 <span className="text-red-500">*</span></th>
+                      <th className="w-24 px-2 py-3">国籍</th>
+                      <th className="w-28 px-2 py-3">证件类型</th>
+                      <th className="w-48 px-2 py-3">证件号码 <span className="text-red-500">*</span></th>
+                      <th className="w-14 px-2 py-3 text-center text-gray-400">性别</th>
+                      <th className="w-14 px-2 py-3 text-center text-gray-400">年龄</th>
+                      <th className="w-24 px-2 py-3 text-right text-gray-400">票价</th>
+                      <th className="w-52 px-2 py-3">价格政策</th>
+                      <th className="w-32 px-2 py-3">手机号</th>
+                      <th className="w-32 px-2 py-3">按人附加产品</th>
+                      <th className="w-12 px-2 py-3 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1062,10 +1136,10 @@ export default function Step3TouristInfo({
                       const priceInfo = guestPriceMap.get(`${room.id}-${guest.id}`)
                       return (
                         <tr key={guest.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 text-center text-gray-500">{rowNo}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2 text-center text-xs text-gray-500">{rowNo}</td>
+                          <td className="px-2 py-2">
                             <select
-                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              className="h-8 w-full rounded border border-gray-300 px-1.5 text-xs outline-none focus:border-blue-500 bg-white"
                               value={guest.stayType}
                               onChange={(e) => updateGuestField(room.id, guest.id, 'stayType', e.target.value)}
                             >
@@ -1075,16 +1149,16 @@ export default function Step3TouristInfo({
                               <option value="加床">加床</option>
                             </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <NameCombobox
                               value={guest.name}
                               onChange={(name) => updateGuestField(room.id, guest.id, 'name', name)}
                               onSelectGuest={(option) => applyGuestSuggestion(room.id, guest.id, option)}
                             />
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <select
-                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              className="h-8 w-full rounded border border-gray-300 px-1.5 text-xs outline-none focus:border-blue-500 bg-white"
                               value={guest.nationality}
                               onChange={(e) => updateGuestField(room.id, guest.id, 'nationality', e.target.value)}
                             >
@@ -1093,20 +1167,9 @@ export default function Step3TouristInfo({
                               ))}
                             </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <select
-                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
-                              value={guest.floorFeeFloor}
-                              onChange={(e) => updateGuestField(room.id, guest.id, 'floorFeeFloor', e.target.value)}
-                            >
-                              {floorFeeOptions.map((option) => (
-                                <option key={option} value={option}>{option}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-3 py-2">
-                            <select
-                              className="h-8 w-full rounded border border-gray-300 px-1 text-xs outline-none focus:border-blue-500"
+                              className="h-8 w-full rounded border border-gray-300 px-1.5 text-xs outline-none focus:border-blue-500 bg-white"
                               value={guest.idType}
                               onChange={(e) => updateGuestField(room.id, guest.id, 'idType', e.target.value)}
                             >
@@ -1115,42 +1178,42 @@ export default function Step3TouristInfo({
                               ))}
                             </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <input
-                              className="h-8 w-full rounded border border-gray-300 px-2 text-xs outline-none focus:border-blue-500"
-                              placeholder="证件号码"
+                              className="h-8 w-full rounded border border-gray-300 px-2 font-mono text-xs outline-none focus:border-blue-500"
+                              placeholder="18位身份证号 / 护照号"
                               value={guest.idNum}
                               onChange={(e) => updateGuestField(room.id, guest.id, 'idNum', e.target.value)}
                             />
                           </td>
-                          <td className="px-3 py-2">
-                            <ReadOnlyCell>{guest.gender || '-'}</ReadOnlyCell>
+                          <td className="px-2 py-2">
+                            <ReadOnlyCell className="justify-center text-center">{guest.gender || '-'}</ReadOnlyCell>
                           </td>
-                          <td className="px-3 py-2">
-                            <ReadOnlyCell>{guest.age ? `${guest.age}岁` : '-'}</ReadOnlyCell>
+                          <td className="px-2 py-2">
+                            <ReadOnlyCell className="justify-center text-center">{guest.age ? `${guest.age}岁` : '-'}</ReadOnlyCell>
                           </td>
-                          <td className="px-3 py-2 text-right">
+                          <td className="px-2 py-2 text-right">
                             <ReadOnlyCell className="justify-end tabular-nums font-medium text-gray-900">
                               {formatCurrency(priceInfo?.ticketPrice ?? 0)}
                             </ReadOnlyCell>
                           </td>
-                          <td className="px-3 py-2">
-                            <ReadOnlyCell>
-                              <span
-                                className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                                  priceInfo?.priceType === 'regional'
-                                    ? 'bg-purple-50 text-purple-700'
-                                    : 'bg-blue-50 text-blue-700'
-                                }`}
-                              >
-                                {priceInfo?.priceTypeLabel ?? '口岸价'}
-                              </span>
-                            </ReadOnlyCell>
+                          <td className="px-2 py-2">
+                            <select
+                              className="h-8 w-full rounded border border-gray-300 bg-white px-1.5 text-xs outline-none focus:border-blue-500"
+                              value={guest.pricePolicyId || 'auto'}
+                              onChange={(e) => updateGuestField(room.id, guest.id, 'pricePolicyId', e.target.value)}
+                            >
+                              {BOOKING_PRICE_POLICIES.map((policy) => (
+                                <option key={policy.id} value={policy.id}>
+                                  {policy.name}
+                                </option>
+                              ))}
+                            </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <input
-                              className="h-8 w-full rounded border border-gray-300 px-2 text-xs outline-none focus:border-blue-500"
-                              placeholder="手机号"
+                              className="h-8 w-full rounded border border-gray-300 px-2 font-mono text-xs outline-none focus:border-blue-500"
+                              placeholder="11位手机号"
                               value={guest.phone}
                               onChange={(e) => updateGuestField(room.id, guest.id, 'phone', e.target.value)}
                             />
@@ -1211,7 +1274,7 @@ export default function Step3TouristInfo({
                           {line.desc}
                           <span
                             className={`ml-1 rounded px-1 py-0.5 text-[10px] ${
-                                line.priceTypeLabel === '区域价'
+                                line.priceType === 'regional'
                                 ? 'bg-purple-50 text-purple-700'
                                 : 'bg-blue-50 text-blue-700'
                             }`}
@@ -1284,7 +1347,7 @@ export default function Step3TouristInfo({
                           )}
                           <span
                             className={`rounded px-1.5 py-0.5 text-[10px] ${
-                              guest.priceTypeLabel === '区域价'
+                              guest.priceTypeLabel === '重庆地区结算政策'
                                 ? 'bg-purple-50 text-purple-700'
                                 : 'bg-blue-50 text-blue-700'
                             }`}
@@ -1328,8 +1391,8 @@ export default function Step3TouristInfo({
       <div className="mt-6 rounded-lg border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <div>
-            <div className="text-sm font-semibold text-gray-900">全陪票信息</div>
-            <div className="mt-1 text-xs text-gray-500">用于录入团队全陪票，最多可添加 2 张，不占用房间旅客名额。</div>
+            <div className="text-sm font-semibold text-gray-900">全陪票（导游票优惠）</div>
+            <div className="mt-1 text-xs text-gray-500">给随团导游/领队的优惠票，须持导游证；不占用房间旅客名额。团队人数达标后按营销规则免半或全免。</div>
           </div>
           <button
             type="button"
@@ -1356,7 +1419,7 @@ export default function Step3TouristInfo({
                     <Trash2 className="h-3.5 w-3.5" /> 删除
                   </button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                   <label className="space-y-1">
                     <span className="block text-xs text-gray-500">姓名 <span className="text-red-500">*</span></span>
                     <input
@@ -1365,6 +1428,17 @@ export default function Step3TouristInfo({
                       className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
                       placeholder="请输入姓名"
                     />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">身份</span>
+                    <select
+                      value={ticket.role}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'role', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                    >
+                      <option value="导游">导游</option>
+                      <option value="领队">领队</option>
+                    </select>
                   </label>
                   <label className="space-y-1">
                     <span className="block text-xs text-gray-500">证件类型</span>
@@ -1388,21 +1462,21 @@ export default function Step3TouristInfo({
                     />
                   </label>
                   <label className="space-y-1">
+                    <span className="block text-xs text-gray-500">导游证号 <span className="text-red-500">*</span></span>
+                    <input
+                      value={ticket.guideCert}
+                      onChange={(e) => updateEscortTicket(ticket.id, 'guideCert', e.target.value)}
+                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                      placeholder="请输入导游证号"
+                    />
+                  </label>
+                  <label className="space-y-1">
                     <span className="block text-xs text-gray-500">手机号</span>
                     <input
                       value={ticket.phone}
                       onChange={(e) => updateEscortTicket(ticket.id, 'phone', e.target.value)}
                       className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
                       placeholder="请输入手机号"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="block text-xs text-gray-500">备注</span>
-                    <input
-                      value={ticket.remark}
-                      onChange={(e) => updateEscortTicket(ticket.id, 'remark', e.target.value)}
-                      className="h-9 w-full rounded border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
-                      placeholder="如：领队/导游"
                     />
                   </label>
                 </div>
@@ -1478,9 +1552,29 @@ export default function Step3TouristInfo({
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
+            <label className="mb-2 block text-sm text-gray-600">楼层费（按房收取）</label>
+            <select
+              value={newRoomFloorFee}
+              onChange={(e) => setNewRoomFloorFee(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            >
+              {floorFeeOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+            <label className="mb-2 block text-sm text-gray-600">房间备注</label>
+            <input
+              type="text"
+              placeholder="如：靠近船中、需安排无烟房、加婴儿床等"
+              value={newRoomRemark}
+              onChange={(e) => setNewRoomRemark(e.target.value)}
+              className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
             <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
               将新增房间 <strong className="text-gray-900">{nextRoomSeq}</strong>，
               航段 <strong className="text-gray-900">{getSegmentLabel(newRoomSegmentId)}</strong>，
+              楼层 <strong className="text-gray-900">{newRoomFloorFee}</strong>，
+              {newRoomRemark && <>备注 <strong className="text-gray-900">{newRoomRemark}</strong>，</>}
               默认添加 <strong className="text-gray-900">{defaultGuestCount(newRoomType)}</strong> 位游客
             </div>
             <div className="mt-5 flex justify-end gap-3">

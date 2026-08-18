@@ -226,7 +226,7 @@ export const shipApi = createCrudApi<Ship>(ships, {
 })
 
 export const portApi = createCrudApi<Port>(ports, {
-  searchFields: ['name', 'nameEn', 'code', 'city', 'province', 'address'],
+  searchFields: ['name', 'nameEn', 'code', 'portCode', 'city', 'province', 'address'],
 })
 
 export const portDistanceApi = createCrudApi<PortDistance>(portDistances, {

@@ -12,7 +12,7 @@ export interface GuestPriceInfo {
 }
 
 export function formatPriceTypeLabel(type: GuestPriceType) {
-  return type === 'regional' ? '区域价' : '口岸价'
+  return type === 'regional' ? '重庆地区结算政策' : '口岸结算政策'
 }
 
 export function parseAgeFromIdCard(idNum: string) {
@@ -62,6 +62,23 @@ export function resolveGuestPriceType(input: {
   return 'port'
 }
 
+export interface PricePolicyOption {
+  id: string
+  name: string
+  shortLabel: string
+  factor: number
+  desc: string
+}
+
+export const BOOKING_PRICE_POLICIES: PricePolicyOption[] = [
+  { id: 'auto', name: '自动匹配政策 (默认)', shortLabel: '自动匹配', factor: 1, desc: '根据证件属地/国籍自动识别' },
+  { id: 'cq_trade', name: '重庆地区结算政策 (9折)', shortLabel: '重庆地区结算政策', factor: 0.9, desc: '9折' },
+  { id: 'hb_trade', name: '湖北同业结算政策 (92折)', shortLabel: '湖北同业结算政策', factor: 0.92, desc: '9.2折' },
+  { id: 'port_base', name: '口岸基准政策 (无折扣)', shortLabel: '口岸基准政策', factor: 1.0, desc: '标准基准价' },
+  { id: 'ota_special', name: 'OTA渠道结算政策 (88折)', shortLabel: 'OTA渠道结算政策', factor: 0.88, desc: '8.8折' },
+  { id: 'vip_protocol', name: 'VIP协议优惠政策 (85折)', shortLabel: 'VIP协议优惠政策', factor: 0.85, desc: '8.5折' },
+]
+
 export function applyGuestPriceType(ticketPrice: number, priceType: GuestPriceType) {
   if (priceType === 'port') return ticketPrice
   return Math.round(ticketPrice * REGIONAL_PRICE_FACTOR)
@@ -74,6 +91,7 @@ interface GuestPriceInput {
   nationality: string
   guestType: string
   stayType: string
+  pricePolicyId?: string
 }
 
 interface RoomPriceInput {
@@ -119,8 +137,19 @@ export function resolveGuestPriceInfo(
   guestIndex: number,
   basePrice: number,
 ): GuestPriceInfo {
-  const priceType = resolveGuestPriceType(guest)
   const { price } = calculateGuestBaseTicket(room, guestIndex, basePrice)
+  const selectedPolicy = BOOKING_PRICE_POLICIES.find((item) => item.id === guest.pricePolicyId)
+
+  if (selectedPolicy && selectedPolicy.id !== 'auto') {
+    const ticketPrice = Math.round(price * selectedPolicy.factor)
+    return {
+      ticketPrice,
+      priceType: selectedPolicy.id === 'port_base' ? 'port' : 'regional',
+      priceTypeLabel: selectedPolicy.shortLabel,
+    }
+  }
+
+  const priceType = resolveGuestPriceType(guest)
   const ticketPrice = applyGuestPriceType(price, priceType)
 
   return {

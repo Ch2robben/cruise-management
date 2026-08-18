@@ -214,6 +214,30 @@ export const yangtzeSupplementPorts: Port[] = [
   { id: 'p31', name: '巫山港码头', nameEn: 'Wushan Port Pier', code: 'WS-GK', city: '巫山', province: '重庆', address: '重庆市巫山县长江北岸', pierType: '旅游码头', berthCount: 2, maxShipLength: 130, maxDraft: 3.8, dockingWindow: '07:00-20:00', supportedShipTypes: '内河游轮', services: '候船、换乘', transferInfo: '与神女溪码头衔接', remark: '里程表锚点：巫山。', sort: 31, riverReach: 'upstream', mileageKm: 170, riverSort: 8, mileageSegment: '重庆-宜昌', piers: [], status: 'enabled', updatedBy: '系统管理员', updatedAt: '2026-06-28 10:00:00', createdAt: '2026-06-28 10:00:00' },
 ]
 
+/** 城市对应港口代码（对接用，有正式 UN/LOCODE 的用标准码） */
+const CITY_PORT_CODES: Record<string, string> = {
+  重庆: 'CNCKG',
+  涪陵: 'CNFLG',
+  丰都: 'CNFDU',
+  忠县: 'CNZHX',
+  万州: 'CNWZQ',
+  云阳: 'CNYUN',
+  奉节: 'CNFJX',
+  巫山: 'CNWSA',
+  巴东: 'CNBAD',
+  宜昌: 'CNYIH',
+  武汉: 'CNWUH',
+  荆州: 'CNJZG',
+  岳阳: 'CNYYG',
+  黄石: 'CNHSI',
+  九江: 'CNJIU',
+  安庆: 'CNAQG',
+  池州: 'CNCZH',
+  南京: 'CNNJG',
+  扬州: 'CNYZO',
+  上海: 'CNSHA',
+}
+
 export function applyYangtzeMileageToPorts(basePorts: Port[]): Port[] {
   const supplementIds = new Set(yangtzeSupplementPorts.map((item) => item.id))
   const merged = basePorts
@@ -224,6 +248,7 @@ export function applyYangtzeMileageToPorts(basePorts: Port[]): Port[] {
       return { ...port, ...meta, remark: port.remark || `里程表：${meta.mileageSegment}。` }
     })
   return enrichPortSailTimes([...merged, ...yangtzeSupplementPorts].sort((a, b) => (a.riverSort ?? a.sort) - (b.riverSort ?? b.sort)))
+    .map((port) => ({ ...port, portCode: port.portCode || CITY_PORT_CODES[port.city] || '' }))
 }
 
 /** 按里程表相邻锚点推算默认上/下水航行时间（分钟） */

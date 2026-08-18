@@ -6,10 +6,21 @@ import DataTable from '@/components/common/DataTable'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import { dealers } from '@/mock/data'
 
-type DiscountType = '立减优惠' | '年龄优惠' | '限时优惠' | '折扣优惠' | '渠道优惠'
+type DiscountType = '立减优惠' | '年龄优惠' | '限时优惠' | '折扣优惠' | '渠道优惠' | '全陪票优惠'
 type DiscountStatus = '启用' | '停用'
 type DiscountScene = '2B' | '2C'
-type ChannelDiscountMode = '满减优惠' | '团队全陪票'
+type ChannelDiscountMode = '满减优惠'
+type EscortBenefit = 'half' | 'free' | 'oneTicket'
+
+const escortBenefitOptions: { value: EscortBenefit; label: string; hint: string }[] = [
+  { value: 'half', label: '导游票免半', hint: '随团导游/领队按半价结算' },
+  { value: 'free', label: '导游票全免', hint: '随团导游/领队免票，小费通常同步免收' },
+  { value: 'oneTicket', label: '减免 1 张导游票', hint: '满足人数后减免一张全陪票' },
+]
+
+function escortBenefitLabel(value?: EscortBenefit) {
+  return escortBenefitOptions.find((item) => item.value === value)?.label ?? '导游票优惠'
+}
 
 const activeDealers = dealers.filter((item) => item.status === 'cooperating')
 
@@ -27,6 +38,8 @@ interface DiscountRule {
   channelReduction?: number
   escortTeamMin?: number
   escortTeamMax?: number
+  escortBenefit?: EscortBenefit
+  requireGuideCert?: boolean
   sailingCount: number
   cabinCount: number
   validPeriod: string
@@ -103,16 +116,37 @@ const initialRules: DiscountRule[] = [
   },
   {
     id: 'DR20260704005',
-    name: '同业渠道暑期团队礼遇',
-    type: '渠道优惠',
+    name: '同业团队全陪票',
+    type: '全陪票优惠',
     discountValue: 0,
     discountUnit: '元',
     settlementReduction: 0,
     stock: 120,
     scenes: ['2B'],
-    channelMode: '团队全陪票',
     escortTeamMin: 10,
-    escortTeamMax: 20,
+    escortTeamMax: 99,
+    escortBenefit: 'free',
+    requireGuideCert: true,
+    sailingCount: 5,
+    cabinCount: 12,
+    validPeriod: '2026-07-06 至 2026-08-10',
+    status: '启用',
+    updatedAt: '2026-07-04 11:20',
+    dealerIds: activeDealers.slice(0, 4).map((item) => item.id),
+  },
+  {
+    id: 'DR20260704006',
+    name: '小团导游票免半',
+    type: '全陪票优惠',
+    discountValue: 0,
+    discountUnit: '元',
+    settlementReduction: 0,
+    stock: 80,
+    scenes: ['2B'],
+    escortTeamMin: 1,
+    escortTeamMax: 9,
+    escortBenefit: 'half',
+    requireGuideCert: true,
     sailingCount: 5,
     cabinCount: 12,
     validPeriod: '2026-07-06 至 2026-08-10',
@@ -319,10 +353,10 @@ export default function DiscountManagementPage({ embedded = false }: { embedded?
       width: '180px',
       render: (rule: DiscountRule) => (
         <span className="font-semibold text-orange-600">
-          {rule.type === '渠道优惠'
-            ? rule.channelMode === '满减优惠'
-              ? `满${rule.channelThreshold ?? 0}减${rule.channelReduction ?? 0}`
-              : `${rule.escortTeamMin ?? 0}-${rule.escortTeamMax ?? 0}人减1张全陪票`
+          {rule.type === '全陪票优惠'
+            ? `${rule.escortTeamMin ?? 0}-${rule.escortTeamMax ?? 0}人${escortBenefitLabel(rule.escortBenefit)}`
+            : rule.type === '渠道优惠'
+            ? `满${rule.channelThreshold ?? 0}减${rule.channelReduction ?? 0}`
             : rule.discountUnit === '元'
               ? `¥${rule.discountValue}`
               : `${rule.discountValue}折`}
@@ -380,7 +414,7 @@ export default function DiscountManagementPage({ embedded = false }: { embedded?
       )}
 
       {!embedded && (
-        <PageHeader title="营销规则管理" description="维护营销优惠规则，并关联具体经销商生效范围。">
+        <PageHeader title="营销规则管理" description="维护立减、折扣、渠道满减，以及给导游票的全陪票优惠；规则需关联经销商后生效。">
           <button onClick={openCreate} className="flex h-10 items-center gap-2 rounded bg-blue-600 px-4 text-sm text-white hover:bg-blue-700">
             <Plus className="h-4 w-4" />
             新增营销规则
@@ -424,6 +458,7 @@ export default function DiscountManagementPage({ embedded = false }: { embedded?
               <option>限时优惠</option>
               <option>折扣优惠</option>
               <option>渠道优惠</option>
+              <option>全陪票优惠</option>
             </select>
           </label>
           <label className="space-y-2">
@@ -505,6 +540,8 @@ interface EditorForm {
   channelReduction?: number
   escortTeamMin?: number
   escortTeamMax?: number
+  escortBenefit?: EscortBenefit
+  requireGuideCert?: boolean
   sailingCount: number
   cabinCount: number
   validPeriod: string
@@ -532,6 +569,8 @@ function DiscountEditor({
   const [channelReduction, setChannelReduction] = useState(initialRule?.channelReduction ?? 300)
   const [escortTeamMin, setEscortTeamMin] = useState(initialRule?.escortTeamMin ?? 10)
   const [escortTeamMax, setEscortTeamMax] = useState(initialRule?.escortTeamMax ?? 20)
+  const [escortBenefit, setEscortBenefit] = useState<EscortBenefit>(initialRule?.escortBenefit ?? 'free')
+  const [requireGuideCert, setRequireGuideCert] = useState(initialRule?.requireGuideCert ?? true)
   const [productFilter, setProductFilter] = useState('')
   const [routeFilter, setRouteFilter] = useState('')
   const [activeSailing, setActiveSailing] = useState(sailings[0])
@@ -629,12 +668,8 @@ function DiscountEditor({
     )
   }
 
-  const channelRuleValid =
-    type !== '渠道优惠'
-      ? true
-      : channelMode === '满减优惠'
-        ? channelThreshold > 0 && channelReduction > 0
-        : escortTeamMin > 0 && escortTeamMax >= escortTeamMin
+  const channelRuleValid = type !== '渠道优惠' || (channelThreshold > 0 && channelReduction > 0)
+  const escortRuleValid = type !== '全陪票优惠' || (escortTeamMin > 0 && escortTeamMax >= escortTeamMin)
 
   const isValid =
     name.trim() &&
@@ -643,7 +678,11 @@ function DiscountEditor({
     dealerIds.length > 0 &&
     selectedSailings.length > 0 &&
     selectedCabins.length > 0 &&
-    (type === '渠道优惠' ? channelRuleValid : discountValue > 0)
+    (type === '渠道优惠'
+      ? channelRuleValid
+      : type === '全陪票优惠'
+        ? escortRuleValid
+        : discountValue > 0)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 p-4">
@@ -668,6 +707,7 @@ function DiscountEditor({
                 <option>限时优惠</option>
                 <option>折扣优惠</option>
                 <option>渠道优惠</option>
+                <option>全陪票优惠</option>
               </select>
 
               {type === '年龄优惠' && (
@@ -694,64 +734,85 @@ function DiscountEditor({
 
               {type === '渠道优惠' ? (
                 <>
-                  <FormLabel required>渠道规则</FormLabel>
-                  <select value={channelMode} onChange={(event) => setChannelMode(event.target.value as ChannelDiscountMode)} className={`${inputClass} w-full`}>
-                    <option>满减优惠</option>
-                    <option>团队全陪票</option>
-                  </select>
-
-                  {channelMode === '满减优惠' ? (
-                    <>
-                      <FormLabel required>满减门槛</FormLabel>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">满</span>
+                  <FormLabel required>满减门槛</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">满</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={channelThreshold}
+                      onChange={(event) => setChannelThreshold(Number(event.target.value))}
+                      className={`${inputClass} w-40`}
+                    />
+                    <span className="text-sm text-gray-600">元</span>
+                  </div>
+                  <FormLabel required>优惠金额</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">减</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={channelReduction}
+                      onChange={(event) => setChannelReduction(Number(event.target.value))}
+                      className={`${inputClass} w-40`}
+                    />
+                    <span className="text-sm text-gray-600">元</span>
+                  </div>
+                </>
+              ) : type === '全陪票优惠' ? (
+                <>
+                  <FormLabel required>团队人数</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={escortTeamMin}
+                      onChange={(event) => setEscortTeamMin(Number(event.target.value))}
+                      className={`${inputClass} w-24`}
+                    />
+                    <span className="text-sm text-gray-500">-</span>
+                    <input
+                      type="number"
+                      min={escortTeamMin}
+                      value={escortTeamMax}
+                      onChange={(event) => setEscortTeamMax(Number(event.target.value))}
+                      className={`${inputClass} w-24`}
+                    />
+                    <span className="text-sm text-gray-600">人</span>
+                  </div>
+                  <FormLabel required>导游票优惠</FormLabel>
+                  <div className="space-y-2">
+                    {escortBenefitOptions.map((item) => (
+                      <label
+                        key={item.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 ${
+                          escortBenefit === item.value ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
                         <input
-                          type="number"
-                          min={1}
-                          value={channelThreshold}
-                          onChange={(event) => setChannelThreshold(Number(event.target.value))}
-                          className={`${inputClass} w-40`}
+                          type="radio"
+                          name="escortBenefit"
+                          checked={escortBenefit === item.value}
+                          onChange={() => setEscortBenefit(item.value)}
+                          className="mt-1 accent-blue-600"
                         />
-                        <span className="text-sm text-gray-600">元</span>
-                      </div>
-                      <FormLabel required>优惠金额</FormLabel>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">减</span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={channelReduction}
-                          onChange={(event) => setChannelReduction(Number(event.target.value))}
-                          className={`${inputClass} w-40`}
-                        />
-                        <span className="text-sm text-gray-600">元</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <FormLabel required>团队人数</FormLabel>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={escortTeamMin}
-                          onChange={(event) => setEscortTeamMin(Number(event.target.value))}
-                          className={`${inputClass} w-24`}
-                        />
-                        <span className="text-sm text-gray-500">-</span>
-                        <input
-                          type="number"
-                          min={escortTeamMin}
-                          value={escortTeamMax}
-                          onChange={(event) => setEscortTeamMax(Number(event.target.value))}
-                          className={`${inputClass} w-24`}
-                        />
-                        <span className="text-sm text-gray-600">人</span>
-                      </div>
-                      <FormLabel>优惠说明</FormLabel>
-                      <div className="text-sm text-gray-600">满足人数区间后，可减 1 张全陪票</div>
-                    </>
-                  )}
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900">{item.label}</span>
+                          <span className="mt-0.5 block text-xs text-gray-500">{item.hint}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <FormLabel>资质要求</FormLabel>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={requireGuideCert}
+                      onChange={(event) => setRequireGuideCert(event.target.checked)}
+                      className="accent-blue-600"
+                    />
+                    须持中华人民共和国导游证
+                  </label>
                 </>
               ) : (
                 <>
@@ -971,16 +1032,18 @@ function DiscountEditor({
               onSave({
                 name: name.trim(),
                 type,
-                discountValue: type === '渠道优惠' ? (channelMode === '满减优惠' ? channelReduction : 0) : discountValue,
+                discountValue: type === '渠道优惠' ? channelReduction : type === '全陪票优惠' ? 0 : discountValue,
                 discountUnit,
-                settlementReduction: type === '折扣优惠' || type === '渠道优惠' ? 0 : settlementReduction,
+                settlementReduction: type === '折扣优惠' || type === '渠道优惠' || type === '全陪票优惠' ? 0 : settlementReduction,
                 stock,
                 scenes,
-                channelMode: type === '渠道优惠' ? channelMode : undefined,
-                channelThreshold: type === '渠道优惠' && channelMode === '满减优惠' ? channelThreshold : undefined,
-                channelReduction: type === '渠道优惠' && channelMode === '满减优惠' ? channelReduction : undefined,
-                escortTeamMin: type === '渠道优惠' && channelMode === '团队全陪票' ? escortTeamMin : undefined,
-                escortTeamMax: type === '渠道优惠' && channelMode === '团队全陪票' ? escortTeamMax : undefined,
+                channelMode: type === '渠道优惠' ? '满减优惠' : undefined,
+                channelThreshold: type === '渠道优惠' ? channelThreshold : undefined,
+                channelReduction: type === '渠道优惠' ? channelReduction : undefined,
+                escortTeamMin: type === '全陪票优惠' ? escortTeamMin : undefined,
+                escortTeamMax: type === '全陪票优惠' ? escortTeamMax : undefined,
+                escortBenefit: type === '全陪票优惠' ? escortBenefit : undefined,
+                requireGuideCert: type === '全陪票优惠' ? requireGuideCert : undefined,
                 sailingCount: selectedSailings.length,
                 cabinCount: selectedCabins.length,
                 validPeriod: `${selectedSailings[0]} 至 ${selectedSailings[selectedSailings.length - 1]}`,

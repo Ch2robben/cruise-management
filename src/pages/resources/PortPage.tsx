@@ -19,6 +19,7 @@ const emptyForm: PortForm = {
   name: '',
   nameEn: '',
   code: '',
+  portCode: '',
   city: '',
   province: '',
   district: '',
@@ -108,6 +109,7 @@ export default function PortPage() {
       name: record.name,
       nameEn: record.nameEn,
       code: record.code,
+      portCode: record.portCode || '',
       city: record.city,
       province: record.province || findProvinceByCity(record.city),
       district: record.district || '',
@@ -185,6 +187,7 @@ export default function PortPage() {
       </div>
     ) },
     { key: 'code', title: '码头编码', render: (record: Port) => <span className="font-mono text-xs">{record.code || '-'}</span> },
+    { key: 'portCode', title: '港口代码', width: '110px', render: (record: Port) => <span className="font-mono text-xs">{record.portCode || '-'}</span> },
     { key: 'riverReach', title: '江段', width: '90px', render: (record: Port) => (
       <span className="text-sm text-gray-700">{record.riverReach ? RIVER_REACH_LABEL[record.riverReach] : '-'}</span>
     ) },
@@ -217,7 +220,7 @@ export default function PortPage() {
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') fetchData(1) }}
-            placeholder="码头名称/编码"
+            placeholder="码头名称/编码/港口代码"
             className="w-52 px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
         </div>
@@ -273,6 +276,7 @@ export default function PortPage() {
               <div><label className="mb-1 block text-sm text-gray-700">码头名称 <span className="text-red-500">*</span></label><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} /></div>
               <div><label className="mb-1 block text-sm text-gray-700">英文名称</label><input value={form.nameEn} onChange={(event) => setForm({ ...form, nameEn: event.target.value })} className={inputClass} /></div>
               <div><label className="mb-1 block text-sm text-gray-700">码头编码</label><input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} className={`${inputClass} font-mono`} /></div>
+              <div><label className="mb-1 block text-sm text-gray-700">港口代码</label><input value={form.portCode} onChange={(event) => setForm({ ...form, portCode: event.target.value })} placeholder="如 CNCKG" className={`${inputClass} font-mono`} /></div>
               <RegionCascadeSelect
                 province={form.province}
                 city={form.city}
@@ -310,6 +314,7 @@ export default function PortPage() {
             <DetailRow label="码头名称" value={detail.name} />
             <DetailRow label="英文名称" value={detail.nameEn || '-'} />
             <DetailRow label="码头编码" value={detail.code || '-'} mono />
+            <DetailRow label="港口代码" value={detail.portCode || '-'} mono />
             <DetailRow label="所属城市" value={[detail.province, detail.city, detail.district].filter(Boolean).join(' · ') || '-'} />
             <DetailRow label="详细地址" value={detail.address || '-'} />
             <DetailRow label="经纬度" value={`${detail.longitude || '-'}, ${detail.latitude || '-'}`} />

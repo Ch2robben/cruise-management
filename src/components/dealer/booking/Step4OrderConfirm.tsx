@@ -66,6 +66,8 @@ interface RoomGroupLike {
   roomType: string
   teamId?: string
   segmentLabel: string
+  floorFeeFloor?: string
+  remark?: string
   additionalProductIds?: string[]
   guests: TouristGuestLike[]
 }
@@ -79,8 +81,10 @@ interface TeamLike {
 interface EscortTicketLike {
   id: string
   name: string
+  role?: string
   idType: string
   idNum: string
+  guideCert?: string
   phone?: string
   remark?: string
 }
@@ -101,6 +105,7 @@ interface PriceGuestRow {
   teamName: string
   roomSeq: string
   roomType: string
+  roomRemark?: string
   name: string
   ageGroup: string
   gender: string
@@ -215,12 +220,13 @@ export default function Step4OrderConfirm({
           teamName: teamMap.get(room.teamId || '') || '默认团',
           roomSeq: room.roomSeq,
           roomType: room.roomType,
+          roomRemark: room.remark || '',
           name: guest.name || `游客${index + 1}`,
           ageGroup: guest.ageGroup || '-',
           gender: guest.gender || '-',
           stayType: guest.stayType || '-',
           nationality: guest.nationality || '-',
-          floorFeeFloor: guest.floorFeeFloor || '不收楼层费',
+          floorFeeFloor: room.floorFeeFloor || guest.floorFeeFloor || '不收楼层费',
           priceTypeLabel: priceInfo.priceTypeLabel,
           ticketPrice: priceInfo.ticketPrice,
         }
@@ -411,19 +417,20 @@ export default function Step4OrderConfirm({
 
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white lg:col-span-2">
           <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
-            <h3 className="text-sm font-semibold text-gray-800">全陪票信息</h3>
+            <h3 className="text-sm font-semibold text-gray-800">全陪票（导游票优惠）</h3>
           </div>
           {escortTickets.length === 0 ? (
             <div className="px-5 py-6 text-sm text-gray-400">未录入全陪票</div>
           ) : (
             <div className="divide-y divide-gray-100">
               {escortTickets.map((ticket, index) => (
-                <div key={ticket.id} className="grid gap-x-10 px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div key={ticket.id} className="grid gap-x-10 px-5 py-3 sm:grid-cols-2 lg:grid-cols-6">
                   <FieldItem label={`全陪票${index + 1}`} value={ticket.name} />
+                  <FieldItem label="身份" value={ticket.role || '导游'} />
                   <FieldItem label="证件类型" value={ticket.idType} />
                   <FieldItem label="证件号码" value={ticket.idNum} mono />
+                  <FieldItem label="导游证号" value={ticket.guideCert || '-'} mono />
                   <FieldItem label="手机号" value={ticket.phone || '-'} />
-                  <FieldItem label="备注" value={ticket.remark || '-'} />
                 </div>
               ))}
             </div>
@@ -661,7 +668,7 @@ export default function Step4OrderConfirm({
                       <table className="w-full min-w-[820px] text-sm">
                         <thead>
                           <tr className="border-b border-gray-100 bg-white">
-                            {['房间', '房型', '姓名', '国籍', '楼层费', '年龄段', '性别', '入住类型', '价格类型', '结算价'].map((col) => (
+                            {['房间', '房型', '房备注', '姓名', '国籍', '楼层费', '年龄段', '性别', '入住类型', '价格政策', '结算价'].map((col) => (
                               <th
                                 key={col}
                                 className={`px-4 py-3 text-xs font-medium text-gray-500 ${
@@ -678,6 +685,7 @@ export default function Step4OrderConfirm({
                             <tr key={guest.key} className="hover:bg-gray-50">
                               <td className="px-4 py-3 text-gray-700">房间 {guest.roomSeq}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{guest.roomType}</td>
+                              <td className="px-4 py-3 text-xs text-gray-500">{guest.roomRemark || '-'}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.name}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.nationality}</td>
                               <td className="px-4 py-3 text-gray-700">{guest.floorFeeFloor}</td>
@@ -686,7 +694,7 @@ export default function Step4OrderConfirm({
                               <td className="px-4 py-3 text-gray-700">{guest.stayType}</td>
                               <td className="px-4 py-3">
                                 <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
-                                  guest.priceTypeLabel === '区域价' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
+                                  guest.priceTypeLabel === '重庆地区结算政策' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                                 }`}>
                                   {guest.priceTypeLabel}
                                 </span>

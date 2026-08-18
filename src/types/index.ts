@@ -173,6 +173,8 @@ export interface Port {
   name: string
   nameEn: string
   code: string
+  /** 港口代码，所属港口业务码（如 UN/LOCODE 对照码） */
+  portCode?: string
   city: string
   province: string
   district?: string
@@ -212,6 +214,7 @@ export interface PortForm {
   name: string
   nameEn: string
   code: string
+  portCode: string
   city: string
   province: string
   district: string
