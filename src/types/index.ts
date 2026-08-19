@@ -33,7 +33,7 @@ export interface AgeGroup extends BaseEntity {
 /** 配额模式：共享余量 / 按经销商拆额度 */
 export type InventoryPoolQuotaMode = 'shared' | 'byDealer'
 
-/** 库存池：可售名额容器。谁能用由绑定的价格政策决定，本实体不配置授权范围 */
+/** 库存池：可售名额容器。谁能用由价格政策绑定的扣减池决定，本实体不配置授权范围 */
 export interface InventoryPool extends BaseEntity {
   code: string
   name: string
@@ -1305,6 +1305,11 @@ export interface CabinHold {
   releaseDeadline: string
   releaseReason: string
   status: CabinHoldStatus
+  /** 锁舱来源：运营录入 / 经销商任务认领 */
+  source?: 'manual' | 'dealer_claim'
+  claimNo?: string
+  segmentLabel?: string
+  roomSummary?: string
   updatedBy: string
   updatedAt: string
   createdAt: string

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList, ShoppingCart, Share2 } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, ChevronDown, ChevronRight, Ship, Calendar, Users, Wallet, PieChart, ClipboardList, ShoppingCart } from 'lucide-react'
 
 interface MenuItem {
   key: string
@@ -55,9 +55,6 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    key: 'distribution_management', label: '分销管理', icon: 'Share2', path: '/distribution-management',
-  },
-  {
     key: 'distribution', label: '分销中心', icon: 'Ship',
     children: [
       { key: 'cooperation', label: '合作管理', path: '/distribution/cooperation' },
@@ -67,7 +64,6 @@ const menuItems: MenuItem[] = [
       { key: 'payment_rule', label: '船款规则管理', path: '/rule/payment' },
       { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
       { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
-      { key: 'price_policy_type', label: '价格政策类型', path: '/rule/price-type' },
       { key: 'ota', label: 'OTA平台分销', path: '/distribution/ota' },
       { key: 'discount_management', label: '营销规则管理', path: '/distribution/discounts' },
     ],
@@ -155,7 +151,6 @@ const iconMap: Record<string, React.ReactNode> = {
   PieChart: <PieChart className="w-4 h-4" />,
   ClipboardList: <ClipboardList className="w-4 h-4" />,
   ShoppingCart: <ShoppingCart className="w-4 h-4" />,
-  Share2: <Share2 className="w-4 h-4" />,
 }
 
 export default function Sidebar() {

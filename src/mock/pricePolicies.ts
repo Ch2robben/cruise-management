@@ -8,7 +8,9 @@ export interface DistPricePolicy {
   policyType: string
   groupId: string
   groupName: string
-  /** 默认扣减库存池 */
+  /** 关联价格政策；扣减库存池从政策同步 */
+  pricePolicyTypeId: string
+  /** 默认扣减库存池（与价格政策同步） */
   inventoryPoolId: string
   inventoryPoolName: string
   startDate: string
@@ -29,6 +31,7 @@ const initialPricePolicies: DistPricePolicy[] = [
     policyType: '散客预定',
     groupId: 'g1',
     groupName: '重庆地区',
+    pricePolicyTypeId: 'ppt-reg-001',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
     startDate: '2026-09-29',
@@ -47,6 +50,7 @@ const initialPricePolicies: DistPricePolicy[] = [
     policyType: '团队预定',
     groupId: 'g2',
     groupName: '湖北地区',
+    pricePolicyTypeId: 'ppt-reg-003',
     inventoryPoolId: 'pool-2',
     inventoryPoolName: '大客户锁配额池',
     startDate: '2026-07-01',
@@ -65,6 +69,7 @@ const initialPricePolicies: DistPricePolicy[] = [
     policyType: '散客预定',
     groupId: 'g3',
     groupName: 'OTA渠道',
+    pricePolicyTypeId: 'ppt-ota-001',
     inventoryPoolId: 'pool-3',
     inventoryPoolName: 'OTA渠道池',
     startDate: '2026-04-30',
@@ -93,6 +98,14 @@ export function formatPoolBoundSummary(poolId: string) {
   if (policies.length === 0) return '未关联价格政策'
   const groups = Array.from(new Set(policies.map((item) => item.groupName)))
   return `${policies.length} 条政策 · ${groups.join('、')}`
+}
+
+export function syncDistPoliciesPoolFromType(typeId: string, inventoryPoolId: string, inventoryPoolName: string) {
+  pricePoliciesStore = pricePoliciesStore.map((item) => (
+    item.pricePolicyTypeId === typeId
+      ? { ...item, inventoryPoolId, inventoryPoolName }
+      : item
+  ))
 }
 
 export function upsertDistPricePolicy(policy: DistPricePolicy) {

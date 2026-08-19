@@ -329,9 +329,29 @@ export default function TemplateInventoryConfigPanel({
               <table className="min-w-full border border-gray-200 text-sm">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">航段</th>
-                    <th className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">销售房型</th>
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">物理容量</th>
+                    <th rowSpan={2} className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">
+                      航段
+                    </th>
+                    <th rowSpan={2} className="border-b border-r px-3 py-2 text-left text-xs font-medium text-gray-500">
+                      销售房型
+                    </th>
+                    <th rowSpan={2} className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">
+                      可分配
+                    </th>
+                    <th
+                      colSpan={enabledPools.length}
+                      className="border-b border-r px-3 py-2 text-center text-xs font-medium text-gray-500"
+                    >
+                      已分配
+                    </th>
+                    <th rowSpan={2} className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">
+                      未分配
+                    </th>
+                    <th rowSpan={2} className="border-b px-3 py-2 text-right text-xs font-medium text-gray-500">
+                      已分配合计
+                    </th>
+                  </tr>
+                  <tr className="bg-gray-50">
                     {enabledPools.map((pool) => (
                       <th
                         key={pool.id}
@@ -344,8 +364,6 @@ export default function TemplateInventoryConfigPanel({
                         </div>
                       </th>
                     ))}
-                    <th className="border-b border-r px-3 py-2 text-right text-xs font-medium text-gray-500">未分配</th>
-                    <th className="border-b px-3 py-2 text-right text-xs font-medium text-gray-500">已分配合计</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -400,11 +418,11 @@ export default function TemplateInventoryConfigPanel({
               </table>
             </div>
             <p className="text-xs text-gray-500">
-              按航段 × 销售房型为各库存池录入可下单数量；未分配 = 物理容量 − 各池之和（默认不可售）。
+              按航段 × 销售房型为各库存池录入可下单数量；未分配 = 可分配 − 各池之和（默认不可售）。
               共享池下单时共用余量；锁配额池需在下一步拆到经销商。
             </p>
             {poolOvers.length > 0 && (
-              <p className="text-xs text-amber-600">有 {poolOvers.length} 处已分配合计超过物理容量。</p>
+              <p className="text-xs text-amber-600">有 {poolOvers.length} 处已分配合计超过可分配数量。</p>
             )}
           </div>
         ) : (

@@ -8,37 +8,21 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import PolicyRegionPicker, { type SelectedPolicyRegion } from '@/components/rule/PolicyRegionPicker'
-import { formatDate, formatDateTime, generateId } from '@/utils/format'
+import { formatDate, formatDateTime } from '@/utils/format'
+import { inventoryPoolApi } from '@/mock/api'
+import {
+  listPricePolicyTypes,
+  upsertPricePolicyType,
+  removePricePolicyType,
+  type PricePolicyType,
+  type PricePolicyTypeForm,
+  type PricePolicyTypeKind,
+} from '@/mock/pricePolicyTypes'
+import { syncDistPoliciesPoolFromType } from '@/mock/pricePolicies'
 import type { Status } from '@/types'
 import type { RegionScopeKind } from '@/mock/pricePolicyRegions'
 
-export type PricePolicyTypeKind = 'regional' | 'global' | 'ota'
-
-export interface PricePolicyType {
-  id: string
-  code: string
-  name: string
-  distributorGroup: string
-  policyType: PricePolicyTypeKind
-  priority: number
-  effectiveStart: string
-  effectiveEnd: string
-  /** 生效范围：境内 / 境外，可多选（区域价/全域价） */
-  scopes: RegionScopeKind[]
-  domesticRegions: SelectedPolicyRegion[]
-  overseasRegions: SelectedPolicyRegion[]
-  /** OTA 价：关联渠道 */
-  otaChannels: string[]
-  /** OTA 价：零售价与结算价相同 */
-  retailEqualsSettlement: boolean
-  status: Status
-  remark: string
-  updatedBy: string
-  updatedAt: string
-  createdAt: string
-}
-
-type PricePolicyTypeForm = Omit<PricePolicyType, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>
+export type { PricePolicyType, PricePolicyTypeKind } from '@/mock/pricePolicyTypes'
 
 const distributorGroupOptions = ['A组', 'B组', 'C组', 'D组']
 
@@ -55,11 +39,24 @@ const scopeOptions: { value: RegionScopeKind; label: string; hint: string }[] = 
   { value: 'overseas', label: '境外', hint: '护照属地（含港澳台）' },
 ]
 
+function getEnabledInventoryPools() {
+  return inventoryPoolApi
+    .getData()
+    .filter((item) => item.status === 'enabled')
+    .sort((a, b) => a.sort - b.sort || a.code.localeCompare(b.code))
+}
+
+function defaultPool() {
+  const pool = getEnabledInventoryPools()[0]
+  return { inventoryPoolId: pool?.id ?? '', inventoryPoolName: pool?.name ?? '' }
+}
+
 const emptyForm: PricePolicyTypeForm = {
   code: 'PPOL-NEW',
   name: '',
   distributorGroup: distributorGroupOptions[0],
   policyType: 'regional',
+  ...defaultPool(),
   priority: 10,
   effectiveStart: '2026-01-01',
   effectiveEnd: '2026-12-31',
@@ -70,17 +67,6 @@ const emptyForm: PricePolicyTypeForm = {
   retailEqualsSettlement: false,
   status: 'enabled',
   remark: '',
-}
-
-function createPolicyType(form: PricePolicyTypeForm): PricePolicyType {
-  const now = new Date().toISOString()
-  return {
-    ...form,
-    id: generateId(),
-    updatedBy: '当前用户',
-    updatedAt: now,
-    createdAt: now,
-  }
 }
 
 function getPolicyTypeLabel(type: PricePolicyTypeKind) {
@@ -133,111 +119,8 @@ function regionsOverlap(a: SelectedPolicyRegion[], b: SelectedPolicyRegion[]) {
   return b.filter((item) => codes.has(item.code))
 }
 
-const initialRecords: PricePolicyType[] = [
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-REG-001',
-    name: '渝川区域结算价',
-    distributorGroup: 'A组',
-    policyType: 'regional',
-    scopes: ['domestic'],
-    domesticRegions: [
-      { code: '500000', label: '重庆市', pathLabel: '重庆市', path: ['重庆市'], scope: 'domestic' },
-      { code: '510000', label: '四川省', pathLabel: '四川省', path: ['四川省'], scope: 'domestic' },
-    ],
-    priority: 10,
-    remark: '重庆、四川属地游客适用区域优惠结算价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-REG-002',
-    name: '滇黔区域结算价',
-    distributorGroup: 'A组',
-    policyType: 'regional',
-    scopes: ['domestic'],
-    domesticRegions: [
-      { code: '530000', label: '云南省', pathLabel: '云南省', path: ['云南省'], scope: 'domestic' },
-      { code: '520000', label: '贵州省', pathLabel: '贵州省', path: ['贵州省'], scope: 'domestic' },
-    ],
-    priority: 15,
-    remark: '云南、贵州属地游客适用区域优惠结算价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-REG-003',
-    name: '宜昌城区区域价',
-    distributorGroup: 'B组',
-    policyType: 'regional',
-    scopes: ['domestic'],
-    domesticRegions: [
-      { code: '420500', label: '宜昌市', pathLabel: '湖北省 / 宜昌市', path: ['湖北省', '宜昌市'], scope: 'domestic' },
-      { code: '420503', label: '伍家岗区', pathLabel: '湖北省 / 宜昌市 / 伍家岗区', path: ['湖北省', '宜昌市', '伍家岗区'], scope: 'domestic' },
-    ],
-    priority: 25,
-    remark: '宜昌市及伍家岗区籍游客适用区域价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-REG-004',
-    name: '日韩外宾区域价',
-    distributorGroup: 'D组',
-    policyType: 'regional',
-    scopes: ['overseas'],
-    overseasRegions: [
-      { code: 'JP', label: '日本', pathLabel: '亚洲 / 日本', path: ['亚洲', '日本'], scope: 'overseas' },
-      { code: 'KR', label: '韩国', pathLabel: '亚洲 / 韩国', path: ['亚洲', '韩国'], scope: 'overseas' },
-    ],
-    priority: 18,
-    remark: '日本、韩国籍外宾适用区域价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-GLB-001',
-    name: '长航默认全域结算价',
-    distributorGroup: 'A组',
-    policyType: 'global',
-    scopes: ['domestic', 'overseas'],
-    priority: 100,
-    remark: '保底结算价，适用于境内+境外全部游客。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-GLB-002',
-    name: '境内全域保底价',
-    distributorGroup: 'B组',
-    policyType: 'global',
-    scopes: ['domestic'],
-    priority: 90,
-    remark: '仅面向境内属地游客的全域保底结算价。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-OTA-001',
-    name: '美团/抖音OTA结算价',
-    distributorGroup: 'A组',
-    policyType: 'ota',
-    scopes: [],
-    otaChannels: ['美团', '抖音'],
-    retailEqualsSettlement: true,
-    priority: 30,
-    remark: '美团、抖音渠道统一OTA价；零售价与结算价相同。',
-  }),
-  createPolicyType({
-    ...emptyForm,
-    code: 'PPOL-OTA-002',
-    name: '携程OTA分设价',
-    distributorGroup: 'B组',
-    policyType: 'ota',
-    scopes: [],
-    otaChannels: ['携程'],
-    retailEqualsSettlement: false,
-    priority: 35,
-    remark: '携程渠道OTA价，零售价与结算价分设。',
-  }),
-]
-
-export default function PricePolicyTypePage() {
-  const [records, setRecords] = useState<PricePolicyType[]>(initialRecords)
+export default function PricePolicyTypePage({ embedded = false }: { embedded?: boolean }) {
+  const [records, setRecords] = useState<PricePolicyType[]>(() => listPricePolicyTypes())
   const [keyword, setKeyword] = useState('')
   const [distributorGroupFilter, setDistributorGroupFilter] = useState('all')
   const [policyTypeFilter, setPolicyTypeFilter] = useState('all')
@@ -253,6 +136,18 @@ export default function PricePolicyTypePage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
 
+  const enabledPools = getEnabledInventoryPools()
+  const poolOptionsForSelect = (() => {
+    if (!form.inventoryPoolId) return enabledPools
+    const current = inventoryPoolApi.getData().find((p) => p.id === form.inventoryPoolId)
+    if (current && current.status !== 'enabled' && !enabledPools.some((p) => p.id === current.id)) {
+      return [current, ...enabledPools]
+    }
+    return enabledPools
+  })()
+  const selectedPool = enabledPools.find((p) => p.id === form.inventoryPoolId)
+    ?? inventoryPoolApi.getData().find((p) => p.id === form.inventoryPoolId)
+
   const filteredRecords = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
     return records.filter((item) => {
@@ -264,6 +159,7 @@ export default function PricePolicyTypePage() {
         item.code,
         item.name,
         item.distributorGroup,
+        item.inventoryPoolName,
         item.remark,
         formatEffectiveRule(item),
         ...regionText,
@@ -282,6 +178,7 @@ export default function PricePolicyTypePage() {
     setEditingId(null)
     setForm({
       ...emptyForm,
+      ...defaultPool(),
       domesticRegions: [],
       overseasRegions: [],
       scopes: ['domestic'],
@@ -298,6 +195,8 @@ export default function PricePolicyTypePage() {
       name: record.name,
       distributorGroup: record.distributorGroup,
       policyType: record.policyType,
+      inventoryPoolId: record.inventoryPoolId,
+      inventoryPoolName: record.inventoryPoolName,
       priority: record.priority,
       effectiveStart: record.effectiveStart,
       effectiveEnd: record.effectiveEnd,
@@ -334,7 +233,16 @@ export default function PricePolicyTypePage() {
 
   const handleSubmit = () => {
     if (!form.name.trim()) {
-      window.alert('请填写政策类型名称')
+      window.alert('请填写政策名称')
+      return
+    }
+    if (!form.inventoryPoolId) {
+      window.alert('请选择扣减库存池')
+      return
+    }
+    const pool = inventoryPoolApi.getData().find((item) => item.id === form.inventoryPoolId)
+    if (!pool || pool.status !== 'enabled') {
+      window.alert('所选库存池不存在或已停用，请重新选择')
       return
     }
 
@@ -394,6 +302,8 @@ export default function PricePolicyTypePage() {
 
     const payload: PricePolicyTypeForm = {
       ...form,
+      inventoryPoolId: pool.id,
+      inventoryPoolName: pool.name,
       scopes: form.policyType === 'ota' ? [] : form.scopes,
       domesticRegions: form.policyType === 'regional' && form.scopes.includes('domestic')
         ? form.domesticRegions
@@ -405,45 +315,57 @@ export default function PricePolicyTypePage() {
       retailEqualsSettlement: form.policyType === 'ota' ? form.retailEqualsSettlement : false,
     }
 
-    if (editingId) {
-      setRecords((prev) => prev.map((item) => (
-        item.id === editingId
-          ? {
-            ...item,
-            ...payload,
-            updatedAt: new Date().toISOString(),
-            updatedBy: '当前用户',
-          }
-          : item
-      )))
-    } else {
-      setRecords((prev) => [createPolicyType(payload), ...prev])
+    const saved = upsertPricePolicyType(payload, editingId)
+    if (saved.inventoryPoolId) {
+      syncDistPoliciesPoolFromType(saved.id, saved.inventoryPoolId, saved.inventoryPoolName)
     }
+    setRecords(listPricePolicyTypes())
     setFormOpen(false)
     setPage(1)
   }
 
   const handleDelete = () => {
-    setRecords((prev) => prev.filter((item) => item.id !== confirmId))
+    removePricePolicyType(confirmId)
+    setRecords(listPricePolicyTypes())
     setConfirmOpen(false)
     setConfirmId('')
   }
 
   return (
     <div>
-      <PageHeader
-        title="价格政策类型"
-        description="按分销商分组配置区域价、全域价与 OTA 价；OTA 价可关联渠道，并支持零售价与结算价相同。"
-      >
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800"
+      {!embedded && (
+        <PageHeader
+          title="政策列表"
+          description="按分销商分组配置区域价、全域价与 OTA 价；每条政策指定唯一扣减库存池，下单命中后从该池扣减可售名额。"
         >
-          <Plus className="h-4 w-4" />
-          新增政策类型
-        </button>
-      </PageHeader>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800"
+          >
+            <Plus className="h-4 w-4" />
+            新增政策
+          </button>
+        </PageHeader>
+      )}
+      {embedded && (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900">政策列表</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              按分销商分组配置区域价、全域价与 OTA 价；每条政策指定唯一扣减库存池，下单命中后从该池扣减可售名额。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            新增政策
+          </button>
+        </div>
+      )}
 
       <SearchPanel
         onSearch={() => setPage(1)}
@@ -461,7 +383,7 @@ export default function PricePolicyTypePage() {
             <input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="政策类型编码 / 名称 / 渠道 / 区域"
+              placeholder="政策编码 / 名称 / 渠道 / 区域"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -473,7 +395,7 @@ export default function PricePolicyTypePage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-gray-700">价格政策类型</span>
+            <span className="mb-1 block text-gray-700">政策分类</span>
             <select value={policyTypeFilter} onChange={(event) => setPolicyTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
               <option value="all">全部</option>
               {policyTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -495,12 +417,27 @@ export default function PricePolicyTypePage() {
         rowKey="id"
         pagination={{ current: page, pageSize, total: filteredRecords.length, onChange: setPage }}
         columns={[
-          { key: 'code', title: '政策类型编码', width: '130px' },
-          { key: 'name', title: '政策类型名称', width: '180px' },
+          { key: 'code', title: '政策编码', width: '130px' },
+          { key: 'name', title: '政策名称', width: '180px' },
           { key: 'distributorGroup', title: '分销商分组', width: '120px' },
           {
+            key: 'inventoryPool',
+            title: '扣减库存池',
+            width: '160px',
+            render: (record) => {
+              const poolAlive = inventoryPoolApi.getData().find((item) => item.id === record.inventoryPoolId)
+              const poolWarn = !poolAlive || poolAlive.status !== 'enabled'
+              return (
+                <div>
+                  <div className="text-sm text-gray-900">{record.inventoryPoolName || '-'}</div>
+                  {poolWarn && <div className="mt-0.5 text-xs text-rose-500">池已停用/缺失</div>}
+                </div>
+              )
+            },
+          },
+          {
             key: 'policyType',
-            title: '价格政策类型',
+            title: '政策分类',
             width: '110px',
             render: (record) => (
               <span className={`rounded px-2 py-0.5 text-xs ${getPolicyTypeBadgeClass(record.policyType)}`}>
@@ -550,15 +487,15 @@ export default function PricePolicyTypePage() {
 
       <FormDialog
         open={formOpen}
-        title={editingId ? '编辑价格政策类型' : '新增价格政策类型'}
+        title={editingId ? '编辑价格政策' : '新增价格政策'}
         width="max-w-3xl"
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       >
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="政策类型编码" value={form.code} onChange={(code) => setForm({ ...form, code })} />
-            <Field label="政策类型名称" value={form.name} onChange={(name) => setForm({ ...form, name })} required />
+            <Field label="政策编码" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+            <Field label="政策名称" value={form.name} onChange={(name) => setForm({ ...form, name })} required />
             <label className="block text-sm">
               <span className="mb-1 block text-gray-700">分销商分组 <span className="text-red-500">*</span></span>
               <select value={form.distributorGroup} onChange={(event) => setForm({ ...form, distributorGroup: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
@@ -566,7 +503,7 @@ export default function PricePolicyTypePage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-gray-700">价格政策类型 <span className="text-red-500">*</span></span>
+              <span className="mb-1 block text-gray-700">政策分类 <span className="text-red-500">*</span></span>
               <select
                 value={form.policyType}
                 onChange={(event) => {
@@ -585,6 +522,34 @@ export default function PricePolicyTypePage() {
               >
                 {policyTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-gray-700">扣减库存池 <span className="text-red-500">*</span></span>
+              <select
+                value={form.inventoryPoolId}
+                onChange={(event) => {
+                  const pool = inventoryPoolApi.getData().find((item) => item.id === event.target.value)
+                  setForm({
+                    ...form,
+                    inventoryPoolId: event.target.value,
+                    inventoryPoolName: pool?.name ?? '',
+                  })
+                }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                {poolOptionsForSelect.length === 0 && <option value="">暂无启用中的库存池</option>}
+                {poolOptionsForSelect.map((pool) => (
+                  <option key={pool.id} value={pool.id}>
+                    {pool.name}（{pool.quotaMode === 'shared' ? '共享' : '按经销商'}）
+                    {pool.status !== 'enabled' ? ' · 已停用' : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedPool && (
+                <p className="mt-1.5 text-xs leading-5 text-gray-500">
+                  下单命中本政策时，从「{selectedPool.name}」扣减可售名额（{selectedPool.quotaMode === 'shared' ? '共享余量' : '按经销商拆额度'}）。适用范围即本政策的分销商分组。
+                </p>
+              )}
             </label>
             <Field label="优先级" value={String(form.priority)} onChange={(value) => setForm({ ...form, priority: Number(value) || 0 })} />
             <label className="block text-sm">
@@ -735,14 +700,15 @@ export default function PricePolicyTypePage() {
         </div>
       </FormDialog>
 
-      <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} title="价格政策类型详情" width="max-w-xl">
+      <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} title="价格政策详情" width="max-w-xl">
         {detail && (
           <>
             <DetailCard title="基本信息">
-              <DetailRow label="政策类型编码" value={detail.code} />
-              <DetailRow label="政策类型名称" value={detail.name} />
+              <DetailRow label="政策编码" value={detail.code} />
+              <DetailRow label="政策名称" value={detail.name} />
               <DetailRow label="分销商分组" value={detail.distributorGroup} />
-              <DetailRow label="价格政策类型" value={getPolicyTypeLabel(detail.policyType)} />
+              <DetailRow label="政策分类" value={getPolicyTypeLabel(detail.policyType)} />
+              <DetailRow label="扣减库存池" value={detail.inventoryPoolName || '-'} />
               <DetailRow label="优先级" value={String(detail.priority)} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
               <DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} ~ ${formatDate(detail.effectiveEnd)}`} />
@@ -803,8 +769,8 @@ export default function PricePolicyTypePage() {
 
       <ConfirmDialog
         open={confirmOpen}
-        title="删除政策类型"
-        message="确定删除该价格政策类型？删除后不影响已生成订单的计价快照。"
+        title="删除政策"
+        message="确定删除该价格政策？删除后不影响已生成订单的计价快照。"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={handleDelete}
       />

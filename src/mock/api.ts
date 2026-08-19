@@ -767,7 +767,12 @@ export const cabinHoldApi = {
     let filtered = [...cabinHolds]
     if (params.keyword && typeof params.keyword === 'string' && params.keyword.trim()) {
       const kw = params.keyword.toLowerCase()
-      filtered = filtered.filter((item) => item.dealerName.toLowerCase().includes(kw) || item.productName.toLowerCase().includes(kw))
+      filtered = filtered.filter((item) =>
+        item.dealerName.toLowerCase().includes(kw)
+        || item.productName.toLowerCase().includes(kw)
+        || (item.claimNo || '').toLowerCase().includes(kw)
+        || (item.roomSummary || '').toLowerCase().includes(kw)
+      )
     }
     if (params.status && params.status !== 'all') filtered = filtered.filter((item) => item.status === params.status)
     if (params.dealerId && params.dealerId !== 'all') filtered = filtered.filter((item) => item.dealerId === params.dealerId)

@@ -1,4 +1,5 @@
 import { listDistPricePolicies } from '@/mock/pricePolicies'
+import { getPricePolicyTypeById } from '@/mock/pricePolicyTypes'
 import { inventoryPools } from '@/mock/inventoryPools'
 import {
   deductPoolSold,
@@ -158,8 +159,9 @@ function attachPoolInfo(
 > {
   const distPolicy = pickDistPolicy(index)
   const pools = getEnabledInventoryPools()
-  const poolId = distPolicy?.inventoryPoolId || pools[0]?.id || ''
-  const poolName = distPolicy?.inventoryPoolName || pools.find((p) => p.id === poolId)?.name || '未绑定库存池'
+  const type = distPolicy?.pricePolicyTypeId ? getPricePolicyTypeById(distPolicy.pricePolicyTypeId) : undefined
+  const poolId = type?.inventoryPoolId || distPolicy?.inventoryPoolId || pools[0]?.id || ''
+  const poolName = type?.inventoryPoolName || distPolicy?.inventoryPoolName || pools.find((p) => p.id === poolId)?.name || '未绑定库存池'
 
   const template = voyageTemplates.find((item) => item.id === templateId)
   const quotas = template ? loadTemplatePoolQuotas(template) : undefined

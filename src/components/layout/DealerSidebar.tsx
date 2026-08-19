@@ -24,6 +24,7 @@ const menuItems: MenuItem[] = [
     key: 'booking', label: '产品预定', icon: 'Navigation',
     children: [
       { key: 'cruise', label: '游轮预定', path: '/dealer/booking/cruise' },
+      { key: 'task_claim', label: '任务认领', path: '/dealer/booking/task-claim' },
       { key: 'special_price', label: '特价申请', path: '/dealer/booking/special-price' },
       { key: 'boat', label: '城市游船预定', path: '/dealer/booking/boat' },
       { key: 'flight', label: '航班查询', path: '/dealer/booking/flight' },

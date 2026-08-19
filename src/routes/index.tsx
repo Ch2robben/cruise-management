@@ -66,6 +66,7 @@ import DealerHomePage from '@/pages/dealer/DealerHomePage'
 import DealerDiscountPolicyPage from '@/pages/dealer/DealerDiscountPolicyPage'
 import DealerPolicyRulePage from '@/pages/dealer/DealerPolicyRulePage'
 import CruiseBookingPage from '@/pages/dealer/booking/CruiseBookingPage'
+import DealerTaskClaimPage from '@/pages/dealer/booking/DealerTaskClaimPage'
 import SpecialPriceBookingPage from '@/pages/dealer/booking/SpecialPriceBookingPage'
 import BoatBookingPage from '@/pages/dealer/booking/BoatBookingPage'
 import FlightQueryPage from '@/pages/dealer/booking/FlightQueryPage'
@@ -93,7 +94,6 @@ import ShipAuthPage from '@/pages/rule/ShipAuthPage'
 import CloseRulePage from '@/pages/rule/CloseRulePage'
 import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
 import RebateRulePage from '@/pages/rule/RebateRulePage'
-import PricePolicyTypePage from '@/pages/rule/PriceTypeRulePage'
 import RulePolicyContentPage from '@/pages/rule/RulePolicyContentPage'
 
 function LegacyTemplatePriceRedirect() {
@@ -201,7 +201,7 @@ export const router = createHashRouter([
       { path: '/rule/penalty-handling', element: <PenaltyHandlingDictPage /> },
       { path: '/rule/dealer-cooperation', element: <DealerPage /> },
       // { path: '/rule/discount', element: <DiscountRulePage /> },
-      { path: '/rule/price-type', element: <PricePolicyTypePage /> },
+      { path: '/rule/price-type', element: <Navigate to="/distribution/distribution-mgmt?tab=price_policies" replace /> },
       { path: '/rule/tip', element: <TipConfigPage /> },
       { path: '/rule/order-validity', element: <OrderValidityRulePage /> },
       { path: '/rule/warning', element: <WarningRulePage /> },
@@ -227,6 +227,7 @@ export const router = createHashRouter([
       { path: '/dealer/rules', element: <DealerPolicyRulePage /> },
       { path: '/dealer/policy-content', element: <Navigate to="/dealer/rules" replace /> },
       { path: '/dealer/booking/cruise', element: <CruiseBookingPage /> },
+      { path: '/dealer/booking/task-claim', element: <DealerTaskClaimPage /> },
       { path: '/dealer/booking/special-price', element: <SpecialPriceBookingPage /> },
       { path: '/dealer/booking/boat', element: <BoatBookingPage /> },
       { path: '/dealer/booking/flight', element: <FlightQueryPage /> },

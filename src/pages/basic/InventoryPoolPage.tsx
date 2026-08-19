@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import { inventoryPoolApi } from '@/mock/api'
 import {
-  getDistPricePoliciesByPoolId,
-  countDistPricePoliciesByPoolId,
-  formatPoolBoundSummary,
-  type DistPricePolicy,
-} from '@/mock/pricePolicies'
+  getPricePolicyTypesByPoolId,
+  countPricePolicyTypesByPoolId,
+  formatPoolTypeBoundSummary,
+  type PricePolicyType,
+} from '@/mock/pricePolicyTypes'
 import type { InventoryPool, InventoryPoolQuotaMode, PaginatedResult, SearchParams } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -77,7 +77,7 @@ export default function InventoryPoolPage() {
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<InventoryPool | null>(null)
-  const [linkedPolicies, setLinkedPolicies] = useState<DistPricePolicy[]>([])
+  const [linkedPolicies, setLinkedPolicies] = useState<PricePolicyType[]>([])
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
@@ -151,7 +151,7 @@ export default function InventoryPoolPage() {
   const openDetail = async (row: InventoryPool) => {
     const item = await inventoryPoolApi.getById(row.id)
     setDetail(item || null)
-    setLinkedPolicies(getDistPricePoliciesByPoolId(row.id))
+    setLinkedPolicies(getPricePolicyTypesByPoolId(row.id))
     setDetailOpen(true)
   }
 
@@ -199,7 +199,7 @@ export default function InventoryPoolPage() {
   }
 
   const handleToggleStatus = async (id: string) => {
-    const bound = countDistPricePoliciesByPoolId(id)
+    const bound = countPricePolicyTypesByPoolId(id)
     const current = inventoryPoolApi.getData().find((item) => item.id === id)
     if (current?.status === 'enabled' && bound > 0) {
       showToast(`仍有 ${bound} 条价格政策绑定本池，停用后这些政策发布/下单将受阻`)
@@ -210,9 +210,9 @@ export default function InventoryPoolPage() {
   }
 
   const handleDelete = async () => {
-    const bound = countDistPricePoliciesByPoolId(confirmId)
+    const bound = countPricePolicyTypesByPoolId(confirmId)
     if (bound > 0) {
-      showToast(`无法删除：仍有 ${bound} 条价格政策绑定本池，请先更换政策扣减池`)
+      showToast(`无法删除：仍有 ${bound} 条价格政策绑定本池，请先到「分销管理 → 价格政策」更换扣减池`)
       setConfirmOpen(false)
       return
     }
@@ -262,8 +262,8 @@ export default function InventoryPoolPage() {
       title: '关联价格政策',
       width: '220px',
       render: (row: InventoryPool) => (
-        <span className="text-sm text-gray-700" title={formatPoolBoundSummary(row.id)}>
-          {formatPoolBoundSummary(row.id)}
+        <span className="text-sm text-gray-700" title={formatPoolTypeBoundSummary(row.id)}>
+          {formatPoolTypeBoundSummary(row.id)}
         </span>
       ),
     },
@@ -312,7 +312,7 @@ export default function InventoryPoolPage() {
           <button
             onClick={() => {
               setConfirmId(row.id)
-              setConfirmBoundCount(countDistPricePoliciesByPoolId(row.id))
+              setConfirmBoundCount(countPricePolicyTypesByPoolId(row.id))
               setConfirmOpen(true)
             }}
             className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
@@ -337,7 +337,7 @@ export default function InventoryPoolPage() {
 
       <PageHeader
         title="库存池管理"
-        description="维护可售名额容器。谁能使用本池，由分销管理中绑定的价格政策决定。"
+        description="维护可售名额容器。谁能使用本池，由价格政策上绑定的扣减库存池决定。"
       />
 
       <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
@@ -511,10 +511,10 @@ export default function InventoryPoolPage() {
                     <div key={policy.id} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-medium text-gray-900">{policy.name}</span>
-                        <span className="shrink-0 text-xs text-gray-500">{policy.status}</span>
+                        <span className="shrink-0 font-mono text-xs text-gray-500">{policy.code}</span>
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {policy.groupName} · {policy.productName} · {policy.ticketType}
+                        {policy.distributorGroup} · {policy.policyType === 'regional' ? '区域价' : policy.policyType === 'global' ? '全域价' : 'OTA价'}
                       </div>
                     </div>
                   ))}
@@ -535,7 +535,7 @@ export default function InventoryPoolPage() {
         title="删除库存池"
         message={
           confirmBoundCount > 0
-            ? `当前有 ${confirmBoundCount} 条价格政策绑定本池，无法删除。请先在分销管理中更换这些政策的扣减库存池。`
+            ? `当前有 ${confirmBoundCount} 条价格政策绑定本池，无法删除。请先在「分销管理 → 价格政策」中更换这些政策的扣减库存池。`
             : '确定删除该库存池？此操作不可恢复。'
         }
         danger

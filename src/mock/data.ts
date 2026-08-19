@@ -1707,6 +1707,34 @@ export const cabinHolds: CabinHold[] = Array.from({ length: 16 }, (_, index) => 
   }
 })
 
+const claimSeedDealer = dealers.find((item) => item.status === 'cooperating') ?? dealers[1]
+cabinHolds.unshift({
+  id: 'hold-claim-claim-seed-01',
+  dealerId: claimSeedDealer.id,
+  dealerName: claimSeedDealer.name,
+  productId: products[0].id,
+  productName: products[0].name,
+  routeName: products[0].routeName,
+  voyageDate: '2026-06-15',
+  cabinType: '多种房型',
+  holdQuantity: 5,
+  confirmedQuantity: 0,
+  availableInventory: 5,
+  unitPrice: 3520,
+  depositRatio: 20,
+  depositAmount: 3500,
+  releaseDeadline: '2026-06-08',
+  releaseReason: '',
+  status: 'effective',
+  source: 'dealer_claim',
+  claimNo: 'CLM2026061501',
+  segmentLabel: '重庆 → 宜昌（全程）',
+  roomSummary: '重庆 → 宜昌（全程） 标准间4间；重庆 → 宜昌（全程） 豪华套房1间',
+  updatedBy: claimSeedDealer.name,
+  updatedAt: '2026-06-01 10:26:00',
+  createdAt: '2026-06-01 10:20:00',
+})
+
 // ===================== 包船订单数据 =====================
 export const charterOrders: CharterOrder[] = Array.from({ length: 15 }, (_, index) => {
   const route = routes[index % routes.length]

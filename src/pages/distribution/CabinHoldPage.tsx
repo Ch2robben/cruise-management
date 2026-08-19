@@ -137,7 +137,7 @@ export default function CabinHoldPage() {
       <PageHeader title="锁舱记录" description="管理经销商锁舱预留记录，并联动可售库存扣减与释放。" />
 
       <SearchPanel onSearch={() => fetchData(1)} onReset={handleReset} loading={loading}>
-        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="经销商名称/产品名称" className="w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+        <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">关键词</label><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="经销商/产品/认领单号" className="w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">经销商</label><SelectField value={dealerFilter} onChange={setDealerFilter} options={[{ value: 'all', label: '全部' }, ...activeDealers.map((dealer) => ({ value: dealer.id, label: dealer.name }))]} className="w-44" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">航线</label><SelectField value={routeFilter} onChange={setRouteFilter} options={[{ value: 'all', label: '全部' }, ...routeOptions.map((route) => ({ value: route, label: route }))]} className="w-44" /></div>
         <div className="flex flex-col gap-1.5"><label className="text-xs text-gray-500">锁舱状态</label><SelectField value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: '全部' }, { value: 'effective', label: '有效' }, { value: 'released', label: '已释放' }, { value: 'expired', label: '已逾期' }]} className="w-32" /></div>
@@ -160,6 +160,7 @@ export default function CabinHoldPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">产品名称</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">航线</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">航次日期</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">来源</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">舱位类型</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">锁舱数量</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">已确认数</th>
@@ -172,15 +173,23 @@ export default function CabinHoldPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={12} className="px-4 py-16 text-center text-sm text-gray-400">加载中...</td></tr>
+                <tr><td colSpan={13} className="px-4 py-16 text-center text-sm text-gray-400">加载中...</td></tr>
               ) : data.data.length === 0 ? (
-                <tr><td colSpan={12} className="px-4 py-16 text-center text-sm text-gray-400">暂无数据</td></tr>
+                <tr><td colSpan={13} className="px-4 py-16 text-center text-sm text-gray-400">暂无数据</td></tr>
               ) : data.data.map((record) => (
                 <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-sm text-gray-900">{record.dealerName}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{record.productName}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{record.routeName}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{formatDate(record.voyageDate)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {record.source === 'dealer_claim' ? (
+                      <div>
+                        <div>任务认领</div>
+                        {record.claimNo && <div className="mt-0.5 font-mono text-xs text-gray-400">{record.claimNo}</div>}
+                      </div>
+                    ) : '运营录入'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-700">{record.cabinType}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{record.holdQuantity}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{record.confirmedQuantity}</td>
@@ -251,9 +260,13 @@ export default function CabinHoldPage() {
               <DetailRow label="航线" value={detail.routeName} />
               <DetailRow label="航次日期" value={formatDate(detail.voyageDate)} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
+              <DetailRow label="来源" value={detail.source === 'dealer_claim' ? '任务认领' : '运营录入'} />
+              <DetailRow label="认领单号" value={detail.claimNo || '-'} />
             </DetailCard>
             <DetailCard title="锁舱数据">
               <DetailRow label="舱位类型" value={detail.cabinType} />
+              <DetailRow label="航段" value={detail.segmentLabel || '-'} />
+              <DetailRow label="房型明细" value={detail.roomSummary || '-'} />
               <DetailRow label="锁舱数量" value={detail.holdQuantity} />
               <DetailRow label="已确认数" value={detail.confirmedQuantity} />
               <DetailRow label="可售库存" value={detail.availableInventory} />
