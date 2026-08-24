@@ -3,7 +3,7 @@ import { Plus, Clock } from 'lucide-react'
 import { portApi, attractionApi } from '@/mock/api'
 import type { Attraction, PaginatedResult, Port, PortForm, SearchParams } from '@/types'
 import NavigationTimeDialog from '@/components/resources/NavigationTimeDialog'
-import { formatDateTime, formatDurationMinutes } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import DataTable from '@/components/common/DataTable'
@@ -331,7 +331,7 @@ export default function PortPage() {
                   <li key={attraction.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{attraction.name}</p>
-                      <p className="mt-0.5 text-xs text-gray-500">{attraction.category || '-'} · 建议游览 {formatDurationMinutes(attraction.suggestedDurationMin)}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{attraction.category || '-'}</p>
                     </div>
                     <StatusBadge status={attraction.status} />
                   </li>

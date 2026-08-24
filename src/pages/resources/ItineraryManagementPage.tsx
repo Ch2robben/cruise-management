@@ -178,7 +178,7 @@ export default function ItineraryManagementPage() {
         .map((id) => attractionMap.get(id))
         .filter((item): item is Attraction => Boolean(item))
       const attractionMinutes = selectedAttractions.reduce(
-        (sum, item) => sum + (item.suggestedDurationMin || 0) + (item.transferDurationMin || 0) * 2,
+        (sum, item) => sum + (item.transferDurationMin || 0) * 2,
         0,
       )
 

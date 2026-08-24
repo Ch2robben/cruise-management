@@ -281,14 +281,11 @@ export interface Attraction {
   /** 景点图片 */
   images?: string[]
   visitDuration: string
-  suggestedDurationMin?: number
   portDistanceKm?: number
   transferDurationMin?: number
   openSeason?: string
   openHours?: string
-  difficulty?: string
   suitableGroups?: string
-  bookingRequired?: boolean
   ticketPolicy?: string
   validationNotes?: string
   /** 适用线路列表 */
@@ -313,14 +310,11 @@ export interface AttractionForm {
   attractionService: string
   images: string[]
   visitDuration: string
-  suggestedDurationMin: number
   portDistanceKm: number
   transferDurationMin: number
   openSeason: string
   openHours: string
-  difficulty: string
   suitableGroups: string
-  bookingRequired: boolean
   ticketPolicy: string
   routeLines: string[]
   description: string

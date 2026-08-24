@@ -11,12 +11,10 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import PortSelectByReach from '@/components/resources/PortSelectByReach'
-import { RIVER_REACH_LABEL, RIVER_REACH_OPTIONS } from '@/utils/constants'
 import { loadHierarchicalDictOptions, type HierarchicalDictOption } from '@/utils/hierarchicalDict'
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent'
 const categoryOptions = ['自然景观', '历史人文', '工程参观', '城市观光', '民俗体验', '船岸联游']
-const difficultyOptions = ['轻松', '适中', '较高']
 
 const emptyForm: AttractionForm = {
   name: '',
@@ -31,14 +29,11 @@ const emptyForm: AttractionForm = {
   attractionService: '',
   images: [],
   visitDuration: '全年',
-  suggestedDurationMin: 120,
   portDistanceKm: 0,
   transferDurationMin: 30,
   openSeason: '全年',
   openHours: '08:00-17:30',
-  difficulty: '轻松',
   suitableGroups: '普通游客、团队客人',
-  bookingRequired: false,
   ticketPolicy: '',
   routeLines: [],
   description: '',
@@ -51,7 +46,6 @@ export default function AttractionPage() {
   const [data, setData] = useState<PaginatedResult<Attraction>>({ data: [], total: 0, page: 1, pageSize: 10 })
   const [keyword, setKeyword] = useState('')
   const [portFilter, setPortFilter] = useState('all')
-  const [reachFilter, setReachFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [serviceFilter, setServiceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -102,26 +96,24 @@ export default function AttractionPage() {
 
   const fetchData = useCallback(async (
     page = 1,
-    overrides?: { keyword?: string; portId?: string; riverReach?: string; category?: string; attractionService?: string; status?: string },
+    overrides?: { keyword?: string; portId?: string; category?: string; attractionService?: string; status?: string },
   ) => {
     setLoading(true)
     const params: SearchParams = { page, pageSize: 10 }
     const nextKeyword = overrides?.keyword ?? keyword
     const nextPortId = overrides?.portId ?? portFilter
-    const nextReach = overrides?.riverReach ?? reachFilter
     const nextCategory = overrides?.category ?? categoryFilter
     const nextService = overrides?.attractionService ?? serviceFilter
     const nextStatus = overrides?.status ?? statusFilter
     if (nextKeyword.trim()) params.keyword = nextKeyword.trim()
     if (nextPortId !== 'all') params.portId = nextPortId
-    if (nextReach !== 'all') params.riverReach = nextReach
     if (nextCategory !== 'all') params.category = nextCategory
     if (nextService !== 'all') params.attractionService = nextService
     if (nextStatus !== 'all') params.status = nextStatus
     const result = await attractionApi.list(params)
     setData(result)
     setLoading(false)
-  }, [keyword, portFilter, reachFilter, categoryFilter, serviceFilter, statusFilter])
+  }, [keyword, portFilter, categoryFilter, serviceFilter, statusFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -129,11 +121,10 @@ export default function AttractionPage() {
   const handleReset = () => {
     setKeyword('')
     setPortFilter('all')
-    setReachFilter('all')
     setCategoryFilter('all')
     setServiceFilter('all')
     setStatusFilter('all')
-    fetchData(1, { keyword: '', portId: 'all', riverReach: 'all', category: 'all', attractionService: 'all', status: 'all' })
+    fetchData(1, { keyword: '', portId: 'all', category: 'all', attractionService: 'all', status: 'all' })
   }
 
   const patchFormByPort = (portId: string) => {
@@ -167,14 +158,11 @@ export default function AttractionPage() {
       attractionService: record.attractionService || '',
       images: [...(record.images || [])],
       visitDuration: record.visitDuration || '全年',
-      suggestedDurationMin: record.suggestedDurationMin || 120,
       portDistanceKm: record.portDistanceKm || 0,
       transferDurationMin: record.transferDurationMin || 0,
       openSeason: record.openSeason || '全年',
       openHours: record.openHours || '',
-      difficulty: record.difficulty || '轻松',
       suitableGroups: record.suitableGroups || '',
-      bookingRequired: Boolean(record.bookingRequired),
       ticketPolicy: record.ticketPolicy || '',
       routeLines: [...(record.routeLines || [])],
       description: record.description || '',
@@ -241,14 +229,6 @@ export default function AttractionPage() {
     },
     { key: 'portName', title: '关联码头', dataIndex: 'portName' as keyof Attraction, width: '180px' },
     {
-      key: 'riverReach',
-      title: '江段',
-      width: '80px',
-      render: (record: Attraction) => (
-        <span className="text-sm text-gray-700">{record.riverReach ? RIVER_REACH_LABEL[record.riverReach] : '-'}</span>
-      ),
-    },
-    {
       key: 'location',
       title: '城市/类型',
       width: '150px',
@@ -262,24 +242,20 @@ export default function AttractionPage() {
     },
     {
       key: 'duration',
-      title: '行程时间',
-      width: '190px',
+      title: '接驳时间',
+      width: '120px',
       render: (record: Attraction) => (
-        <div className="space-y-1 text-xs">
-          <p>游览：<span className="font-medium text-gray-900">{formatDurationMinutes(record.suggestedDurationMin)}</span></p>
-          <p>接驳：<span className="font-medium text-gray-900">{formatDurationMinutes(record.transferDurationMin)}</span></p>
-        </div>
+        <span className="text-sm text-gray-900">{formatDurationMinutes(record.transferDurationMin)}</span>
       ),
     },
     {
       key: 'open',
-      title: '开放与预约',
+      title: '开放时间',
       width: '170px',
       render: (record: Attraction) => (
         <div>
           <p className="text-gray-900">{record.openSeason || record.visitDuration || '-'}</p>
           <p className="mt-1 text-xs text-gray-500">{record.openHours || '-'}</p>
-          {record.bookingRequired && <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">需预约</span>}
         </div>
       ),
     },
@@ -319,7 +295,7 @@ export default function AttractionPage() {
 
   return (
     <div>
-      <PageHeader title="景点管理" description="维护可编排行程的岸上景点、关联码头、接驳时间、开放时间和预约要求。" />
+      <PageHeader title="景点管理" description="维护可编排行程的岸上景点、关联码头、接驳时间和开放时间。" />
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
         <div className="flex flex-col gap-1.5">
@@ -330,13 +306,6 @@ export default function AttractionPage() {
             placeholder="景点名称/城市/说明"
             className="w-52 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
           />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">江段</label>
-          <select value={reachFilter} onChange={(event) => setReachFilter(event.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
-            <option value="all">全部江段</option>
-            {RIVER_REACH_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">关联码头</label>
@@ -413,12 +382,6 @@ export default function AttractionPage() {
                   <option value="">请选择码头</option>
                   <PortSelectByReach ports={portList} />
                 </select>
-                {form.portId && (() => {
-                  const port = portList.find((item) => item.id === form.portId)
-                  return port?.riverReach ? (
-                    <p className="mt-1 text-xs text-gray-500">江段：{RIVER_REACH_LABEL[port.riverReach]}{port.mileageKm != null ? ` · ${port.mileageKm}km` : ''}</p>
-                  ) : null
-                })()}
               </div>
               <div>
                 <label className="mb-1 block text-sm text-gray-700">景点类型</label>
@@ -502,12 +465,6 @@ export default function AttractionPage() {
                 <input value={form.openHours} onChange={(event) => setForm({ ...form, openHours: event.target.value })} placeholder="08:00-17:30" className={inputClass} />
               </div>
               <div>
-                <label className="mb-1 block text-sm text-gray-700">游览强度</label>
-                <select value={form.difficulty} onChange={(event) => setForm({ ...form, difficulty: event.target.value })} className={inputClass}>
-                  {difficultyOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-              <div>
                 <label className="mb-1 block text-sm text-gray-700">码头距离(km)</label>
                 <input type="number" value={form.portDistanceKm} onChange={(event) => setForm({ ...form, portDistanceKm: Number(event.target.value) })} className={inputClass} />
               </div>
@@ -515,18 +472,10 @@ export default function AttractionPage() {
                 <label className="mb-1 block text-sm text-gray-700">单程接驳(分钟)</label>
                 <input type="number" value={form.transferDurationMin} onChange={(event) => setForm({ ...form, transferDurationMin: Number(event.target.value) })} className={inputClass} />
               </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">建议游览(分钟)</label>
-                <input type="number" value={form.suggestedDurationMin} onChange={(event) => setForm({ ...form, suggestedDurationMin: Number(event.target.value) })} className={inputClass} />
-              </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-sm text-gray-700">适配客群</label>
                 <input value={form.suitableGroups} onChange={(event) => setForm({ ...form, suitableGroups: event.target.value })} className={inputClass} />
               </div>
-              <label className="col-span-3 inline-flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={form.bookingRequired} onChange={(event) => setForm({ ...form, bookingRequired: event.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
-                需要提前预约或报备
-              </label>
             </div>
           </section>
 
@@ -588,7 +537,6 @@ export default function AttractionPage() {
               <DetailRow label="景点名称" value={detail.name} />
               <DetailRow label="英文名称" value={detail.nameEn || '-'} />
               <DetailRow label="关联码头" value={detail.portName} />
-              <DetailRow label="江段" value={detail.riverReach ? RIVER_REACH_LABEL[detail.riverReach] : '-'} />
               <DetailRow label="城市" value={`${detail.province || ''}${detail.city ? ` / ${detail.city}` : ''}`} />
               <DetailRow label="景点类型" value={detail.category || '-'} />
               <DetailRow label="景点服务" value={getServiceLabel(detail.attractionService)} />
@@ -611,10 +559,7 @@ export default function AttractionPage() {
               <DetailRow label="开放时间" value={detail.openHours || '-'} />
               <DetailRow label="码头距离" value={detail.portDistanceKm || detail.portDistanceKm === 0 ? `${detail.portDistanceKm} km` : '-'} />
               <DetailRow label="单程接驳" value={formatDurationMinutes(detail.transferDurationMin)} />
-              <DetailRow label="建议游览" value={formatDurationMinutes(detail.suggestedDurationMin)} />
-              <DetailRow label="游览强度" value={detail.difficulty || '-'} />
               <DetailRow label="适配客群" value={detail.suitableGroups || '-'} />
-              <DetailRow label="是否需预约" value={detail.bookingRequired ? '是' : '否'} />
             </DetailCard>
             <DetailCard title="说明信息">
               <DetailRow label="票务/政策" value={detail.ticketPolicy || '-'} />
