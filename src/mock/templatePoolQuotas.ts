@@ -1,12 +1,33 @@
-import { dealers, products } from '@/mock/data'
+import { dealers, products, voyageInventories } from '@/mock/data'
 import { inventoryPools } from '@/mock/inventoryPools'
-import {
-  getTemplateSegmentKeys,
-  getTemplateSellRoomTypes,
-  loadTemplateInventoryRules,
-  segmentKey,
-} from '@/mock/templateInventoryRules'
-import type { InventoryPool, VoyageTemplate } from '@/types'
+import { getTemplateSellRoomTypes, type TemplateSellRoomType } from '@/mock/sellRoomTypeConfig'
+import type { InventoryPool, ProductSegment, VoyageTemplate } from '@/types'
+
+/** 航段 key；可售配额统一走命名库存池（旧区域/全域/私有模型已移除） */
+export const segmentKey = (segment: ProductSegment) => `${segment.startPort}-${segment.endPort}`
+
+export function getTemplateSegmentKeys(template: VoyageTemplate) {
+  const segments = products.find((item) => item.id === template.productId)?.segments || []
+  if (segments.length === 0) return ['全程']
+  return segments.map(segmentKey)
+}
+
+function resolvePhysicalCapacity(template: VoyageTemplate, sellRoom: TemplateSellRoomType) {
+  const shipInventories = voyageInventories.filter((item) => item.shipName === template.shipName)
+  const mappedNames = sellRoom.config?.mappings.map((item) => item.physicalCabinName) || []
+  if (mappedNames.length > 0) {
+    const matched = shipInventories.filter((item) =>
+      mappedNames.some(
+        (name) => item.cabinTypeName === name || name.includes(item.cabinTypeName),
+      ),
+    )
+    if (matched.length > 0) {
+      return matched.reduce((sum, item) => sum + item.physicalCapacity, 0)
+    }
+  }
+  const direct = shipInventories.find((item) => item.cabinTypeName === sellRoom.name)
+  return direct?.physicalCapacity ?? 0
+}
 
 /** 航段 × 销售房型 上的池配额单元格 */
 export interface TemplatePoolQuotaCell {
@@ -26,11 +47,109 @@ export interface PoolDealerAllocation {
 /** sellRoomTypeCode → segmentKey → poolId → dealer allocations */
 export type TemplatePoolDealerRules = Record<string, Record<string, Record<string, PoolDealerAllocation[]>>>
 
-const quotaStore: Record<string, TemplatePoolQuotaRules> = {}
-const dealerQuotaStore: Record<string, TemplatePoolDealerRules> = {}
-const userSavedTemplateIds = new Set<string>()
+const STORAGE_KEY = 'cruise-pool-quota-demo-v1'
+const CHANGE_EVENT = 'cruise-pool-quota-changed'
+const STORAGE_VERSION = 1
+
+type PoolSoldStore = Record<string, Record<string, Record<string, Record<string, number>>>>
+
+interface PersistedPoolState {
+  version: number
+  quotas: Record<string, TemplatePoolQuotaRules>
+  dealerQuotas: Record<string, TemplatePoolDealerRules>
+  savedTemplateIds: string[]
+  sold: PoolSoldStore
+}
+
+let quotaStore: Record<string, TemplatePoolQuotaRules> = {}
+let dealerQuotaStore: Record<string, TemplatePoolDealerRules> = {}
+let userSavedTemplateIds = new Set<string>()
 /** templateId → sellRoom → segment → poolId → sold */
-const poolSoldStore: Record<string, Record<string, Record<string, Record<string, number>>>> = {}
+let poolSoldStore: PoolSoldStore = {}
+
+function canUseStorage() {
+  try {
+    return (
+      typeof window !== 'undefined'
+      && typeof window.localStorage?.getItem === 'function'
+      && typeof window.localStorage?.setItem === 'function'
+    )
+  } catch {
+    return false
+  }
+}
+
+function snapshotState(): PersistedPoolState {
+  return {
+    version: STORAGE_VERSION,
+    quotas: quotaStore,
+    dealerQuotas: dealerQuotaStore,
+    savedTemplateIds: Array.from(userSavedTemplateIds),
+    sold: poolSoldStore,
+  }
+}
+
+function applySnapshot(parsed: PersistedPoolState) {
+  quotaStore = parsed.quotas && typeof parsed.quotas === 'object' ? parsed.quotas : {}
+  dealerQuotaStore = parsed.dealerQuotas && typeof parsed.dealerQuotas === 'object' ? parsed.dealerQuotas : {}
+  userSavedTemplateIds = new Set(Array.isArray(parsed.savedTemplateIds) ? parsed.savedTemplateIds : [])
+  poolSoldStore = parsed.sold && typeof parsed.sold === 'object' ? parsed.sold : {}
+}
+
+function persistPoolState() {
+  if (!canUseStorage()) return
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshotState()))
+  } catch {
+    /* quota exceeded / private mode */
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT))
+}
+
+function hydratePoolState() {
+  if (!canUseStorage()) return
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as PersistedPoolState
+    if (!parsed || parsed.version !== STORAGE_VERSION) return
+    applySnapshot(parsed)
+  } catch {
+    /* ignore corrupt payload */
+  }
+}
+
+hydratePoolState()
+
+/** 配额/已售变更后通知当前页（及跨 Tab 的 storage 事件） */
+export function subscribePoolQuotaStore(listener: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEY) return
+    hydratePoolState()
+    listener()
+  }
+  window.addEventListener(CHANGE_EVENT, listener)
+  window.addEventListener('storage', onStorage)
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, listener)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+/** 清空本机演示配额与已售，下次读取会重新按物理容量种子 */
+export function resetPoolDemoState() {
+  quotaStore = {}
+  dealerQuotaStore = {}
+  userSavedTemplateIds = new Set()
+  poolSoldStore = {}
+  if (canUseStorage()) {
+    window.localStorage.removeItem(STORAGE_KEY)
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(CHANGE_EVENT))
+  }
+}
 
 export function getPoolSold(
   templateId: string,
@@ -66,6 +185,7 @@ export function deductPoolSold(params: {
   }
   const current = poolSoldStore[templateId][sellRoomTypeCode][segKey][poolId] ?? 0
   poolSoldStore[templateId][sellRoomTypeCode][segKey][poolId] = current + Math.max(0, qty)
+  persistPoolState()
   return poolSoldStore[templateId][sellRoomTypeCode][segKey][poolId]
 }
 
@@ -146,9 +266,12 @@ function defaultDealerIds() {
   return dealers.filter((dealer) => dealer.status === 'cooperating').slice(0, 3).map((dealer) => dealer.id)
 }
 
-/** 从旧区域/全域/私有结构种子迁移到库存池配额（仅首次） */
-function seedFromLegacy(template: VoyageTemplate): TemplatePoolQuotaRules {
-  const legacy = loadTemplateInventoryRules(template)
+/**
+ * 按物理容量直接种子命名池配额（不再经过旧公私有结构）。
+ * 演示模板 vt01/vt04：同业共享约 35%、OTA 约 28%、直销约 12%、大客户锁配额约 25%。
+ */
+function seedPoolQuotas(template: VoyageTemplate): TemplatePoolQuotaRules {
+  const shouldSeed = ['vt01', 'vt04'].includes(template.id)
   const rooms = getTemplateSellRoomTypes(template)
   const segmentKeys = getTemplateSegmentKeys(template)
   const pools = getEnabledInventoryPools()
@@ -162,26 +285,23 @@ function seedFromLegacy(template: VoyageTemplate): TemplatePoolQuotaRules {
   const rules: TemplatePoolQuotaRules = {}
   rooms.forEach((room) => {
     rules[room.code] = {}
-    segmentKeys.forEach((segKey) => {
-      const legacyCell = legacy[room.code]?.[segKey]
-      const physicalCapacity = legacyCell?.physicalCapacity ?? 0
-      const regional = legacyCell?.regionalPublicStock ?? 0
-      const global = legacyCell?.globalPublicStock ?? 0
-      const privatePool = Math.max(0, physicalCapacity - regional - global)
+    const physicalCapacity = resolvePhysicalCapacity(template, room)
+    segmentKeys.forEach((segKey, segmentIndex) => {
       const poolQty: Record<string, number> = {}
       pools.forEach((pool) => {
         poolQty[pool.id] = 0
       })
-      if (tradePool) poolQty[tradePool.id] = regional
-      if (otaPool && otaPool.id !== tradePool?.id) {
-        poolQty[otaPool.id] = Math.floor(global * 0.7)
-      } else if (otaPool) {
-        poolQty[otaPool.id] += Math.floor(global * 0.7)
+      if (shouldSeed && physicalCapacity > 0) {
+        const base = Math.max(0, physicalCapacity - segmentIndex * 2)
+        const trade = Math.floor(base * 0.35)
+        const ota = Math.floor(base * 0.28)
+        const direct = Math.floor(base * 0.12)
+        const key = Math.max(0, base - trade - ota - direct)
+        if (tradePool) poolQty[tradePool.id] = trade
+        if (otaPool) poolQty[otaPool.id] = (poolQty[otaPool.id] || 0) + ota
+        if (directPool) poolQty[directPool.id] = (poolQty[directPool.id] || 0) + direct
+        if (keyPool) poolQty[keyPool.id] = key
       }
-      if (directPool && directPool.id !== tradePool?.id && directPool.id !== otaPool?.id) {
-        poolQty[directPool.id] = global - Math.floor(global * 0.7)
-      }
-      if (keyPool) poolQty[keyPool.id] = privatePool
       rules[room.code][segKey] = { physicalCapacity, poolQty }
     })
   })
@@ -220,7 +340,7 @@ function seedDealerFromQuotas(template: VoyageTemplate, quotas: TemplatePoolQuot
 
 export function loadTemplatePoolQuotas(template: VoyageTemplate): TemplatePoolQuotaRules {
   if (!quotaStore[template.id]) {
-    quotaStore[template.id] = seedFromLegacy(template)
+    quotaStore[template.id] = seedPoolQuotas(template)
   }
   // 确保新增启用池有列
   const pools = getEnabledInventoryPools()
@@ -249,11 +369,13 @@ export function loadTemplatePoolDealerRules(
 export function saveTemplatePoolQuotas(templateId: string, rules: TemplatePoolQuotaRules) {
   quotaStore[templateId] = cloneQuotas(rules)
   userSavedTemplateIds.add(templateId)
+  persistPoolState()
 }
 
 export function saveTemplatePoolDealerRules(templateId: string, rules: TemplatePoolDealerRules) {
   dealerQuotaStore[templateId] = cloneDealerRules(rules)
   userSavedTemplateIds.add(templateId)
+  persistPoolState()
 }
 
 export function hasConfiguredTemplatePoolQuotas(templateId: string) {
@@ -344,8 +466,6 @@ export function setPoolDealerQuantity(
   else next[idx] = { ...next[idx], qty }
   return next
 }
-
-export { segmentKey, getTemplateSegmentKeys }
 
 export function getProductSegments(template: VoyageTemplate) {
   return products.find((item) => item.id === template.productId)?.segments || []

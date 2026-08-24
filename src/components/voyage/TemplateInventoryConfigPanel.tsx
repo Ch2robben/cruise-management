@@ -17,6 +17,7 @@ import {
   saveTemplatePoolQuotas,
   segmentKey,
   setPoolDealerQuantity,
+  subscribePoolQuotaStore,
   type TemplatePoolDealerRules,
   type TemplatePoolQuotaCell,
   type TemplatePoolQuotaRules,
@@ -123,6 +124,19 @@ export default function TemplateInventoryConfigPanel({
       cancelled = true
     }
   }, [active, templateId])
+
+  useEffect(() => {
+    if (!active) return undefined
+    return subscribePoolQuotaStore(() => {
+      if (!templateId || editMode) return
+      void templateApi.getById(templateId).then((t) => {
+        if (!t) return
+        const quotas = loadTemplatePoolQuotas(t)
+        setQuotaRules(quotas)
+        setDealerRules(loadTemplatePoolDealerRules(t, quotas))
+      })
+    })
+  }, [active, templateId, editMode])
 
   const segmentsList = useMemo(() => (template ? getProductSegments(template) : []), [template])
   const activeDealers = useMemo(() => dealers.filter((dealer) => dealer.status === 'cooperating'), [])

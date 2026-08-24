@@ -17,16 +17,22 @@ import {
   type PricePolicyType,
   type PricePolicyTypeForm,
   type PricePolicyTypeKind,
+  type PricePolicyCategory,
 } from '@/mock/pricePolicyTypes'
 import { syncDistPoliciesPoolFromType } from '@/mock/pricePolicies'
 import type { Status } from '@/types'
 import type { RegionScopeKind } from '@/mock/pricePolicyRegions'
 
-export type { PricePolicyType, PricePolicyTypeKind } from '@/mock/pricePolicyTypes'
+export type { PricePolicyType, PricePolicyTypeKind, PricePolicyCategory } from '@/mock/pricePolicyTypes'
 
 const distributorGroupOptions = ['A组', 'B组', 'C组', 'D组']
 
 const otaChannelOptions = ['美团', '携程', '抖音', '同程', '飞猪', '抖音团购', '抖音预售']
+
+const categoryOptions: { value: PricePolicyCategory; label: string }[] = [
+  { value: 'regular', label: '正价' },
+  { value: 'special', label: '特价' },
+]
 
 const policyTypeOptions: { value: PricePolicyTypeKind; label: string }[] = [
   { value: 'regional', label: '区域价' },
@@ -36,7 +42,7 @@ const policyTypeOptions: { value: PricePolicyTypeKind; label: string }[] = [
 
 const scopeOptions: { value: RegionScopeKind; label: string; hint: string }[] = [
   { value: 'domestic', label: '境内', hint: '身份证前六位区划' },
-  { value: 'overseas', label: '境外', hint: '护照属地（含港澳台）' },
+  { value: 'overseas', label: '境外', hint: '证件属地（含港澳台）' },
 ]
 
 function getEnabledInventoryPools() {
@@ -55,6 +61,7 @@ const emptyForm: PricePolicyTypeForm = {
   code: 'PPOL-NEW',
   name: '',
   distributorGroup: distributorGroupOptions[0],
+  category: 'regular',
   policyType: 'regional',
   ...defaultPool(),
   priority: 10,
@@ -67,6 +74,10 @@ const emptyForm: PricePolicyTypeForm = {
   retailEqualsSettlement: false,
   status: 'enabled',
   remark: '',
+}
+
+function getCategoryLabel(category: PricePolicyCategory) {
+  return categoryOptions.find((item) => item.value === category)?.label || category
 }
 
 function getPolicyTypeLabel(type: PricePolicyTypeKind) {
@@ -108,6 +119,11 @@ function formatEffectiveRule(rule: PricePolicyType) {
   return parts.length > 0 ? parts.join('；') : `区域 · ${scopeText}`
 }
 
+function getCategoryBadgeClass(category: PricePolicyCategory) {
+  if (category === 'special') return 'bg-rose-50 text-rose-700'
+  return 'bg-emerald-50 text-emerald-700'
+}
+
 function getPolicyTypeBadgeClass(type: PricePolicyTypeKind) {
   if (type === 'global') return 'bg-blue-50 text-blue-700'
   if (type === 'ota') return 'bg-amber-50 text-amber-700'
@@ -123,6 +139,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
   const [records, setRecords] = useState<PricePolicyType[]>(() => listPricePolicyTypes())
   const [keyword, setKeyword] = useState('')
   const [distributorGroupFilter, setDistributorGroupFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [policyTypeFilter, setPolicyTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
@@ -165,11 +182,12 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
         ...regionText,
       ].some((value) => value.toLowerCase().includes(kw))
       const matchedDistributorGroup = distributorGroupFilter === 'all' || item.distributorGroup === distributorGroupFilter
+      const matchedCategory = categoryFilter === 'all' || item.category === categoryFilter
       const matchedPolicyType = policyTypeFilter === 'all' || item.policyType === policyTypeFilter
       const matchedStatus = statusFilter === 'all' || item.status === statusFilter
-      return matchedKeyword && matchedDistributorGroup && matchedPolicyType && matchedStatus
+      return matchedKeyword && matchedDistributorGroup && matchedCategory && matchedPolicyType && matchedStatus
     })
-  }, [records, keyword, distributorGroupFilter, policyTypeFilter, statusFilter])
+  }, [records, keyword, distributorGroupFilter, categoryFilter, policyTypeFilter, statusFilter])
 
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
@@ -194,6 +212,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
       code: record.code,
       name: record.name,
       distributorGroup: record.distributorGroup,
+      category: record.category,
       policyType: record.policyType,
       inventoryPoolId: record.inventoryPoolId,
       inventoryPoolName: record.inventoryPoolName,
@@ -216,19 +235,28 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
     setDetailOpen(true)
   }
 
-  const toggleScope = (scope: RegionScopeKind) => {
-    setForm((prev) => {
-      const exists = prev.scopes.includes(scope)
-      const scopes = exists
-        ? prev.scopes.filter((item) => item !== scope)
-        : [...prev.scopes, scope]
-      return {
-        ...prev,
-        scopes,
-        domesticRegions: scopes.includes('domestic') ? prev.domesticRegions : [],
-        overseasRegions: scopes.includes('overseas') ? prev.overseasRegions : [],
-      }
-    })
+  const applyRegionSelection = (next: SelectedPolicyRegion[]) => {
+    const domesticRegions = next.filter((item) => item.scope === 'domestic')
+    const overseasRegions = next.filter((item) => item.scope === 'overseas')
+    const scopes: RegionScopeKind[] = []
+    if (domesticRegions.length > 0) scopes.push('domestic')
+    if (overseasRegions.length > 0) scopes.push('overseas')
+    setForm((prev) => ({
+      ...prev,
+      domesticRegions,
+      overseasRegions,
+      scopes,
+    }))
+  }
+
+  const applyScopeSelection = (next: SelectedPolicyRegion[]) => {
+    const scopes = next.map((item) => item.scope)
+    setForm((prev) => ({
+      ...prev,
+      scopes,
+      domesticRegions: [],
+      overseasRegions: [],
+    }))
   }
 
   const handleSubmit = () => {
@@ -258,12 +286,8 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
       }
 
       if (form.policyType === 'regional') {
-        if (form.scopes.includes('domestic') && form.domesticRegions.length === 0) {
-          window.alert('已勾选境内，请至少选择一个境内区域')
-          return
-        }
-        if (form.scopes.includes('overseas') && form.overseasRegions.length === 0) {
-          window.alert('已勾选境外，请至少选择一个境外区域')
+        if (form.domesticRegions.length + form.overseasRegions.length === 0) {
+          window.alert('请至少在生效范围树中勾选一个区域')
           return
         }
 
@@ -372,12 +396,13 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
         onReset={() => {
           setKeyword('')
           setDistributorGroupFilter('all')
+          setCategoryFilter('all')
           setPolicyTypeFilter('all')
           setStatusFilter('all')
           setPage(1)
         }}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <label className="block text-sm">
             <span className="mb-1 block text-gray-700">关键词</span>
             <input
@@ -395,7 +420,14 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-gray-700">政策分类</span>
+            <span className="mb-1 block text-gray-700">分类</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+              <option value="all">全部</option>
+              {categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-gray-700">计价类型</span>
             <select value={policyTypeFilter} onChange={(event) => setPolicyTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
               <option value="all">全部</option>
               {policyTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -436,8 +468,18 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
             },
           },
           {
+            key: 'category',
+            title: '分类',
+            width: '90px',
+            render: (record) => (
+              <span className={`rounded px-2 py-0.5 text-xs ${getCategoryBadgeClass(record.category)}`}>
+                {getCategoryLabel(record.category)}
+              </span>
+            ),
+          },
+          {
             key: 'policyType',
-            title: '政策分类',
+            title: '计价类型',
             width: '110px',
             render: (record) => (
               <span className={`rounded px-2 py-0.5 text-xs ${getPolicyTypeBadgeClass(record.policyType)}`}>
@@ -503,7 +545,17 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
               </select>
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-gray-700">政策分类 <span className="text-red-500">*</span></span>
+              <span className="mb-1 block text-gray-700">分类 <span className="text-red-500">*</span></span>
+              <select
+                value={form.category}
+                onChange={(event) => setForm({ ...form, category: event.target.value as PricePolicyCategory })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                {categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-gray-700">计价类型 <span className="text-red-500">*</span></span>
               <select
                 value={form.policyType}
                 onChange={(event) => {
@@ -624,67 +676,36 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
                 </h4>
                 <p className="mt-1 text-xs text-gray-500">
                   {form.policyType === 'regional'
-                    ? '面向指定区域游客的优惠结算价；生效范围可多选境内/境外，并在对应范围内选取具体区域。'
-                    : '保底结算价；生效范围可多选境内/境外（同时勾选即覆盖全部属地游客）。'}
+                    ? '面向指定区域游客的优惠结算价；在下方树中勾选境内省市区或境外国家/港澳台。'
+                    : '保底结算价；勾选境内/境外即可覆盖对应属地全部游客。'}
                 </p>
               </div>
 
               <div>
                 <div className="mb-2 text-sm text-gray-700">
                   生效范围 <span className="text-red-500">*</span>
-                  <span className="ml-2 text-xs text-gray-400">可多选</span>
+                  <span className="ml-2 text-xs text-gray-400">树状多选</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {scopeOptions.map((option) => {
-                    const active = form.scopes.includes(option.value)
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => toggleScope(option.value)}
-                        className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                          active
-                            ? form.policyType === 'regional'
-                              ? 'border-purple-600 bg-purple-600 text-white'
-                              : 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
-                        }`}
-                      >
-                        <div className="font-medium">{option.label}</div>
-                        <div className={`mt-0.5 text-[11px] ${active ? 'text-white/80' : 'text-gray-400'}`}>{option.hint}</div>
-                      </button>
-                    )
-                  })}
-                </div>
+                {form.policyType === 'regional' ? (
+                  <PolicyRegionPicker
+                    variant="regions"
+                    value={[...form.domesticRegions, ...form.overseasRegions]}
+                    onChange={applyRegionSelection}
+                  />
+                ) : (
+                  <PolicyRegionPicker
+                    variant="scopes"
+                    value={form.scopes.map((scope) => ({
+                      code: scope,
+                      label: scope === 'domestic' ? '境内' : '境外',
+                      pathLabel: scope === 'domestic' ? '境内' : '境外',
+                      path: [scope === 'domestic' ? '境内' : '境外'],
+                      scope,
+                    }))}
+                    onChange={applyScopeSelection}
+                  />
+                )}
               </div>
-
-              {form.policyType === 'regional' && form.scopes.includes('domestic') && (
-                <div>
-                  <div className="mb-2 text-sm font-medium text-gray-800">
-                    境内区域 <span className="text-red-500">*</span>
-                    <span className="ml-2 text-xs font-normal text-gray-400">省/直辖市 → 市 → 区</span>
-                  </div>
-                  <PolicyRegionPicker
-                    scope="domestic"
-                    value={form.domesticRegions}
-                    onChange={(domesticRegions) => setForm({ ...form, domesticRegions })}
-                  />
-                </div>
-              )}
-
-              {form.policyType === 'regional' && form.scopes.includes('overseas') && (
-                <div>
-                  <div className="mb-2 text-sm font-medium text-gray-800">
-                    境外区域 <span className="text-red-500">*</span>
-                    <span className="ml-2 text-xs font-normal text-gray-400">洲 → 国家 / 港澳台</span>
-                  </div>
-                  <PolicyRegionPicker
-                    scope="overseas"
-                    value={form.overseasRegions}
-                    onChange={(overseasRegions) => setForm({ ...form, overseasRegions })}
-                  />
-                </div>
-              )}
             </div>
           )}
 
@@ -707,7 +728,8 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
               <DetailRow label="政策编码" value={detail.code} />
               <DetailRow label="政策名称" value={detail.name} />
               <DetailRow label="分销商分组" value={detail.distributorGroup} />
-              <DetailRow label="政策分类" value={getPolicyTypeLabel(detail.policyType)} />
+              <DetailRow label="分类" value={getCategoryLabel(detail.category)} />
+              <DetailRow label="计价类型" value={getPolicyTypeLabel(detail.policyType)} />
               <DetailRow label="扣减库存池" value={detail.inventoryPoolName || '-'} />
               <DetailRow label="优先级" value={String(detail.priority)} />
               <DetailRow label="状态" value={<StatusBadge status={detail.status} />} />
@@ -730,29 +752,21 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
                   label="生效范围"
                   value={detail.scopes.length > 0 ? detail.scopes.map(getScopeLabel).join('、') : '-'}
                 />
-                {detail.policyType === 'regional' && detail.scopes.includes('domestic') && (
+                {detail.policyType === 'regional' && (
                   <div className="mt-3">
-                    <div className="mb-1 text-xs text-gray-500">境内区域</div>
+                    <div className="mb-1 text-xs text-gray-500">已选区域</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {detail.domesticRegions.map((item) => (
-                        <span key={item.code} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                          <span className="mr-1 font-mono text-gray-400">{item.code}</span>
-                          {item.pathLabel}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detail.policyType === 'regional' && detail.scopes.includes('overseas') && (
-                  <div className="mt-3">
-                    <div className="mb-1 text-xs text-gray-500">境外区域</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detail.overseasRegions.map((item) => (
-                        <span key={item.code} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                          <span className="mr-1 font-mono text-gray-400">{item.code}</span>
-                          {item.pathLabel}
-                        </span>
-                      ))}
+                      {[...detail.domesticRegions, ...detail.overseasRegions].length === 0 ? (
+                        <span className="text-xs text-gray-400">-</span>
+                      ) : (
+                        [...detail.domesticRegions, ...detail.overseasRegions].map((item) => (
+                          <span key={`${item.scope}-${item.code}`} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                            <span className="mr-1 text-gray-400">{item.scope === 'domestic' ? '境内' : '境外'}</span>
+                            <span className="mr-1 font-mono text-gray-400">{item.code}</span>
+                            {item.pathLabel}
+                          </span>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}

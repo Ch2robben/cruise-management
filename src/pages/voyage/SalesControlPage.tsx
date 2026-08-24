@@ -1,20 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { groupItineraryRows, itineraryActivityColumns, formatItineraryDayLabel } from '@/components/voyage/ItineraryEditor'
 import VoyagePoolQuotaPanel from '@/components/voyage/VoyagePoolQuotaPanel'
 import VoyagePoolDealerPanel from '@/components/voyage/VoyagePoolDealerPanel'
 import VoyageTipManagementPanel, { type RouteSegmentOption } from '@/components/voyage/VoyageTipManagementPanel'
-import { templateApi } from '@/mock/api'
 import { voyageInventories, voyageTemplates, voyages, products } from '@/mock/data'
-import {
-  aggregateInventoryField,
-  aggregatePhysicalCapacity,
-  getTemplateSellRoomTypes,
-  loadTemplateInventoryRules,
-  saveTemplateInventoryRules,
-  setAggregatedInventoryField,
-  type TemplateInventoryRules,
-} from '@/mock/templateInventoryRules'
 import type { TemplateItinerary, Voyage, VoyageTemplate } from '@/types'
 import { resolveTemplateItinerary } from '@/utils/productVoyageConfig'
 
@@ -22,19 +12,16 @@ type ControlTab = 'inventory' | 'private' | 'sales' | 'itinerary' | 'warning' | 
 type PolicyType = 'all' | 'regional' | 'global' | 'ota'
 type InventoryThresholdType = 'quantity' | 'percent'
 
-interface PublicInventoryRow {
-  sellRoomTypeCode: string
-  name: string
-  physicalCapacity: number
-  regionalPublicStock: number
-  globalPublicStock: number
-  sold: number
-  status: 'open' | 'closed'
-}
+// 已移除：PublicInventoryRow / 区域公共·全域公共维护（改走 VoyagePoolQuotaPanel）
 
 type InventoryWarningLevel = 'high' | 'medium' | 'low'
 
-interface InventoryWarningRow extends PublicInventoryRow {
+interface InventoryWarningRow {
+  sellRoomTypeCode: string
+  name: string
+  physicalCapacity: number
+  sold: number
+  status: 'open' | 'closed'
   threshold: number
   thresholdType: InventoryThresholdType
   owner: string
@@ -82,8 +69,6 @@ const inventoryWarningRows: InventoryWarningRow[] = [
     sellRoomTypeCode: 'vip-balcony-standard',
     name: '长江叁号豪华阳台标准间',
     physicalCapacity: 202,
-    regionalPublicStock: 80,
-    globalPublicStock: 122,
     sold: 188,
     status: 'open',
     release: 202,
@@ -96,8 +81,6 @@ const inventoryWarningRows: InventoryWarningRow[] = [
     sellRoomTypeCode: 'deluxe-suite',
     name: '长江壹号豪华套房',
     physicalCapacity: 12,
-    regionalPublicStock: 4,
-    globalPublicStock: 8,
     sold: 5,
     status: 'open',
     release: 12,
@@ -110,8 +93,6 @@ const inventoryWarningRows: InventoryWarningRow[] = [
     sellRoomTypeCode: 'presidential-suite',
     name: '长江壹号总统套房',
     physicalCapacity: 4,
-    regionalPublicStock: 1,
-    globalPublicStock: 3,
     sold: 4,
     status: 'open',
     release: 4,
@@ -500,204 +481,8 @@ export function SalesControlWorkspace({
   )
 }
 
-function getSoldForSellRoom(voyageId: string, sellRoomName: string) {
-  return voyageInventories
-    .filter((item) => item.voyageId === voyageId && item.cabinTypeName === sellRoomName)
-    .reduce((sum, item) => sum + item.sold, 0)
-}
-
-function buildPublicInventoryRows(
-  template: VoyageTemplate,
-  rules: TemplateInventoryRules,
-  voyageId: string,
-  statusMap: Record<string, 'open' | 'closed'>,
-): PublicInventoryRow[] {
-  return getTemplateSellRoomTypes(template).map((sellRoom) => ({
-    sellRoomTypeCode: sellRoom.code,
-    name: sellRoom.name,
-    physicalCapacity: aggregatePhysicalCapacity(rules, sellRoom.code),
-    regionalPublicStock: aggregateInventoryField(rules, sellRoom.code, 'regionalPublicStock'),
-    globalPublicStock: aggregateInventoryField(rules, sellRoom.code, 'globalPublicStock'),
-    sold: getSoldForSellRoom(voyageId, sellRoom.name),
-    status: statusMap[sellRoom.code] || 'open',
-  }))
-}
-
-function PublicInventoryTab({ voyage }: { voyage: Voyage }) {
-  const [template, setTemplate] = useState<VoyageTemplate | null>(null)
-  const [inventoryRules, setInventoryRules] = useState<TemplateInventoryRules>({})
-  const [statusMap, setStatusMap] = useState<Record<string, 'open' | 'closed'>>({})
-  const [rows, setRows] = useState<PublicInventoryRow[]>([])
-  const [editingRow, setEditingRow] = useState<PublicInventoryRow | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!voyage.templateId) {
-      setTemplate(null)
-      setRows([])
-      return
-    }
-    let cancelled = false
-
-    async function loadData() {
-      setLoading(true)
-      const t = await templateApi.getById(voyage.templateId)
-      if (cancelled || !t) {
-        setLoading(false)
-        return
-      }
-      const rules = loadTemplateInventoryRules(t)
-      setTemplate(t)
-      setInventoryRules(rules)
-      setLoading(false)
-    }
-
-    loadData()
-    return () => {
-      cancelled = true
-    }
-  }, [voyage.templateId])
-
-  useEffect(() => {
-    if (!template) return
-    setRows(buildPublicInventoryRows(template, inventoryRules, voyage.id, statusMap))
-  }, [inventoryRules, statusMap, template, voyage.id])
-
-  const total = rows.reduce(
-    (acc, row) => {
-      acc.physicalCapacity += row.physicalCapacity
-      acc.regionalPublicStock += row.regionalPublicStock
-      acc.globalPublicStock += row.globalPublicStock
-      acc.sold += row.sold
-      return acc
-    },
-    { physicalCapacity: 0, regionalPublicStock: 0, globalPublicStock: 0, sold: 0 },
-  )
-
-  const handleSave = (updated: PublicInventoryRow) => {
-    if (!template) return
-    let nextRules = setAggregatedInventoryField(
-      inventoryRules,
-      updated.sellRoomTypeCode,
-      'regionalPublicStock',
-      updated.regionalPublicStock,
-    )
-    nextRules = setAggregatedInventoryField(
-      nextRules,
-      updated.sellRoomTypeCode,
-      'globalPublicStock',
-      updated.globalPublicStock,
-    )
-    setInventoryRules(nextRules)
-    saveTemplateInventoryRules(template.id, nextRules)
-    setStatusMap((prev) => ({ ...prev, [updated.sellRoomTypeCode]: updated.status }))
-    setEditingRow(null)
-  }
-
-  if (!voyage.templateId) {
-    return (
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white py-16 text-center text-sm text-slate-400 shadow-sm">
-        当前航次未关联模板，无法查看公共库存
-      </section>
-    )
-  }
-
-  return (
-    <>
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-slate-900">公共库存</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            共 {rows.length} 类销售房型；区分区域公共库存与全域公共库存，点击「维护库存」可分别调整
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="py-16 text-center text-sm text-slate-400">加载中...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-0 text-xs text-slate-700">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500">
-                  <th className="w-12 border-b border-slate-200 px-3 py-2.5 text-center font-medium">序号</th>
-                  <th className="border-b border-slate-200 px-3 py-2.5 text-left font-medium">销售房型</th>
-                  <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">物理容量</th>
-                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">区域公共</th>
-                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">全域公共</th>
-                  <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">公共合计</th>
-                  <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已售数</th>
-                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-right font-medium">公共未售</th>
-                  <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-center font-medium">库存状态</th>
-                  <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => {
-                  const publicTotal = row.regionalPublicStock + row.globalPublicStock
-                  const publicUnsold = publicTotal - row.sold
-                  const isOpen = row.status === 'open'
-
-                  return (
-                    <tr key={row.sellRoomTypeCode} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-center text-slate-400">{index + 1}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 font-medium text-slate-800">{row.name}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-slate-900">{row.physicalCapacity}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-purple-700">{row.regionalPublicStock}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-blue-700">{row.globalPublicStock}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-semibold text-slate-900">{publicTotal}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-emerald-600">{row.sold}</td>
-                      <td className={`border-b border-slate-100 px-3 py-2.5 text-right font-medium ${publicUnsold <= 5 ? 'text-rose-600' : 'text-slate-700'}`}>{publicUnsold}</td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-center">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${
-                          isOpen
-                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                            : 'bg-slate-100 text-slate-500 ring-slate-200'
-                        }`}>
-                          {isOpen ? '开放' : '关闭'}
-                        </span>
-                      </td>
-                      <td className="border-b border-slate-100 px-3 py-2.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setEditingRow(row)}
-                          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                        >
-                          维护库存
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50 font-semibold text-slate-800">
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-center text-slate-400">—</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-slate-500">合计</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right">{total.physicalCapacity}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-purple-700">{total.regionalPublicStock}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-blue-700">{total.globalPublicStock}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right">{total.regionalPublicStock + total.globalPublicStock}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-emerald-600">{total.sold}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5 text-right text-slate-600">{total.regionalPublicStock + total.globalPublicStock - total.sold}</td>
-                  <td className="border-t border-slate-200 px-3 py-2.5" />
-                  <td className="border-t border-slate-200 px-3 py-2.5" />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {editingRow && (
-        <PublicInventoryModal
-          row={editingRow}
-          onSave={handleSave}
-          onClose={() => setEditingRow(null)}
-        />
-      )}
-    </>
-  )
-}
+// 已移除：PublicInventoryTab / PublicInventoryModal / 旧公私有公共库存维护
+// 可售配额请使用上方 Tab「库存池配额」「锁配额经销商」（VoyagePool*Panel）
 
 function InventoryWarningTab() {
   const [rows, setRows] = useState<InventoryWarningRow[]>(inventoryWarningRows)
@@ -959,153 +744,6 @@ function WarningThresholdModal({
     </div>
   )
 }
-
-function PublicInventoryModal({
-  row,
-  onSave,
-  onClose,
-}: {
-  row: PublicInventoryRow
-  onSave: (updated: PublicInventoryRow) => void
-  onClose: () => void
-}) {
-  const [regionalPublicStock, setRegionalPublicStock] = useState(String(row.regionalPublicStock))
-  const [globalPublicStock, setGlobalPublicStock] = useState(String(row.globalPublicStock))
-  const [status, setStatus] = useState<'open' | 'closed'>(row.status)
-
-  const regionalNum = regionalPublicStock === '' ? 0 : parseInt(regionalPublicStock, 10)
-  const globalNum = globalPublicStock === '' ? 0 : parseInt(globalPublicStock, 10)
-  const publicTotal = regionalNum + globalNum
-  const isValid =
-    regionalPublicStock !== ''
-    && globalPublicStock !== ''
-    && Number.isFinite(regionalNum)
-    && Number.isFinite(globalNum)
-    && regionalNum >= 0
-    && globalNum >= 0
-  const isUnderflow = isValid && publicTotal < row.sold
-  const isOverCapacity = isValid && publicTotal > row.physicalCapacity
-  const canSave = isValid && !isUnderflow
-
-  const handleSave = () => {
-    if (!canSave) return
-    onSave({
-      ...row,
-      regionalPublicStock: regionalNum,
-      globalPublicStock: globalNum,
-      status,
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
-        <div className="flex items-start justify-between bg-white px-6 pt-5 pb-4">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">维护公共库存</h3>
-            <p className="mt-0.5 max-w-[280px] truncate text-xs font-normal text-slate-400">{row.name}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-            aria-label="关闭"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 14 14" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M1 1l12 12M13 1L1 13" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="mx-6 mb-4 grid grid-cols-3 divide-x divide-slate-100 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-          <div className="px-4 py-3 text-center">
-            <div className="mb-1 text-[10px] text-slate-400">物理容量</div>
-            <div className="text-lg font-bold leading-none text-slate-800">{row.physicalCapacity}</div>
-          </div>
-          <div className="px-4 py-3 text-center">
-            <div className="mb-1 text-[10px] text-slate-400">公共合计</div>
-            <div className="text-lg font-bold leading-none text-slate-800">{publicTotal}</div>
-          </div>
-          <div className="px-4 py-3 text-center">
-            <div className="mb-1 text-[10px] text-slate-400">已售</div>
-            <div className="text-lg font-bold leading-none text-emerald-600">{row.sold}</div>
-          </div>
-        </div>
-
-        <div className="space-y-4 px-6 pb-5">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-2 block text-xs font-medium text-purple-700">区域公共库存</label>
-              <input
-                type="number"
-                min={0}
-                value={regionalPublicStock}
-                onChange={(e) => setRegionalPublicStock(e.target.value)}
-                autoFocus
-                className="h-9 w-full rounded-lg border border-purple-200 px-3 text-sm font-semibold tabular-nums text-purple-800 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-xs font-medium text-blue-700">全域公共库存</label>
-              <input
-                type="number"
-                min={0}
-                value={globalPublicStock}
-                onChange={(e) => setGlobalPublicStock(e.target.value)}
-                className="h-9 w-full rounded-lg border border-blue-200 px-3 text-sm font-semibold tabular-nums text-blue-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
-          </div>
-          {isUnderflow && <p className="text-xs text-rose-500">区域+全域合计不能低于已售数 {row.sold}</p>}
-          {isOverCapacity && !isUnderflow && (
-            <p className="text-xs text-amber-600">已超过物理容量上限 {row.physicalCapacity}</p>
-          )}
-
-          <div>
-            <label className="mb-2 block text-xs font-medium text-slate-700">库存状态</label>
-            <div className="flex gap-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-              {(['open', 'closed'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-all ${
-                    status === s
-                      ? 'bg-white text-slate-700 shadow-sm ring-1 ring-slate-200'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {s === 'open' ? '开放' : '关闭'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="h-9 rounded-lg bg-blue-600 px-6 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            保存修改
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
 
 function TypeBadge({ type }: { type: Exclude<PolicyType, 'all'> }) {
   const className: Record<Exclude<PolicyType, 'all'>, string> = {

@@ -7,11 +7,12 @@ import type { Product, ProductSegment, Voyage, VoyageInventory } from '@/types'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
 import InventoryConfigDialog, { type InventoryConfigContext } from '@/components/voyage/InventoryConfigDialog'
-import VoyageChannelDealerInventoryPanel from '@/components/voyage/VoyageChannelDealerInventoryPanel'
 import { createRouteSegmentOptions } from '@/components/voyage/VoyageTipManagementPanel'
 import { SalesControlWorkspace } from '@/pages/voyage/SalesControlPage'
 
-type ViewMode = 'voyage' | 'channel'
+// 已移除：渠道视角 + VoyageChannelDealerInventoryPanel（旧区域私有/私有库存）
+// 可售配额改在航次视角内的销控「库存池配额 / 锁配额经销商」维护
+
 type StockChangeType = 'increase' | 'decrease'
 type RouteLineMode = 'release' | 'sales'
 
@@ -333,7 +334,6 @@ export default function InventoryPage() {
   const [shipFilter, setShipFilter] = useState('all')
   const [voyageStatusFilter, setVoyageStatusFilter] = useState('all')
   const [selectedVoyageId, setSelectedVoyageId] = useState(initialVoyageId)
-  const [viewMode, setViewMode] = useState<ViewMode>('voyage')
   const [selectedRouteSegment, setSelectedRouteSegment] = useState('all')
   const [activeSegmentKey, setActiveSegmentKey] = useState('whole')
   const [editState, setEditState] = useState<EditState | null>(null)
@@ -626,37 +626,19 @@ export default function InventoryPage() {
         <section className="space-y-4">
           {selectedVoyage ? (
             <>
-              <div className="flex items-center justify-end">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-gray-500">视角</label>
-                  <select value={viewMode} onChange={(event) => setViewMode(event.target.value as ViewMode)} className="h-10 w-36 rounded-lg border border-gray-300 bg-white px-3 text-sm">
-                    <option value="voyage">航次视角</option>
-                    <option value="channel">渠道视角</option>
-                  </select>
-                </div>
-              </div>
-
-              {viewMode === 'voyage' || viewMode === 'channel' ? (
-                <RouteInventoryLineBoard
-                  product={selectedProduct}
-                  rows={selectedInventoryRows}
-                  title={viewMode === 'channel' ? '渠道库存线路视图' : '库存线路视图'}
-                  selectedRouteSegment={selectedRouteSegment}
-                  onRouteSegmentChange={setSelectedRouteSegment}
-                />
-              ) : null}
-
-              {viewMode === 'voyage' && (
-                <SalesControlWorkspace
-                  embedded
-                  voyage={selectedVoyage}
-                  selectedSegmentKey={selectedRouteSegment}
-                  segmentOptions={routeSegmentOptions}
-                />
-              )}
-              {viewMode === 'channel' && (
-                <VoyageChannelDealerInventoryPanel voyage={selectedVoyage} />
-              )}
+              <RouteInventoryLineBoard
+                product={selectedProduct}
+                rows={selectedInventoryRows}
+                title="库存线路视图"
+                selectedRouteSegment={selectedRouteSegment}
+                onRouteSegmentChange={setSelectedRouteSegment}
+              />
+              <SalesControlWorkspace
+                embedded
+                voyage={selectedVoyage}
+                selectedSegmentKey={selectedRouteSegment}
+                segmentOptions={routeSegmentOptions}
+              />
             </>
           ) : null}
         </section>

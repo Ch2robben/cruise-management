@@ -5,12 +5,17 @@ import type { RegionScopeKind } from '@/mock/pricePolicyRegions'
 import { generateId } from '@/utils/format'
 
 export type PricePolicyTypeKind = 'regional' | 'global' | 'ota'
+/** 分类：正价 / 特价 */
+export type PricePolicyCategory = 'regular' | 'special'
 
 export interface PricePolicyType {
   id: string
   code: string
   name: string
   distributorGroup: string
+  /** 分类：正价 / 特价 */
+  category: PricePolicyCategory
+  /** 计价类型：区域价 / 全域价 / OTA价 */
   policyType: PricePolicyTypeKind
   /** 下单命中本类型政策后扣减的库存池 */
   inventoryPoolId: string
@@ -49,6 +54,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-REG-001',
     name: '渝川区域结算价',
     distributorGroup: 'A组',
+    category: 'special',
     policyType: 'regional',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
@@ -71,6 +77,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-REG-002',
     name: '滇黔区域结算价',
     distributorGroup: 'A组',
+    category: 'special',
     policyType: 'regional',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
@@ -93,6 +100,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-REG-003',
     name: '宜昌城区区域价',
     distributorGroup: 'B组',
+    category: 'special',
     policyType: 'regional',
     inventoryPoolId: 'pool-2',
     inventoryPoolName: '大客户锁配额池',
@@ -115,6 +123,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-REG-004',
     name: '日韩外宾区域价',
     distributorGroup: 'D组',
+    category: 'special',
     policyType: 'regional',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
@@ -137,6 +146,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-GLB-001',
     name: '长航默认全域结算价',
     distributorGroup: 'A组',
+    category: 'regular',
     policyType: 'global',
     inventoryPoolId: 'pool-4',
     inventoryPoolName: '直销机动池',
@@ -156,6 +166,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-GLB-002',
     name: '境内全域保底价',
     distributorGroup: 'B组',
+    category: 'regular',
     policyType: 'global',
     inventoryPoolId: 'pool-4',
     inventoryPoolName: '直销机动池',
@@ -175,6 +186,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-OTA-001',
     name: '美团/抖音OTA结算价',
     distributorGroup: 'A组',
+    category: 'regular',
     policyType: 'ota',
     inventoryPoolId: 'pool-3',
     inventoryPoolName: 'OTA渠道池',
@@ -194,6 +206,7 @@ const initialTypes: PricePolicyType[] = [
     code: 'PPOL-OTA-002',
     name: '携程OTA分设价',
     distributorGroup: 'B组',
+    category: 'regular',
     policyType: 'ota',
     inventoryPoolId: 'pool-3',
     inventoryPoolName: 'OTA渠道池',

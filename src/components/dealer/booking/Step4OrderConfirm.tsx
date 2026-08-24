@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { DealerBookingDraft } from '@/components/dealer/booking/bookingTypes'
 import {
@@ -12,6 +12,7 @@ import { defaultRoomReserveData } from '@/mock/data'
 import { resolveGuestPriceInfo } from '@/components/dealer/booking/guestPricingUtils'
 import { formatCurrency } from '@/utils/format'
 import { getAdditionalCategoryPath, getAdditionalProductsForProduct } from '@/mock/additionalProducts'
+import { subscribePoolQuotaStore } from '@/mock/templatePoolQuotas'
 
 function FieldItem({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
@@ -131,28 +132,38 @@ export default function Step4OrderConfirm({
 }) {
   const [guestListExpanded, setGuestListExpanded] = useState(false)
   const [poolToast, setPoolToast] = useState('')
+  const [poolTick, setPoolTick] = useState(0)
   const cart = data?.cart ?? []
   const hasCart = cart.length > 0
   const roomGroups = (data?.touristData?.roomGroups ?? []) as RoomGroupLike[]
   const teams = (data?.touristData?.teams ?? []) as TeamLike[]
   const escortTickets = (data?.touristData?.escortTickets ?? []) as EscortTicketLike[]
 
-  const matchedPolicies: MatchedPricePolicy[] =
-    data?.matchedPolicies ?? (hasCart ? buildMatchedPricePolicies(cart) : defaultMatchedPolicies())
+  useEffect(() => subscribePoolQuotaStore(() => setPoolTick((tick) => tick + 1)), [])
+
+  const matchedPolicies: MatchedPricePolicy[] = useMemo(() => {
+    const options = { templateId: 'vt01' as const }
+    if (hasCart) return buildMatchedPricePolicies(cart, options)
+    return data?.matchedPolicies ?? defaultMatchedPolicies(options)
+  }, [cart, data?.matchedPolicies, hasCart, poolTick])
 
   const handleConfirmNext = () => {
     const results = deductMatchedPolicyPools(matchedPolicies, { templateId: 'vt01' })
-    const okCount = results.filter((item) => item.ok).length
-    const failCount = results.length - okCount
+    const okItems = results.filter((item) => item.ok)
+    const failCount = results.length - okItems.length
+    const remainHint = okItems
+      .map((item) => `「${item.poolName}」余 ${item.remaining}`)
+      .slice(0, 2)
+      .join('，')
     const msg =
       failCount > 0
-        ? `已扣减 ${okCount} 条池配额；${failCount} 条因余量不足未扣减（mock 仍可继续）`
-        : `已从命中政策绑定的库存池扣减 ${okCount} 笔名额`
+        ? `已扣减 ${okItems.length} 条池配额；${failCount} 条因余量不足未扣减${remainHint ? `；${remainHint}` : ''}`
+        : `已扣减 ${okItems.length} 笔名额${remainHint ? `，${remainHint}` : ''}（刷新后仍保留）`
     setPoolToast(msg)
     setTimeout(() => {
       setPoolToast('')
       onNext()
-    }, 600)
+    }, 900)
   }
 
   const totalRooms = hasCart ? cart.reduce((sum, line) => sum + line.count, 0) : 3
@@ -447,7 +458,7 @@ export default function Step4OrderConfirm({
             </span>
           </div>
           <p className="mt-1 text-xs text-blue-600/80">
-            结算价按命中价格政策计算；确认下单时从政策绑定的库存池扣减可售名额（共享池共用余量）。
+            结算价按命中价格政策计算；确认下单时从政策绑定的库存池扣减可售名额，余量写入本机浏览器，刷新后仍在。
           </p>
         </div>
         <div className="overflow-x-auto">

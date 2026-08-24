@@ -1,6 +1,6 @@
 import type { InventoryPool } from '@/types'
 
-/** 库存池主数据；谁能扣由价格政策绑定决定 */
+/** 库存池主数据；谁能扣由价格政策绑定决定（旧公私有演示池已移除） */
 export const inventoryPools: InventoryPool[] = [
   {
     id: 'pool-1',
@@ -50,17 +50,4 @@ export const inventoryPools: InventoryPool[] = [
     updatedAt: '2026-08-01 11:10:00',
     updatedBy: '系统管理员',
   },
-  {
-    id: 'pool-5',
-    code: 'POOL_LEGACY_DEMO',
-    name: '（停用）旧公私有演示池',
-    quotaMode: 'byDealer',
-    sort: 99,
-    remark: '迁移演示用，已停用，不可被新政策绑定',
-    status: 'disabled',
-    createdAt: '2026-06-01 08:00:00',
-    updatedAt: '2026-07-20 18:00:00',
-    updatedBy: '系统管理员',
-  },
 ]
-

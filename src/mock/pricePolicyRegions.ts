@@ -1,4 +1,4 @@
-/** 价格政策生效区域 mock：境内（身份证前六位）/ 境外（护照属地） */
+/** 价格政策生效区域 mock：境内（身份证前六位）/ 境外（证件属地） */
 
 export type RegionScopeKind = 'domestic' | 'overseas'
 

@@ -10,6 +10,7 @@ import {
   saveTemplatePoolDealerRules,
   segmentKey,
   setPoolDealerQuantity,
+  subscribePoolQuotaStore,
   type TemplatePoolDealerRules,
   type TemplatePoolQuotaRules,
 } from '@/mock/templatePoolQuotas'
@@ -52,6 +53,18 @@ export default function VoyagePoolDealerPanel({ voyage }: { voyage: Voyage }) {
       cancelled = true
     }
   }, [voyage.templateId])
+
+  useEffect(() => {
+    return subscribePoolQuotaStore(() => {
+      setTemplate((current) => {
+        if (!current || editMode) return current
+        const q = loadTemplatePoolQuotas(current)
+        setQuotas(q)
+        setDealerRules(loadTemplatePoolDealerRules(current, q))
+        return current
+      })
+    })
+  }, [editMode])
 
   const dealerIds = useMemo(() => collectPoolDealerIds(dealerRules), [dealerRules])
   const segments = useMemo(() => {

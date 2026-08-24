@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import { inventoryPoolApi } from '@/mock/api'
+import { resetPoolDemoState } from '@/mock/templatePoolQuotas'
 import {
   getPricePolicyTypesByPoolId,
   countPricePolicyTypesByPoolId,
@@ -82,6 +83,7 @@ export default function InventoryPoolPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
   const [confirmBoundCount, setConfirmBoundCount] = useState(0)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   const [toast, setToast] = useState('')
   const showToast = (msg: string) => {
@@ -342,6 +344,7 @@ export default function InventoryPoolPage() {
 
       <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
         库存池不配置授权范围。请在「分销管理 → 价格政策」选择扣减库存池；列表「关联价格政策」按已绑定政策反查适用范围。
+        航次池配额与预订已售保存在本机浏览器，刷新后仍在。
       </div>
 
       <SearchPanel onSearch={handleSearch} onReset={handleReset} loading={loading}>
@@ -384,13 +387,20 @@ export default function InventoryPoolPage() {
       </SearchPanel>
 
       <div className="bg-white px-9 py-6">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <button
             onClick={openCreate}
             className="inline-flex h-11 items-center gap-1.5 rounded-md bg-blue-600 px-7 text-base font-medium text-white transition hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             新增库存池
+          </button>
+          <button
+            type="button"
+            onClick={() => setResetConfirmOpen(true)}
+            className="inline-flex h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            重置演示库存数据
           </button>
         </div>
         <DataTable
@@ -541,6 +551,19 @@ export default function InventoryPoolPage() {
         danger
         onConfirm={handleDelete}
         onCancel={() => setConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="重置演示库存数据"
+        message="将清空本机已保存的库存池配额、经销商额度和预订已售，并恢复演示种子。不影响库存池主数据。"
+        danger
+        confirmText="重置"
+        onConfirm={() => {
+          resetPoolDemoState()
+          setResetConfirmOpen(false)
+          showToast('演示库存数据已重置')
+        }}
+        onCancel={() => setResetConfirmOpen(false)}
       />
     </div>
   )

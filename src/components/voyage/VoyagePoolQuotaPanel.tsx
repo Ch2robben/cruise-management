@@ -7,8 +7,10 @@ import {
   getPoolSold,
   getTemplateSegmentKeys,
   loadTemplatePoolQuotas,
+  resetPoolDemoState,
   saveTemplatePoolQuotas,
   setAggregatedPoolQty,
+  subscribePoolQuotaStore,
   type TemplatePoolQuotaRules,
 } from '@/mock/templatePoolQuotas'
 import { getTemplateSellRoomTypes } from '@/mock/sellRoomTypeConfig'
@@ -20,27 +22,22 @@ interface PoolInventoryRow {
   physicalCapacity: number
   poolQty: Record<string, number>
   sold: number
+  remaining: number
   status: 'open' | 'closed'
-}
-
-function getSoldForSellRoom(voyageId: string, sellRoomName: string, voyageInventories: { voyageId: string; cabinTypeName: string; sold: number }[]) {
-  return voyageInventories
-    .filter((item) => item.voyageId === voyageId && item.cabinTypeName === sellRoomName)
-    .reduce((sum, item) => sum + item.sold, 0)
 }
 
 export default function VoyagePoolQuotaPanel({
   voyage,
-  voyageInventories,
 }: {
   voyage: Voyage
-  voyageInventories: { voyageId: string; cabinTypeName: string; sold: number }[]
+  voyageInventories?: { voyageId: string; cabinTypeName: string; sold: number }[]
 }) {
   const [template, setTemplate] = useState<VoyageTemplate | null>(null)
   const [quotaRules, setQuotaRules] = useState<TemplatePoolQuotaRules>({})
   const [statusMap, setStatusMap] = useState<Record<string, 'open' | 'closed'>>({})
   const [editing, setEditing] = useState<PoolInventoryRow | null>(null)
   const [loading, setLoading] = useState(false)
+  const [soldTick, setSoldTick] = useState(0)
   const pools = useMemo(() => getEnabledInventoryPools(), [])
 
   useEffect(() => {
@@ -66,6 +63,16 @@ export default function VoyagePoolQuotaPanel({
     }
   }, [voyage.templateId])
 
+  useEffect(() => {
+    return subscribePoolQuotaStore(() => {
+      setSoldTick((tick) => tick + 1)
+      setTemplate((current) => {
+        if (current) setQuotaRules(loadTemplatePoolQuotas(current))
+        return current
+      })
+    })
+  }, [])
+
   const rows: PoolInventoryRow[] = useMemo(() => {
     if (!template) return []
     return getTemplateSellRoomTypes(template).map((sellRoom) => {
@@ -83,17 +90,18 @@ export default function VoyagePoolQuotaPanel({
           )
         )
       }, 0)
-      const soldFallback = getSoldForSellRoom(voyage.id, sellRoom.name, voyageInventories)
+      const allocated = Object.values(poolQty).reduce((s, n) => s + n, 0)
       return {
         sellRoomTypeCode: sellRoom.code,
         name: sellRoom.name,
         physicalCapacity: aggregatePoolPhysical(quotaRules, sellRoom.code),
         poolQty,
-        sold: Math.max(soldFromPools, soldFallback),
+        sold: soldFromPools,
+        remaining: Math.max(0, allocated - soldFromPools),
         status: statusMap[sellRoom.code] || 'open',
       }
     })
-  }, [pools, quotaRules, statusMap, template, voyage.id, voyageInventories])
+  }, [pools, quotaRules, soldTick, statusMap, template])
 
   if (!voyage.templateId) {
     return (
@@ -107,12 +115,13 @@ export default function VoyagePoolQuotaPanel({
     (acc, row) => {
       acc.physicalCapacity += row.physicalCapacity
       acc.sold += row.sold
+      acc.remaining += row.remaining
       pools.forEach((pool) => {
         acc.byPool[pool.id] = (acc.byPool[pool.id] || 0) + (row.poolQty[pool.id] || 0)
       })
       return acc
     },
-    { physicalCapacity: 0, sold: 0, byPool: {} as Record<string, number> },
+    { physicalCapacity: 0, sold: 0, remaining: 0, byPool: {} as Record<string, number> },
   )
   const allocatedTotal = Object.values(totals.byPool).reduce((s, n) => s + n, 0)
 
@@ -131,11 +140,24 @@ export default function VoyagePoolQuotaPanel({
   return (
     <>
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-slate-900">库存池配额</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            共 {rows.length} 类销售房型 · 按启用中的库存池展示可下单配额（来自航次模板）
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">库存池配额</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              共 {rows.length} 类销售房型 · 已售为下单扣减的池名额，本机刷新后仍保留
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm('将清空本机已保存的池配额与已售数据，并恢复演示种子。确定重置？')) return
+              resetPoolDemoState()
+              if (template) setQuotaRules(loadTemplatePoolQuotas(template))
+            }}
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+          >
+            重置演示数据
+          </button>
         </div>
         {loading ? (
           <div className="py-16 text-center text-sm text-slate-400">加载中...</div>
@@ -154,6 +176,7 @@ export default function VoyagePoolQuotaPanel({
                   ))}
                   <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已分配</th>
                   <th className="w-16 border-b border-slate-200 px-3 py-2.5 text-right font-medium">已售</th>
+                  <th className="w-16 border-b border-slate-200 px-3 py-2.5 text-right font-medium">余量</th>
                   <th className="w-16 border-b border-slate-200 px-3 py-2.5 text-right font-medium">未分配</th>
                   <th className="w-20 border-b border-slate-200 px-3 py-2.5 text-center font-medium">状态</th>
                   <th className="w-24 border-b border-slate-200 px-3 py-2.5 text-center font-medium">操作</th>
@@ -175,6 +198,9 @@ export default function VoyagePoolQuotaPanel({
                       ))}
                       <td className="border-b border-slate-100 px-3 py-2.5 text-right font-semibold">{allocated}</td>
                       <td className="border-b border-slate-100 px-3 py-2.5 text-right font-medium text-emerald-600">{row.sold}</td>
+                      <td className={`border-b border-slate-100 px-3 py-2.5 text-right font-medium ${row.remaining <= 0 ? 'text-rose-600' : 'text-slate-700'}`}>
+                        {row.remaining}
+                      </td>
                       <td className={`border-b border-slate-100 px-3 py-2.5 text-right font-medium ${unallocated === 0 ? 'text-slate-400' : 'text-amber-700'}`}>
                         {unallocated}
                       </td>
@@ -214,6 +240,7 @@ export default function VoyagePoolQuotaPanel({
                   ))}
                   <td className="border-t border-slate-200 px-3 py-2.5 text-right">{allocatedTotal}</td>
                   <td className="border-t border-slate-200 px-3 py-2.5 text-right text-emerald-600">{totals.sold}</td>
+                  <td className="border-t border-slate-200 px-3 py-2.5 text-right">{totals.remaining}</td>
                   <td className="border-t border-slate-200 px-3 py-2.5 text-right text-amber-700">
                     {Math.max(0, totals.physicalCapacity - allocatedTotal)}
                   </td>
