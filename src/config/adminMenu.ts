@@ -16,7 +16,7 @@ export interface AdminModule {
   groups: AdminMenuGroup[]
 }
 
-/** 顶栏四大板块 + 左侧一级/二级，对齐 CTIOP 与确认后的游轮菜单方案 */
+/** 顶栏板块 + 左侧一级/二级，对齐 CTIOP 与确认后的游轮菜单方案 */
 export const adminModules: AdminModule[] = [
   {
     key: 'cruise',
@@ -149,10 +149,22 @@ export const adminModules: AdminModule[] = [
           { key: 'role', label: '角色管理', path: '/system/roles' },
           { key: 'menu', label: '菜单管理', path: '/system/menus' },
           { key: 'dictionary', label: '数据字典', path: '/system/dictionaries' },
+        ],
+      },
+      // 客户与账号、平台规则已调整：平台规则迁至游轮业务；客户与账号暂不展示；审批流迁至审批中心
+    ],
+  },
+  {
+    key: 'approval',
+    label: '审批中心',
+    groups: [
+      {
+        key: 'approval_settings',
+        label: '审批设置',
+        children: [
           { key: 'approval_flow', label: '审批流配置', path: '/system/approval-flows' },
         ],
       },
-      // 客户与账号、平台规则已调整：平台规则迁至游轮业务；客户与账号暂不展示
     ],
   },
   {
