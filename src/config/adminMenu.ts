@@ -70,14 +70,7 @@ export const adminModules: AdminModule[] = [
           { key: 'voyage_allocation', label: '库存调配工作台', path: '/voyage/inventory-allocation' },
         ],
       },
-      {
-        key: 'service',
-        label: '服务运营',
-        children: [
-          { key: 'charter_order', label: '包船订单', path: '/service/charter-orders' },
-          { key: 'complaint_ticket', label: '客诉工单', path: '/service/complaints' },
-        ],
-      },
+      // 服务运营（包船订单 / 客诉工单）暂不展示
     ],
   },
   {
