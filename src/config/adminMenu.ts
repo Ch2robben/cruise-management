@@ -70,6 +70,18 @@ export const adminModules: AdminModule[] = [
           { key: 'voyage_allocation', label: '库存调配工作台', path: '/voyage/inventory-allocation' },
         ],
       },
+      {
+        key: 'platform_rule',
+        label: '平台规则',
+        children: [
+          { key: 'policy_content', label: '规则/政策展示', path: '/rule/policy-content' },
+          { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
+          { key: 'order_validity_rule', label: '订单有效期规则', path: '/rule/order-validity' },
+          { key: 'warning_rule', label: '预警规则', path: '/rule/warning' },
+          { key: 'close_rule', label: '订单取消规则管理', path: '/rule/close' },
+          { key: 'inventory_pool', label: '库存池管理', path: '/basic/inventory-pools' },
+        ],
+      },
       // 服务运营（包船订单 / 客诉工单）暂不展示
     ],
   },
@@ -127,7 +139,6 @@ export const adminModules: AdminModule[] = [
           { key: 'id_type', label: '证件类型管理', path: '/basic/id-types' },
           { key: 'age_group', label: '年龄段管理', path: '/basic/age-groups' },
           { key: 'activity_category', label: '分级字典', path: '/basic/hierarchical-dictionaries' },
-          { key: 'inventory_pool', label: '库存池管理', path: '/basic/inventory-pools' },
         ],
       },
       {
@@ -141,25 +152,7 @@ export const adminModules: AdminModule[] = [
           { key: 'approval_flow', label: '审批流配置', path: '/system/approval-flows' },
         ],
       },
-      {
-        key: 'platform_rule',
-        label: '平台规则',
-        children: [
-          { key: 'policy_content', label: '规则/政策展示', path: '/rule/policy-content' },
-          { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
-          { key: 'order_validity_rule', label: '订单有效期规则', path: '/rule/order-validity' },
-          { key: 'warning_rule', label: '预警规则', path: '/rule/warning' },
-          { key: 'close_rule', label: '订单取消规则管理', path: '/rule/close' },
-        ],
-      },
-      {
-        key: 'customer_account',
-        label: '客户与账号',
-        children: [
-          { key: 'customer_profile', label: '客户档案', path: '/customer/profiles' },
-          { key: 'user_center', label: '用户中心', path: '/user-management' },
-        ],
-      },
+      // 客户与账号、平台规则已调整：平台规则迁至游轮业务；客户与账号暂不展示
     ],
   },
   {
