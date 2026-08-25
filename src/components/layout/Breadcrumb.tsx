@@ -3,7 +3,7 @@ import { ChevronRight, Home } from 'lucide-react'
 
 const routeLabels: Record<string, string> = {
   '/dashboard': '数据看板',
-  '/resources': '资源',
+  '/resources': '资源配置',
   '/resources/ports': '码头管理',
   '/resources/attractions': '景点管理',
   '/resources/routes': '航线管理',
