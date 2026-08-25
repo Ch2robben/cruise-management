@@ -26,14 +26,13 @@ export const dealerPolicyTypeOptions = [
   { id: 'pt1', name: '散客预定', group: '预定类型' },
   { id: 'pt2', name: '团队预定', group: '预定类型' },
   { id: 'pt3', name: '大团队预定', group: '预定类型' },
-  { id: 'regional', name: '区域价', group: '计价类型' },
-  { id: 'global', name: '全域价', group: '计价类型' },
-  { id: 'ota', name: 'OTA价', group: '计价类型' },
+  { id: 'non_ota', name: '非OTA', group: '计价类型' },
+  { id: 'ota', name: 'OTA', group: '计价类型' },
 ]
 
 /**
- * 可选区域 = 「价格政策」中区域价已配置的生效区域并集。
- * 与 PriceTypeRulePage 初始区域价种子保持一致。
+ * 可选区域 = 「价格政策」中非OTA政策已配置的生效区域并集。
+ * 与 PriceTypeRulePage 初始非OTA种子保持一致。
  */
 export const regionPolicyEffectiveRegions: DealerConfigRegion[] = [
   { code: '500000', label: '重庆市', pathLabel: '重庆市', scope: 'domestic', sourcePolicy: '渝川区域结算价' },
@@ -70,7 +69,7 @@ const store: Record<string, DealerConfig> = {
     dealerName: '三峡国际旅行社',
     groupName: '重庆地区',
     channelKind: 'non_ota',
-    policyTypeIds: ['pt1', 'pt2', 'regional', 'global'],
+    policyTypeIds: ['pt1', 'pt2', 'non_ota'],
     regionCodes: ['500000', '510000'],
   }),
   d5: seedConfig({
@@ -78,7 +77,7 @@ const store: Record<string, DealerConfig> = {
     dealerName: '宜昌蓝天旅行社',
     groupName: '湖北地区',
     channelKind: 'non_ota',
-    policyTypeIds: ['pt1', 'pt2', 'pt3', 'regional'],
+    policyTypeIds: ['pt1', 'pt2', 'pt3', 'non_ota'],
     regionCodes: ['420500', '420503'],
   }),
   d8: seedConfig({
@@ -94,7 +93,7 @@ const store: Record<string, DealerConfig> = {
     dealerName: '途牛旅游网络',
     groupName: 'OTA渠道',
     channelKind: 'ota',
-    policyTypeIds: ['pt1', 'ota', 'global'],
+    policyTypeIds: ['pt1', 'ota'],
     regionCodes: ['JP', 'KR'],
   }),
 }
@@ -107,7 +106,7 @@ export function defaultDealerConfig(dealerId: string): DealerConfig {
     dealerName: dealer?.name ?? dealerId,
     groupName: dealer?.groupName ?? '',
     channelKind: isOta ? 'ota' : 'non_ota',
-    policyTypeIds: isOta ? ['pt1', 'ota'] : ['pt1', 'regional', 'global'],
+    policyTypeIds: isOta ? ['pt1', 'ota'] : ['pt1', 'non_ota'],
     regionCodes: isOta ? [] : [],
     updatedAt: now(),
   }

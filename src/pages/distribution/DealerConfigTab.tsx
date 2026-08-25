@@ -14,7 +14,7 @@ import {
 } from '@/mock/dealerConfigs'
 
 const channelOptions: { value: DealerChannelKind; label: string; hint: string }[] = [
-  { value: 'non_ota', label: '非OTA', hint: '同业/组团社，按区域价或全域价结算' },
+  { value: 'non_ota', label: '非OTA', hint: '同业/组团社，按非OTA价结算' },
   { value: 'ota', label: 'OTA', hint: '平台渠道，走 OTA 价与渠道对接' },
 ]
 
@@ -46,8 +46,13 @@ export default function DealerConfigTab() {
   const setChannelKind = (channelKind: DealerChannelKind) => {
     if (!form) return
     const policyTypeIds = [...form.policyTypeIds]
-    if (channelKind === 'ota' && !policyTypeIds.includes('ota')) policyTypeIds.push('ota')
+    if (channelKind === 'ota') {
+      if (!policyTypeIds.includes('ota')) policyTypeIds.push('ota')
+      const idx = policyTypeIds.indexOf('non_ota')
+      if (idx >= 0) policyTypeIds.splice(idx, 1)
+    }
     if (channelKind === 'non_ota') {
+      if (!policyTypeIds.includes('non_ota')) policyTypeIds.push('non_ota')
       const idx = policyTypeIds.indexOf('ota')
       if (idx >= 0) policyTypeIds.splice(idx, 1)
     }
@@ -142,7 +147,7 @@ export default function DealerConfigTab() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-gray-400">可用区域仅能从「分销管理 → 价格政策」中区域价已配置的生效区域选择。</p>
+      <p className="mt-2 text-xs text-gray-400">可用区域仅能从「分销管理 → 价格政策」中非OTA政策已配置的生效区域选择。</p>
 
       <FormDialog
         open={formOpen && !!form}
@@ -162,7 +167,7 @@ export default function DealerConfigTab() {
               <div className="mb-1 text-sm text-gray-700">
                 经销商类型 <span className="text-red-500">*</span>
               </div>
-              <p className="mb-2 text-xs text-gray-400">切换为 OTA 时会自动勾选「OTA价」。</p>
+              <p className="mb-2 text-xs text-gray-400">切换为 OTA 时会自动勾选「OTA」。</p>
               <div className="grid grid-cols-2 gap-3">
                 {channelOptions.map((option) => {
                   const active = form.channelKind === option.value
@@ -222,7 +227,7 @@ export default function DealerConfigTab() {
             <div>
               <label className="mb-1 block text-sm text-gray-700">可用区域</label>
               <p className="mb-2 text-xs text-gray-400">
-                可选区域来自区域政策（区域价）已配置的生效区域。不选表示不额外限制。
+                可选区域来自非OTA政策已配置的生效区域。不选表示不额外限制。
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -524,7 +524,7 @@ export default function InventoryPoolPage() {
                         <span className="shrink-0 font-mono text-xs text-gray-500">{policy.code}</span>
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {policy.distributorGroup} · {policy.policyType === 'regional' ? '区域价' : policy.policyType === 'global' ? '全域价' : 'OTA价'}
+                        {policy.distributorGroup} · {policy.policyType === 'ota' ? 'OTA' : '非OTA'}
                       </div>
                     </div>
                   ))}

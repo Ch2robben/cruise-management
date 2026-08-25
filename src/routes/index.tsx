@@ -88,9 +88,9 @@ import RebateTargetIndicatorPage from '@/pages/rule/RebateTargetIndicatorPage'
 import TipConfigPage from '@/pages/rule/TipConfigPage'
 import OrderValidityRulePage from '@/pages/rule/OrderValidityRulePage'
 import WarningRulePage from '@/pages/rule/WarningRulePage'
-import GroupAuthPage from '@/pages/rule/GroupAuthPage'
-import RefundRulePage from '@/pages/rule/RefundRulePage'
-import ShipAuthPage from '@/pages/rule/ShipAuthPage'
+// import GroupAuthPage from '@/pages/rule/GroupAuthPage'
+// import RefundRulePage from '@/pages/rule/RefundRulePage'
+// import ShipAuthPage from '@/pages/rule/ShipAuthPage'
 import CloseRulePage from '@/pages/rule/CloseRulePage'
 import PerformanceRulePage from '@/pages/rule/PerformanceRulePage'
 import RebateRulePage from '@/pages/rule/RebateRulePage'
@@ -205,9 +205,9 @@ export const router = createHashRouter([
       { path: '/rule/tip', element: <TipConfigPage /> },
       { path: '/rule/order-validity', element: <OrderValidityRulePage /> },
       { path: '/rule/warning', element: <WarningRulePage /> },
-      { path: '/rule/group-auth', element: <GroupAuthPage /> },
-      { path: '/rule/refund', element: <RefundRulePage /> },
-      { path: '/rule/ship-auth', element: <ShipAuthPage /> },
+      // { path: '/rule/group-auth', element: <GroupAuthPage /> },
+      // { path: '/rule/refund', element: <RefundRulePage /> },
+      // { path: '/rule/ship-auth', element: <ShipAuthPage /> },
       { path: '/rule/close', element: <CloseRulePage /> },
       { path: '/rule/performance', element: <PerformanceRulePage /> },
       { path: '/rule/rebate', element: <RebateRulePage /> },

@@ -4,7 +4,7 @@ import type { SelectedPolicyRegion } from '@/components/rule/PolicyRegionPicker'
 import type { RegionScopeKind } from '@/mock/pricePolicyRegions'
 import { generateId } from '@/utils/format'
 
-export type PricePolicyTypeKind = 'regional' | 'global' | 'ota'
+export type PricePolicyTypeKind = 'ota' | 'non_ota'
 /** 分类：正价 / 特价 */
 export type PricePolicyCategory = 'regular' | 'special'
 
@@ -15,7 +15,7 @@ export interface PricePolicyType {
   distributorGroup: string
   /** 分类：正价 / 特价 */
   category: PricePolicyCategory
-  /** 计价类型：区域价 / 全域价 / OTA价 */
+  /** 计价类型：OTA / 非OTA */
   policyType: PricePolicyTypeKind
   /** 下单命中本类型政策后扣减的库存池 */
   inventoryPoolId: string
@@ -55,7 +55,7 @@ const initialTypes: PricePolicyType[] = [
     name: '渝川区域结算价',
     distributorGroup: 'A组',
     category: 'special',
-    policyType: 'regional',
+    policyType: 'non_ota',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
     scopes: ['domestic'],
@@ -78,7 +78,7 @@ const initialTypes: PricePolicyType[] = [
     name: '滇黔区域结算价',
     distributorGroup: 'A组',
     category: 'special',
-    policyType: 'regional',
+    policyType: 'non_ota',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
     scopes: ['domestic'],
@@ -101,7 +101,7 @@ const initialTypes: PricePolicyType[] = [
     name: '宜昌城区区域价',
     distributorGroup: 'B组',
     category: 'special',
-    policyType: 'regional',
+    policyType: 'non_ota',
     inventoryPoolId: 'pool-2',
     inventoryPoolName: '大客户锁配额池',
     scopes: ['domestic'],
@@ -124,7 +124,7 @@ const initialTypes: PricePolicyType[] = [
     name: '日韩外宾区域价',
     distributorGroup: 'D组',
     category: 'special',
-    policyType: 'regional',
+    policyType: 'non_ota',
     inventoryPoolId: 'pool-1',
     inventoryPoolName: '同业共享池',
     scopes: ['overseas'],
@@ -147,7 +147,7 @@ const initialTypes: PricePolicyType[] = [
     name: '长航默认全域结算价',
     distributorGroup: 'A组',
     category: 'regular',
-    policyType: 'global',
+    policyType: 'non_ota',
     inventoryPoolId: 'pool-4',
     inventoryPoolName: '直销机动池',
     scopes: ['domestic', 'overseas'],
@@ -167,7 +167,7 @@ const initialTypes: PricePolicyType[] = [
     name: '境内全域保底价',
     distributorGroup: 'B组',
     category: 'regular',
-    policyType: 'global',
+    policyType: 'non_ota',
     inventoryPoolId: 'pool-4',
     inventoryPoolName: '直销机动池',
     scopes: ['domestic'],

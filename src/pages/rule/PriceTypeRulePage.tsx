@@ -35,9 +35,8 @@ const categoryOptions: { value: PricePolicyCategory; label: string }[] = [
 ]
 
 const policyTypeOptions: { value: PricePolicyTypeKind; label: string }[] = [
-  { value: 'regional', label: '区域价' },
-  { value: 'global', label: '全域价' },
-  { value: 'ota', label: 'OTA价' },
+  { value: 'non_ota', label: '非OTA' },
+  { value: 'ota', label: 'OTA' },
 ]
 
 const scopeOptions: { value: RegionScopeKind; label: string; hint: string }[] = [
@@ -62,7 +61,7 @@ const emptyForm: PricePolicyTypeForm = {
   name: '',
   distributorGroup: distributorGroupOptions[0],
   category: 'regular',
-  policyType: 'regional',
+  policyType: 'non_ota',
   ...defaultPool(),
   priority: 10,
   effectiveStart: '2026-01-01',
@@ -105,10 +104,6 @@ function formatEffectiveRule(rule: PricePolicyType) {
     ? rule.scopes.map(getScopeLabel).join('+')
     : '未选范围'
 
-  if (rule.policyType === 'global') {
-    return `全域 · ${scopeText}`
-  }
-
   const parts: string[] = []
   if (rule.scopes.includes('domestic')) {
     parts.push(`境内：${formatRegions(rule.domesticRegions)}`)
@@ -116,7 +111,7 @@ function formatEffectiveRule(rule: PricePolicyType) {
   if (rule.scopes.includes('overseas')) {
     parts.push(`境外：${formatRegions(rule.overseasRegions)}`)
   }
-  return parts.length > 0 ? parts.join('；') : `区域 · ${scopeText}`
+  return parts.length > 0 ? parts.join('；') : `非OTA · ${scopeText}`
 }
 
 function getCategoryBadgeClass(category: PricePolicyCategory) {
@@ -125,7 +120,6 @@ function getCategoryBadgeClass(category: PricePolicyCategory) {
 }
 
 function getPolicyTypeBadgeClass(type: PricePolicyTypeKind) {
-  if (type === 'global') return 'bg-blue-50 text-blue-700'
   if (type === 'ota') return 'bg-amber-50 text-amber-700'
   return 'bg-purple-50 text-purple-700'
 }
@@ -249,16 +243,6 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
     }))
   }
 
-  const applyScopeSelection = (next: SelectedPolicyRegion[]) => {
-    const scopes = next.map((item) => item.scope)
-    setForm((prev) => ({
-      ...prev,
-      scopes,
-      domesticRegions: [],
-      overseasRegions: [],
-    }))
-  }
-
   const handleSubmit = () => {
     if (!form.name.trim()) {
       window.alert('请填写政策名称')
@@ -285,21 +269,21 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
         return
       }
 
-      if (form.policyType === 'regional') {
-        if (form.domesticRegions.length + form.overseasRegions.length === 0) {
-          window.alert('请至少在生效范围树中勾选一个区域')
-          return
-        }
+      const selectedRegionCount = form.domesticRegions.length + form.overseasRegions.length
+      if (selectedRegionCount === 0) {
+        window.alert('请至少在生效范围树中勾选一个区域（勾选境内/境外根节点即可覆盖全部属地）')
+        return
+      }
 
-        const peerRegional = records.filter(
+      const peerNonOta = records.filter(
           (item) =>
             item.id !== editingId
-            && item.policyType === 'regional'
+            && item.policyType === 'non_ota'
             && item.distributorGroup === form.distributorGroup,
         )
 
         if (form.scopes.includes('domestic')) {
-          for (const peer of peerRegional) {
+          for (const peer of peerNonOta) {
             const overlap = regionsOverlap(form.domesticRegions, peer.domesticRegions)
             if (overlap.length > 0) {
               window.alert(
@@ -311,7 +295,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
         }
 
         if (form.scopes.includes('overseas')) {
-          for (const peer of peerRegional) {
+          for (const peer of peerNonOta) {
             const overlap = regionsOverlap(form.overseasRegions, peer.overseasRegions)
             if (overlap.length > 0) {
               window.alert(
@@ -321,7 +305,6 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
             }
           }
         }
-      }
     }
 
     const payload: PricePolicyTypeForm = {
@@ -329,10 +312,10 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
       inventoryPoolId: pool.id,
       inventoryPoolName: pool.name,
       scopes: form.policyType === 'ota' ? [] : form.scopes,
-      domesticRegions: form.policyType === 'regional' && form.scopes.includes('domestic')
+      domesticRegions: form.policyType === 'non_ota' && form.scopes.includes('domestic')
         ? form.domesticRegions
         : [],
-      overseasRegions: form.policyType === 'regional' && form.scopes.includes('overseas')
+      overseasRegions: form.policyType === 'non_ota' && form.scopes.includes('overseas')
         ? form.overseasRegions
         : [],
       otaChannels: form.policyType === 'ota' ? form.otaChannels : [],
@@ -360,7 +343,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
       {!embedded && (
         <PageHeader
           title="政策列表"
-          description="按分销商分组配置区域价、全域价与 OTA 价；每条政策指定唯一扣减库存池，下单命中后从该池扣减可售名额。"
+          description="按分销商分组配置 OTA / 非OTA 价格政策；每条政策指定唯一扣减库存池，下单命中后从该池扣减可售名额。"
         >
           <button
             type="button"
@@ -377,7 +360,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
           <div>
             <h3 className="text-sm font-medium text-gray-900">政策列表</h3>
             <p className="mt-1 text-xs text-gray-500">
-              按分销商分组配置区域价、全域价与 OTA 价；每条政策指定唯一扣减库存池，下单命中后从该池扣减可售名额。
+              按分销商分组配置 OTA / 非OTA 价格政策；每条政策指定唯一扣减库存池，下单命中后从该池扣减可售名额。
             </p>
           </div>
           <button
@@ -564,8 +547,8 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
                     ...form,
                     policyType,
                     scopes: policyType === 'ota' ? [] : (form.scopes.length > 0 ? form.scopes : ['domestic']),
-                    domesticRegions: policyType === 'regional' ? form.domesticRegions : [],
-                    overseasRegions: policyType === 'regional' ? form.overseasRegions : [],
+                    domesticRegions: policyType === 'non_ota' ? form.domesticRegions : [],
+                    overseasRegions: policyType === 'non_ota' ? form.overseasRegions : [],
                     otaChannels: policyType === 'ota' ? form.otaChannels : [],
                     retailEqualsSettlement: policyType === 'ota' ? form.retailEqualsSettlement : false,
                   })
@@ -618,7 +601,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
           {form.policyType === 'ota' ? (
             <div className="space-y-4 rounded-lg border border-amber-100 bg-amber-50/50 p-4">
               <div>
-                <h4 className="text-sm font-semibold text-gray-800">OTA价生效规则</h4>
+                <h4 className="text-sm font-semibold text-gray-800">OTA 生效规则</h4>
                 <p className="mt-1 text-xs text-gray-500">面向指定 OTA 渠道的结算政策；可勾选零售价与结算价相同。</p>
               </div>
               <div>
@@ -664,20 +647,11 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
               </label>
             </div>
           ) : (
-            <div className={`rounded-lg border p-4 space-y-4 ${
-              form.policyType === 'regional'
-                ? 'border-purple-100 bg-purple-50/50'
-                : 'border-blue-100 bg-blue-50/50'
-            }`}
-            >
+            <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-4 space-y-4">
               <div>
-                <h4 className="text-sm font-semibold text-gray-800">
-                  {form.policyType === 'regional' ? '区域价生效规则' : '全域价生效规则'}
-                </h4>
+                <h4 className="text-sm font-semibold text-gray-800">非OTA 生效规则</h4>
                 <p className="mt-1 text-xs text-gray-500">
-                  {form.policyType === 'regional'
-                    ? '面向指定区域游客的优惠结算价；在下方树中勾选境内省市区或境外国家/港澳台。'
-                    : '保底结算价；勾选境内/境外即可覆盖对应属地全部游客。'}
+                  面向指定区域游客的结算价；在下方树中勾选境内省市区或境外国家/港澳台。勾选境内/境外根节点即可覆盖对应属地全部游客。
                 </p>
               </div>
 
@@ -686,25 +660,11 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
                   生效范围 <span className="text-red-500">*</span>
                   <span className="ml-2 text-xs text-gray-400">树状多选</span>
                 </div>
-                {form.policyType === 'regional' ? (
-                  <PolicyRegionPicker
-                    variant="regions"
-                    value={[...form.domesticRegions, ...form.overseasRegions]}
-                    onChange={applyRegionSelection}
-                  />
-                ) : (
-                  <PolicyRegionPicker
-                    variant="scopes"
-                    value={form.scopes.map((scope) => ({
-                      code: scope,
-                      label: scope === 'domestic' ? '境内' : '境外',
-                      pathLabel: scope === 'domestic' ? '境内' : '境外',
-                      path: [scope === 'domestic' ? '境内' : '境外'],
-                      scope,
-                    }))}
-                    onChange={applyScopeSelection}
-                  />
-                )}
+                <PolicyRegionPicker
+                  variant="regions"
+                  value={[...form.domesticRegions, ...form.overseasRegions]}
+                  onChange={applyRegionSelection}
+                />
               </div>
             </div>
           )}
@@ -736,7 +696,7 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
               <DetailRow label="有效期" value={`${formatDate(detail.effectiveStart)} ~ ${formatDate(detail.effectiveEnd)}`} />
             </DetailCard>
             {detail.policyType === 'ota' ? (
-              <DetailCard title="OTA价生效规则">
+              <DetailCard title="OTA 生效规则">
                 <DetailRow
                   label="关联 OTA 渠道"
                   value={detail.otaChannels.length > 0 ? detail.otaChannels.join('、') : '-'}
@@ -747,29 +707,27 @@ export default function PricePolicyTypePage({ embedded = false }: { embedded?: b
                 />
               </DetailCard>
             ) : (
-              <DetailCard title={detail.policyType === 'regional' ? '区域价生效规则' : '全域价生效规则'}>
+              <DetailCard title="非OTA 生效规则">
                 <DetailRow
                   label="生效范围"
                   value={detail.scopes.length > 0 ? detail.scopes.map(getScopeLabel).join('、') : '-'}
                 />
-                {detail.policyType === 'regional' && (
-                  <div className="mt-3">
-                    <div className="mb-1 text-xs text-gray-500">已选区域</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...detail.domesticRegions, ...detail.overseasRegions].length === 0 ? (
-                        <span className="text-xs text-gray-400">-</span>
-                      ) : (
-                        [...detail.domesticRegions, ...detail.overseasRegions].map((item) => (
-                          <span key={`${item.scope}-${item.code}`} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                            <span className="mr-1 text-gray-400">{item.scope === 'domestic' ? '境内' : '境外'}</span>
-                            <span className="mr-1 font-mono text-gray-400">{item.code}</span>
-                            {item.pathLabel}
-                          </span>
-                        ))
-                      )}
-                    </div>
+                <div className="mt-3">
+                  <div className="mb-1 text-xs text-gray-500">已选区域</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...detail.domesticRegions, ...detail.overseasRegions].length === 0 ? (
+                      <span className="text-xs text-gray-400">该范围内全部属地</span>
+                    ) : (
+                      [...detail.domesticRegions, ...detail.overseasRegions].map((item) => (
+                        <span key={`${item.scope}-${item.code}`} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                          <span className="mr-1 text-gray-400">{item.scope === 'domestic' ? '境内' : '境外'}</span>
+                          <span className="mr-1 font-mono text-gray-400">{item.code}</span>
+                          {item.pathLabel}
+                        </span>
+                      ))
+                    )}
                   </div>
-                )}
+                </div>
               </DetailCard>
             )}
             <DetailCard title="其他">

@@ -9,7 +9,7 @@ import type { TemplateItinerary, Voyage, VoyageTemplate } from '@/types'
 import { resolveTemplateItinerary } from '@/utils/productVoyageConfig'
 
 type ControlTab = 'inventory' | 'private' | 'sales' | 'itinerary' | 'warning' | 'tip'
-type PolicyType = 'all' | 'regional' | 'global' | 'ota'
+type PolicyType = 'all' | 'non_ota' | 'ota'
 type InventoryThresholdType = 'quantity' | 'percent'
 
 // 已移除：PublicInventoryRow / 区域公共·全域公共维护（改走 VoyagePoolQuotaPanel）
@@ -118,10 +118,10 @@ const resolvedItinerary: TemplateItinerary[] =
     : (currentVoyageTemplate ? resolveTemplateItinerary(currentVoyageTemplate, currentProduct, currentVoyage?.startDate) : [])
 
 const initialPolicyRows: PolicyRow[] = [
-  { id: 'p-reg-1', name: '渝川区域结算价', type: 'regional', allowSales: 80, maxSales: 100, sold: 26 },
-  { id: 'p-reg-2', name: '滇黔区域结算价', type: 'regional', allowSales: 60, maxSales: 80, sold: 18 },
-  { id: 'p-glb-1', name: '长航默认全域结算价', type: 'global', allowSales: 150, maxSales: 200, sold: 48 },
-  { id: 'p-glb-2', name: '境内全域保底价', type: 'global', allowSales: 100, maxSales: 120, sold: 32 },
+  { id: 'p-reg-1', name: '渝川区域结算价', type: 'non_ota', allowSales: 80, maxSales: 100, sold: 26 },
+  { id: 'p-reg-2', name: '滇黔区域结算价', type: 'non_ota', allowSales: 60, maxSales: 80, sold: 18 },
+  { id: 'p-glb-1', name: '长航默认全域结算价', type: 'non_ota', allowSales: 150, maxSales: 200, sold: 48 },
+  { id: 'p-glb-2', name: '境内全域保底价', type: 'non_ota', allowSales: 100, maxSales: 120, sold: 32 },
   { id: 'p-ota-1', name: '美团/抖音OTA结算价', type: 'ota', allowSales: 90, maxSales: 120, sold: 22, otaChannels: ['美团', '抖音'], retailEqualsSettlement: true },
   { id: 'p-ota-2', name: '携程OTA分设价', type: 'ota', allowSales: 70, maxSales: 100, sold: 15, otaChannels: ['携程'], retailEqualsSettlement: false },
 ]
@@ -175,9 +175,8 @@ function formatPriceValidPeriod(start: string, end: string) {
 
 const policyTypeLabels: Record<PolicyType, string> = {
   all: '全部',
-  regional: '区域价',
-  global: '全域价',
-  ota: 'OTA价',
+  non_ota: '非OTA',
+  ota: 'OTA',
 }
 
 const inventoryWarningLabels: Record<InventoryWarningLevel, string> = {
@@ -316,8 +315,8 @@ export function SalesControlWorkspace({
               <p className="text-sm font-semibold text-slate-900">价格政策</p>
               <p className="mt-0.5 truncate text-xs text-slate-500">
                 {isOtaPolicy
-                  ? `OTA价可配置结算价与零售价 · 渠道：${(selectedPolicy?.otaChannels || []).join('、') || '-'} · 当前：${selectedPolicy?.name || '-'}`
-                  : `区域价 / 全域价调整 P 值（结算价）· 当前：${selectedPolicy?.name || '-'}`}
+                  ? `OTA 可配置结算价与零售价 · 渠道：${(selectedPolicy?.otaChannels || []).join('、') || '-'} · 当前：${selectedPolicy?.name || '-'}`
+                  : `非OTA 调整 P 值（结算价）· 当前：${selectedPolicy?.name || '-'}`}
               </p>
             </div>
             <button
@@ -747,8 +746,7 @@ function WarningThresholdModal({
 
 function TypeBadge({ type }: { type: Exclude<PolicyType, 'all'> }) {
   const className: Record<Exclude<PolicyType, 'all'>, string> = {
-    regional: 'bg-purple-50 text-purple-700 ring-purple-200',
-    global: 'bg-blue-50 text-blue-700 ring-blue-200',
+    non_ota: 'bg-purple-50 text-purple-700 ring-purple-200',
     ota: 'bg-amber-50 text-amber-700 ring-amber-200',
   }
 
