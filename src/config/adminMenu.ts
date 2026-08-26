@@ -80,6 +80,7 @@ export const adminModules: AdminModule[] = [
           { key: 'warning_rule', label: '预警规则', path: '/rule/warning' },
           { key: 'close_rule', label: '订单取消规则管理', path: '/rule/close' },
           { key: 'inventory_pool', label: '库存池管理', path: '/basic/inventory-pools' },
+          { key: 'discount_management', label: '营销规则管理', path: '/distribution/discounts' },
         ],
       },
       // 服务运营（包船订单 / 客诉工单）暂不展示
@@ -106,7 +107,6 @@ export const adminModules: AdminModule[] = [
           { key: 'payment_rule', label: '船款规则管理', path: '/rule/payment' },
           { key: 'penalty_rule', label: '罚金规则管理', path: '/rule/penalty' },
           { key: 'penalty_handling_dict', label: '罚金处理规则', path: '/rule/penalty-handling' },
-          { key: 'discount_management', label: '营销规则管理', path: '/distribution/discounts' },
         ],
       },
       {
