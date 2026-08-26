@@ -26,8 +26,8 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-56 bg-gray-900 text-gray-300 flex flex-col shrink-0 h-full overflow-y-auto">
-      <div className="px-4 py-3 border-b border-gray-800 text-xs font-medium tracking-wide text-gray-500 uppercase">
+    <aside className="w-56 bg-white text-gray-700 flex flex-col shrink-0 h-full overflow-y-auto border-r border-gray-200">
+      <div className="px-4 py-3 border-b border-gray-100 text-xs font-medium tracking-wide text-gray-400">
         {currentModule.label}
       </div>
       <nav className="flex-1 py-2">
@@ -39,8 +39,8 @@ export default function Sidebar() {
               <button
                 type="button"
                 onClick={() => toggle(group.key)}
-                className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-gray-800 transition-colors ${
-                  groupActive ? 'text-white' : ''
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
+                  groupActive ? 'text-[#1890ff]' : 'text-gray-700'
                 }`}
               >
                 <span className="flex-1 text-left font-medium">{group.label}</span>
@@ -51,22 +51,26 @@ export default function Sidebar() {
                 )}
               </button>
               {open && (
-                <div className="bg-gray-950/50">
-                  {group.children.map((child) => (
-                    <NavLink
-                      key={child.key}
-                      to={child.path}
-                      className={() =>
-                        `block pl-8 pr-4 py-2 text-sm hover:bg-gray-800 transition-colors ${
-                          isMenuPathMatch(location.pathname, child.path)
-                            ? 'text-white bg-blue-600/20 border-r-2 border-blue-500'
-                            : ''
-                        }`
-                      }
-                    >
-                      {child.label}
-                    </NavLink>
-                  ))}
+                <div>
+                  {group.children.map((child) => {
+                    const active = isMenuPathMatch(location.pathname, child.path)
+                    return (
+                      <NavLink
+                        key={child.key}
+                        to={child.path}
+                        className={`relative block pl-8 pr-4 py-2 text-sm transition-colors ${
+                          active
+                            ? 'bg-[#e6f7ff] text-[#1890ff] font-medium'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                        {active && (
+                          <span className="absolute left-0 inset-y-0 w-[3px] bg-[#1890ff]" />
+                        )}
+                        {child.label}
+                      </NavLink>
+                    )
+                  })}
                 </div>
               )}
             </div>
