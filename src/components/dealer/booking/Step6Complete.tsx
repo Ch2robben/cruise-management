@@ -2,9 +2,10 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, Circle, FileCheck2 } from 'lucide-react'
 
-export default function Step6Complete({ mode = 'booking' }: { mode?: 'booking' | 'special-price' }) {
+export default function Step6Complete({ mode = 'dealer' }: { mode?: 'dealer' | 'dispatch' | 'special-price' }) {
   const navigate = useNavigate()
   const isSpecialPrice = mode === 'special-price'
+  const isDispatch = mode === 'dispatch'
 
   return (
     <div className="space-y-4">
@@ -15,11 +16,15 @@ export default function Step6Complete({ mode = 'booking' }: { mode?: 'booking' |
               <FileCheck2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-gray-900">{isSpecialPrice ? '特价申请已提交' : '预订已提交'}</h2>
+              <h2 className="text-base font-semibold text-gray-900">
+                {isSpecialPrice ? '特价申请已提交' : isDispatch ? '计调下单已提交' : '预订已提交'}
+              </h2>
               <p className="mt-0.5 text-sm text-gray-500">
                 {isSpecialPrice
                   ? '特价申请单已提交，等待审批结果后再进入后续处理。'
-                  : '订单已创建并完成定金锁舱，请按时补录旅客名单并关注后续账单。'}
+                  : isDispatch
+                    ? '分销订单已创建并完成定金锁舱，可在运营端订单列表跟进履约与名单补录。'
+                    : '订单已创建并完成定金锁舱，请按时补录旅客名单并关注后续账单。'}
               </p>
             </div>
           </div>
@@ -130,15 +135,15 @@ export default function Step6Complete({ mode = 'booking' }: { mode?: 'booking' |
       <div className="flex justify-end gap-3 border border-gray-200 bg-white px-5 py-4">
         <button 
           className="rounded-md border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          onClick={() => navigate('/dealer/orders/cruise')}
+          onClick={() => navigate(isDispatch ? '/orders/list' : '/dealer/orders/cruise')}
         >
-          {isSpecialPrice ? '查看游轮订单' : '查看订单详情'}
+          {isSpecialPrice ? '查看游轮订单' : isDispatch ? '查看订单列表' : '查看订单详情'}
         </button>
         <button 
           className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
           onClick={() => window.location.reload()}
         >
-          {isSpecialPrice ? '继续提交下一单' : '继续预定下一单'}
+          {isSpecialPrice ? '继续提交下一单' : isDispatch ? '继续计调下一单' : '继续预定下一单'}
         </button>
       </div>
     </div>

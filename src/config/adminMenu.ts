@@ -95,6 +95,7 @@ export const adminModules: AdminModule[] = [
         label: '合作管理',
         children: [
           { key: 'cooperation', label: '合作管理', path: '/distribution/cooperation' },
+          { key: 'dispatch_booking', label: '计调下单', path: '/distribution/cooperation/dispatch-booking' },
           { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
         ],
       },

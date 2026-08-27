@@ -12,6 +12,8 @@ const routeLabels: Record<string, string> = {
   '/resources/cabins': '船舱管理',
   '/resources/sell-room-type-configs': '房型管理',
   '/distribution': '分销合作',
+  '/distribution/cooperation': '合作管理',
+  '/distribution/cooperation/dispatch-booking': '计调下单',
   '/distribution/dealers': '合作分销商',
   '/distribution/dealer-approvals': '合作审核',
   '/distribution/dealer-rules': '申请合作规则',

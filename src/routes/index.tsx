@@ -36,6 +36,7 @@ import RolePage from '@/pages/system/RolePage'
 import MenuPage from '@/pages/system/MenuPage'
 import DictionaryPage from '@/pages/system/DictionaryPage'
 import CooperationManagementPage from '@/pages/distribution/CooperationManagementPage'
+import DispatchCruiseBookingPage from '@/pages/distribution/DispatchCruiseBookingPage'
 import DistributionManagementPage from '@/pages/distribution/DistributionManagementPage'
 import DistributionOverviewPage from '@/pages/distribution/DistributionOverviewPage'
 import DistributionPriceConfigPage from '@/pages/distribution/DistributionPriceConfigPage'
@@ -163,6 +164,7 @@ export const router = createHashRouter([
       { path: '/distribution-management', element: <DistributionOverviewPage /> },
       { path: '/distribution-management/:groupId/prices', element: <DistributionPriceConfigPage /> },
       { path: '/distribution/cooperation', element: <CooperationManagementPage /> },
+      { path: '/distribution/cooperation/dispatch-booking', element: <DispatchCruiseBookingPage /> },
       { path: '/distribution/distribution-mgmt', element: <DistributionManagementPage /> },
       { path: '/distribution/ota', element: <OtaDistributionPage /> },
       { path: '/distribution/discounts', element: <DiscountManagementPage /> },
