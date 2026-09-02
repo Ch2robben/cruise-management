@@ -98,8 +98,6 @@ export default function TicketPage() {
   const columns = [
     { key: 'ticketId', title: '票ID', dataIndex: 'ticketId' as keyof Ticket },
     { key: 'name', title: '票名称', dataIndex: 'name' as keyof Ticket },
-    { key: 'guestType', title: '游客类型', render: (r: Ticket) => <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{guestTypeLabels[r.guestType]}</span> },
-    { key: 'occupancyType', title: '入住类型', render: (r: Ticket) => r.occupancyType || '-' },
     { key: 'personCount', title: '计数人数', render: (r: Ticket) => r.personCount ?? 1 },
     { key: 'status', title: '状态', render: (r: Ticket) => <StatusBadge status={r.status} /> },
     { key: 'updatedBy', title: '修改人', dataIndex: 'updatedBy' as keyof Ticket },

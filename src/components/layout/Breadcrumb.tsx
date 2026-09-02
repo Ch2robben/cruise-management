@@ -12,7 +12,12 @@ const routeLabels: Record<string, string> = {
   '/resources/cabins': '船舱管理',
   '/resources/sell-room-type-configs': '房型管理',
   '/distribution': '分销合作',
-  '/distribution/cooperation': '合作管理',
+  '/distribution/cruise-products': '游轮产品',
+  '/distribution/cooperation/dealers': '合作分销商',
+  '/distribution/cooperation/approvals': '合作审核',
+  '/distribution/cooperation/credit': '充值授信管理',
+  '/distribution/cooperation/credit-records': '操作记录',
+  '/distribution/cooperation/bills': '分销商账单',
   '/distribution/cooperation/dispatch-booking': '计调下单',
   '/distribution/dealers': '合作分销商',
   '/distribution/dealer-approvals': '合作审核',
@@ -55,6 +60,9 @@ const routeLabels: Record<string, string> = {
   '/system/roles': '角色管理',
   '/system/menus': '菜单管理',
   '/system/dictionaries': '数据字典',
+  '/report/data-reports': '数据报表',
+  '/report/voyage-income': '航次收入统计报表',
+  '/report/rebate-orders': '返利订单统计',
 }
 
 export default function Breadcrumb() {

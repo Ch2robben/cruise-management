@@ -38,7 +38,6 @@ export const adminModules: AdminModule[] = [
         children: [
           { key: 'product', label: '产品管理', path: '/resources/products' },
           { key: 'ticket', label: '票类管理', path: '/resources/tickets' },
-          { key: 'package', label: '套票管理', path: '/resources/packages' },
           { key: 'additional_product', label: '附加产品管理', path: '/resources/additional-products' },
         ],
       },
@@ -91,10 +90,21 @@ export const adminModules: AdminModule[] = [
     label: '分销中心',
     groups: [
       {
+        key: 'product_library',
+        label: '产品库',
+        children: [
+          { key: 'dist_cruise_products', label: '游轮产品', path: '/distribution/cruise-products' },
+        ],
+      },
+      {
         key: 'cooperation',
         label: '合作管理',
         children: [
-          { key: 'cooperation', label: '合作管理', path: '/distribution/cooperation' },
+          { key: 'cooperation_dealers', label: '合作分销商', path: '/distribution/cooperation/dealers' },
+          { key: 'cooperation_approvals', label: '合作审核', path: '/distribution/cooperation/approvals' },
+          { key: 'cooperation_credit', label: '充值授信管理', path: '/distribution/cooperation/credit' },
+          { key: 'cooperation_credit_records', label: '操作记录', path: '/distribution/cooperation/credit-records' },
+          { key: 'cooperation_bills', label: '分销商账单', path: '/distribution/cooperation/bills' },
           { key: 'dispatch_booking', label: '计调下单', path: '/distribution/cooperation/dispatch-booking' },
           { key: 'dealer_cooperation_rule', label: '申请合作规则', path: '/rule/dealer-cooperation' },
         ],
@@ -182,9 +192,10 @@ export const adminModules: AdminModule[] = [
       },
       {
         key: 'report',
-        label: '报表中心',
+        label: '数据中心',
         children: [
           { key: 'data_report', label: '数据报表', path: '/report/data-reports' },
+          { key: 'voyage_income_statistics', label: '航次收入统计报表', path: '/report/voyage-income' },
           { key: 'rebate_order_statistics', label: '返利订单统计', path: '/report/rebate-orders' },
         ],
       },

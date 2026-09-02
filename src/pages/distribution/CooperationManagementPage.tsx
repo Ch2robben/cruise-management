@@ -848,39 +848,53 @@ function TabBills() {
 
 // ======================== 主页面 ========================
 
-const TABS = [
-  { key: 'dealers', label: '合作分销商' },
-  { key: 'approvals', label: '合作审核', badge: true },
-  { key: 'credit', label: '充值授信管理' },
-  { key: 'credit_records', label: '操作记录' },
-  { key: 'bills', label: '分销商账单' },
-]
+export type CooperationSection = 'dealers' | 'approvals' | 'credit' | 'credit-records' | 'bills'
 
-export default function CooperationManagementPage() {
-  const [activeTab, setActiveTab] = useState('dealers')
+const SECTION_META: Record<CooperationSection, { title: string; description: string }> = {
+  dealers: {
+    title: '合作分销商',
+    description: '管理合作分销商档案、分组、启用禁用与账号生成。',
+  },
+  approvals: {
+    title: '合作审核',
+    description: '处理分销商合作入驻申请，支持通过或驳回。',
+  },
+  credit: {
+    title: '充值授信管理',
+    description: '为合作分销商配置授信额度、充值余额与质保金。',
+  },
+  'credit-records': {
+    title: '操作记录',
+    description: '查询授信调整、充值与退款等操作流水。',
+  },
+  bills: {
+    title: '分销商账单',
+    description: '按账期查看分销商销售、退款与净额账单。',
+  },
+}
+
+export default function CooperationManagementPage({ section }: { section: CooperationSection }) {
   const [dealers, setDealers] = useState(initDealers)
   const [creditRecords, setCreditRecords] = useState(initCreditRecords)
-  const pendingCount = 2
+  const meta = SECTION_META[section]
 
   return (
     <div>
-      <PageHeader title="合作管理" description="管理合作分销商信息、合作审核及授信充值等业务。" />
-      <div className="border-b border-gray-200 mb-6">
-        <div className="flex gap-0">
-          {TABS.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`relative px-5 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'}`}>
-              {tab.label}
-              {tab.badge && pendingCount > 0 && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-xs text-white">{pendingCount}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-      {activeTab === 'dealers' && <TabDealers dealers={dealers} setDealers={setDealers} setCreditRecords={setCreditRecords} />}
-      {activeTab === 'approvals' && <TabApprovals />}
-      {activeTab === 'credit' && <TabCredit dealers={dealers} setDealers={setDealers} creditRecords={creditRecords} setCreditRecords={setCreditRecords} />}
-      {activeTab === 'credit_records' && <TabCreditRecords creditRecords={creditRecords} />}
-      {activeTab === 'bills' && <TabBills />}
+      <PageHeader title={meta.title} description={meta.description} />
+      {section === 'dealers' && (
+        <TabDealers dealers={dealers} setDealers={setDealers} setCreditRecords={setCreditRecords} />
+      )}
+      {section === 'approvals' && <TabApprovals />}
+      {section === 'credit' && (
+        <TabCredit
+          dealers={dealers}
+          setDealers={setDealers}
+          creditRecords={creditRecords}
+          setCreditRecords={setCreditRecords}
+        />
+      )}
+      {section === 'credit-records' && <TabCreditRecords creditRecords={creditRecords} />}
+      {section === 'bills' && <TabBills />}
     </div>
   )
 }

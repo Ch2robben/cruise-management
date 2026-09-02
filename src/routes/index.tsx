@@ -37,6 +37,7 @@ import MenuPage from '@/pages/system/MenuPage'
 import DictionaryPage from '@/pages/system/DictionaryPage'
 import CooperationManagementPage from '@/pages/distribution/CooperationManagementPage'
 import DispatchCruiseBookingPage from '@/pages/distribution/DispatchCruiseBookingPage'
+import DistributionCruiseProductPage from '@/pages/distribution/DistributionCruiseProductPage'
 import DistributionManagementPage from '@/pages/distribution/DistributionManagementPage'
 import DistributionOverviewPage from '@/pages/distribution/DistributionOverviewPage'
 import DistributionPriceConfigPage from '@/pages/distribution/DistributionPriceConfigPage'
@@ -51,6 +52,7 @@ import UserManagementPage from '@/pages/customer/UserManagementPage'
 import ReconciliationPage from '@/pages/finance/ReconciliationPage'
 import SupplementaryPaymentPage from '@/pages/finance/SupplementaryPaymentPage'
 import DataReportPage from '@/pages/report/DataReportPage'
+import VoyageIncomeStatisticsPage from '@/pages/report/VoyageIncomeStatisticsPage'
 import RebateOrderStatisticsPage from '@/pages/report/RebateOrderStatisticsPage'
 import OrderListPage from '@/pages/order/OrderListPage'
 import VoyageAdditionalProductPage from '@/pages/order/VoyageAdditionalProductPage'
@@ -163,7 +165,13 @@ export const router = createHashRouter([
       { path: '/orders/voyage-passenger-rooms', element: <VoyagePassengerRoomPage /> },
       { path: '/distribution-management', element: <DistributionOverviewPage /> },
       { path: '/distribution-management/:groupId/prices', element: <DistributionPriceConfigPage /> },
-      { path: '/distribution/cooperation', element: <CooperationManagementPage /> },
+      { path: '/distribution/cooperation', element: <Navigate to="/distribution/cooperation/dealers" replace /> },
+      { path: '/distribution/cruise-products', element: <DistributionCruiseProductPage /> },
+      { path: '/distribution/cooperation/dealers', element: <CooperationManagementPage section="dealers" /> },
+      { path: '/distribution/cooperation/approvals', element: <CooperationManagementPage section="approvals" /> },
+      { path: '/distribution/cooperation/credit', element: <CooperationManagementPage section="credit" /> },
+      { path: '/distribution/cooperation/credit-records', element: <CooperationManagementPage section="credit-records" /> },
+      { path: '/distribution/cooperation/bills', element: <CooperationManagementPage section="bills" /> },
       { path: '/distribution/cooperation/dispatch-booking', element: <DispatchCruiseBookingPage /> },
       { path: '/distribution/distribution-mgmt', element: <DistributionManagementPage /> },
       { path: '/distribution/ota', element: <OtaDistributionPage /> },
@@ -180,6 +188,7 @@ export const router = createHashRouter([
       { path: '/finance/reconciliations', element: <ReconciliationPage /> },
       { path: '/finance/supplementary-payments', element: <SupplementaryPaymentPage /> },
       { path: '/report/data-reports', element: <DataReportPage /> },
+      { path: '/report/voyage-income', element: <VoyageIncomeStatisticsPage /> },
       { path: '/report/rebate-orders', element: <RebateOrderStatisticsPage /> },
       { path: '/resources/tickets', element: <TicketPage /> },
       { path: '/resources/facilities', element: <FacilityPage /> },
