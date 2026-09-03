@@ -71,7 +71,7 @@ export const adminModules: AdminModule[] = [
       },
       {
         key: 'platform_rule',
-        label: '平台规则',
+        label: '规则',
         children: [
           { key: 'policy_content', label: '规则/政策展示', path: '/rule/policy-content' },
           { key: 'tip_config', label: '小费标准管理', path: '/rule/tip' },
@@ -80,6 +80,8 @@ export const adminModules: AdminModule[] = [
           { key: 'close_rule', label: '订单取消规则管理', path: '/rule/close' },
           { key: 'inventory_pool', label: '库存池管理', path: '/basic/inventory-pools' },
           { key: 'discount_management', label: '营销规则管理', path: '/distribution/discounts' },
+          { key: 'age_group', label: '年龄段管理', path: '/basic/age-groups' },
+          { key: 'activity_category', label: '分级字典', path: '/basic/hierarchical-dictionaries' },
         ],
       },
       // 服务运营（包船订单 / 客诉工单）暂不展示
@@ -148,8 +150,6 @@ export const adminModules: AdminModule[] = [
         children: [
           { key: 'holiday', label: '节假日设置', path: '/basic/holidays' },
           { key: 'id_type', label: '证件类型管理', path: '/basic/id-types' },
-          { key: 'age_group', label: '年龄段管理', path: '/basic/age-groups' },
-          { key: 'activity_category', label: '分级字典', path: '/basic/hierarchical-dictionaries' },
         ],
       },
       {
