@@ -38,7 +38,7 @@ export interface ProductVoyageConfigValue {
   b2cRefundPolicy?: string
 }
 
-const TABS = ['房型配置', '定金规则', '销售规则', '小费配置', '礼遇配置', '附加产品'] as const
+const TABS = ['房型配置', '销售规则', '小费配置', '礼遇配置', '附加产品'] as const
 const refundPolicies = ['标准退改', '严格退改', '灵活退改']
 const materialOptions = ['宣传册', '行程单', '保险单', '签证指南']
 
@@ -274,122 +274,7 @@ export default function ProductVoyageConfigPanel({
           </div>
         )
       case 1:
-        // 定金规则 Tab：选择对应的定金规则
-        return (
-          <div className="space-y-5">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">定金规则配置</h4>
-                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                  选用已有定金规则模型
-                </span>
-              </div>
-              <p className="text-sm text-gray-500 mb-4">
-                为本产品选定全局定金规则。选定后，2B 渠道分销下单将默认按该规则收取定金与执行超时阻断策略。
-              </p>
-
-              {/* 核心：选择已有定金规则 */}
-              <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    选择对应定金规则 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedDepositRuleId}
-                    onChange={(e) => handleDepositRuleChange(e.target.value)}
-                    className="w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    {availableDepositRules.map((rule) => (
-                      <option key={rule.id} value={rule.id}>
-                        {rule.name}（{rule.calculationType === 'fixed' ? `¥${rule.amount}/${rule.dimension}` : `${rule.amount}%比例`} · {rule.deadlineText}）
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 所选定金规则详情卡片展示 */}
-                {currentDepositRule && (
-                  <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span className="text-sm font-semibold text-gray-900">{currentDepositRule.name}</span>
-                        <span className="text-[11px] rounded bg-emerald-50 px-2 py-0.5 text-emerald-700 font-medium">已启用</span>
-                      </div>
-                      <span className="text-xs text-gray-400">适用范围：{currentDepositRule.scopeText}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                      <div className="rounded bg-gray-50 p-2.5">
-                        <span className="text-gray-500 block">收取标准</span>
-                        <span className="font-semibold text-gray-900 mt-1 block">
-                          {currentDepositRule.calculationType === 'fixed'
-                            ? `¥${currentDepositRule.amount} / ${currentDepositRule.dimension}`
-                            : `${currentDepositRule.amount}% (${currentDepositRule.dimension})`}
-                        </span>
-                      </div>
-                      <div className="rounded bg-gray-50 p-2.5">
-                        <span className="text-gray-500 block">收取时机</span>
-                        <span className="font-semibold text-gray-900 mt-1 block">{currentDepositRule.paymentTrigger}</span>
-                      </div>
-                      <div className="rounded bg-gray-50 p-2.5">
-                        <span className="text-gray-500 block">支付时限</span>
-                        <span className="font-semibold text-gray-900 mt-1 block">{currentDepositRule.deadlineText}</span>
-                      </div>
-                      <div className="rounded bg-gray-50 p-2.5">
-                        <span className="text-gray-500 block">超时动作</span>
-                        <span className="font-semibold text-red-600 mt-1 block">{currentDepositRule.overdueAction}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 可选：特定航段×房型定金微调覆盖 */}
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setShowSegmentOverrides(!showSegmentOverrides)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900"
-                >
-                  {showSegmentOverrides ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                  <span>特定航段 × 房型定金单独覆盖（选填，共 {value.deposits.length} 项）</span>
-                </button>
-                <span className="text-[11px] text-gray-400">如无特殊需求将直接继承上述全局定金规则</span>
-              </div>
-
-              {showSegmentOverrides && (
-                <div className="mt-3 rounded-lg border border-gray-200 p-4">
-                  {renderSegmentRoomTable(
-                    '航段 × 房型覆盖定金',
-                    '定金(元/人)',
-                    value.deposits.map((item) => ({
-                      id: item.id,
-                      segmentKey: item.segmentKey,
-                      roomType: item.roomType,
-                      amount: item.deposit,
-                    })),
-                    () => onChange({ ...value, deposits: [...value.deposits, emptyDep(defaultSegmentKey)] }),
-                    (id) => onChange({ ...value, deposits: value.deposits.filter((item) => item.id !== id) }),
-                    (idx, patch) => {
-                      const deposits = [...value.deposits]
-                      deposits[idx] = {
-                        ...deposits[idx],
-                        ...(patch.segmentKey !== undefined ? { segmentKey: patch.segmentKey } : {}),
-                        ...(patch.roomType !== undefined ? { roomType: patch.roomType } : {}),
-                        ...(patch.amount !== undefined ? { deposit: patch.amount } : {}),
-                      }
-                      onChange({ ...value, deposits })
-                    },
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      case 2:
-        // 销售规则 Tab：划分为 2B销售 与 2C销售
+        // 销售规则 Tab：划分为 2B销售 与 2C销售（包含2B定金规则与船款规则）
         return (
           <div className="space-y-4">
             {/* 2B 与 2C 子Tab切换栏 */}
@@ -644,7 +529,7 @@ export default function ProductVoyageConfigPanel({
             )}
           </div>
         )
-      case 3:
+      case 2:
         return renderSegmentRoomTable(
           '小费配置',
           '小费(元/人)',
@@ -665,7 +550,7 @@ export default function ProductVoyageConfigPanel({
           }),
           true,
         )
-      case 4:
+      case 3:
         return (
           <div>
             <div className="mb-3 flex items-center justify-between">
@@ -749,7 +634,7 @@ export default function ProductVoyageConfigPanel({
             <p className="mt-2 text-xs text-gray-400">礼遇项来自分级字典「礼遇类型」，需关联到已配置房型。</p>
           </div>
         )
-      case 5: {
+      case 4: {
         const associatedIds = value.additionalProductIds || []
 
         const toggleAssociation = (apId: string) => {
