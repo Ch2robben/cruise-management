@@ -8,6 +8,8 @@ import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailD
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import ApplicableScopeTransfer, { formatApplicableScope, formatApplicableScopeDetail, scopeIncludesProduct, type ApplicableScope } from '@/components/rule/ApplicableScopeTransfer'
+import DealerGroupScopeSelector from '@/components/rule/DealerGroupScopeSelector'
+import { DEALER_RULE_GROUPS, formatDealerGroupSummary } from '@/mock/dealerRuleGroups'
 import { products } from '@/mock/data'
 import { formatDate, formatDateTime, generateId } from '@/utils/format'
 import type { Status } from '@/types'
@@ -20,6 +22,7 @@ export interface RuleRecord {
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
   applyScope: ApplicableScope
+  dealerGroupIds?: string[]
   channel: string
   triggerPoint: string
   amountType: RuleAmountType
@@ -43,6 +46,7 @@ interface RuleCrudConfig {
   title: string
   description: string
   addText: string
+  scopeMode?: 'product' | 'dealerGroup'
   amountLabel: string
   amountValueLabel: string
   dueDaysLabel: string
@@ -184,7 +188,20 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
   const columns = [
     { key: 'code', title: '规则编码', render: (r: RuleRecord) => <span className="font-mono text-xs">{r.code}</span> },
     { key: 'name', title: '规则名称', dataIndex: 'name' as keyof RuleRecord },
-    { key: 'scope', title: '适用范围', render: (r: RuleRecord) => formatApplicableScope(r.applyScope) },
+    {
+      key: 'scope',
+      title: config.scopeMode === 'dealerGroup' ? '适用分销商分组' : (config.scopeLabel || '适用范围'),
+      render: (r: RuleRecord) => {
+        if (config.scopeMode === 'dealerGroup') {
+          return (
+            <span className="font-medium text-gray-900">
+              {formatDealerGroupSummary(r.dealerGroupIds || [])}
+            </span>
+          )
+        }
+        return formatApplicableScope(r.applyScope)
+      },
+    },
     { key: 'channel', title: config.channelLabel || '适用渠道', dataIndex: 'channel' as keyof RuleRecord },
     { key: 'trigger', title: config.triggerLabel, dataIndex: 'triggerPoint' as keyof RuleRecord },
     { key: 'amount', title: config.amountLabel, render: (r: RuleRecord) => formatAmount(r.amountType, r.amountValue) },
@@ -212,13 +229,15 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
           <label className="text-xs text-gray-500">关键词</label>
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="编码/名称/备注" className="w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-gray-500">适用产品</label>
-          <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <option value="all">全部</option>
-            {products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </div>
+        {config.scopeMode !== 'dealerGroup' && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-gray-500">适用产品</label>
+            <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="all">全部</option>
+              {products.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-500">{config.channelLabel || '适用渠道'}</label>
           <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -260,7 +279,14 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
             </div>
           </div>
 
-          <ApplicableScopeTransfer value={form.applyScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
+          {config.scopeMode === 'dealerGroup' ? (
+            <DealerGroupScopeSelector
+              selectedGroupIds={form.dealerGroupIds || []}
+              onChange={(ids) => setForm({ ...form, dealerGroupIds: ids })}
+            />
+          ) : (
+            <ApplicableScopeTransfer value={form.applyScope} onChange={(applyScope) => setForm({ ...form, applyScope })} />
+          )}
 
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">规则口径</h4>
@@ -321,7 +347,14 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
           <DetailCard title="基本信息">
             <DetailRow label="规则编码" value={detail.code} mono />
             <DetailRow label="规则名称" value={detail.name} />
-            <DetailRow label="适用范围" value={formatApplicableScope(detail.applyScope)} />
+            <DetailRow
+              label={config.scopeMode === 'dealerGroup' ? '适用分销商分组' : '适用范围'}
+              value={
+                config.scopeMode === 'dealerGroup'
+                  ? formatDealerGroupSummary(detail.dealerGroupIds || [])
+                  : formatApplicableScope(detail.applyScope)
+              }
+            />
             <DetailRow label={config.channelLabel || '适用渠道'} value={detail.channel} />
             <DetailRow label="优先级" value={detail.priority} />
             <DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} />
@@ -337,8 +370,24 @@ export default function RuleCrudPage({ config }: RuleCrudPageProps) {
             <DetailRow label="有效期" value={formatEffectivePeriod(detail.effectiveStart, detail.effectiveEnd, detail.longTerm)} />
             <DetailRow label="规则说明" value={detail.remark || '-'} />
           </DetailCard>
-          <DetailCard title="适用范围">
-            <DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
+          <DetailCard title={config.scopeMode === 'dealerGroup' ? '适用分销商分组' : '适用范围'}>
+            {config.scopeMode === 'dealerGroup' ? (
+              <div className="space-y-1 text-sm text-gray-700">
+                {(detail.dealerGroupIds && detail.dealerGroupIds.length > 0) ? (
+                  detail.dealerGroupIds.map((gid) => {
+                    const g = DEALER_RULE_GROUPS.find((item) => item.id === gid)
+                    return (
+                      <div key={gid}>
+                        • <span className="font-medium text-gray-900">{g?.name || gid}</span>
+                        {g?.description && <span className="text-gray-500">（{g.description}）</span>}
+                      </div>
+                    )
+                  })
+                ) : '未配置'}
+              </div>
+            ) : (
+              <DetailRow label="适用产品" value={<span className="whitespace-pre-line">{formatApplicableScopeDetail(detail.applyScope)}</span>} />
+            )}
           </DetailCard>
           <DetailCard title="操作信息">
             <DetailRow label="修改人" value={detail.updatedBy} />

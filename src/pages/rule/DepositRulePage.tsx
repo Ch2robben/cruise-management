@@ -7,7 +7,8 @@ import FormDialog from '@/components/common/FormDialog'
 import DetailDrawer, { DetailCard, DetailRow } from '@/components/common/DetailDrawer'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
-import { products } from '@/mock/data'
+import DealerGroupScopeSelector from '@/components/rule/DealerGroupScopeSelector'
+import { DEALER_RULE_GROUPS, formatDealerGroupSummary } from '@/mock/dealerRuleGroups'
 import { formatDateTime, generateId } from '@/utils/format'
 
 type RuleStatus = 'enabled' | 'disabled'
@@ -18,15 +19,6 @@ type DepositCalculationType = 'fixed' | 'percent'
 type DepositTrigger = 'orderConfirmed' | 'inventoryLocked' | 'specialPriceApproved' | 'contractConfirmed'
 type DepositFeeScope = 'cruiseFare' | 'orderTotal'
 type DepositOverdueAction = 'cancelAndRelease' | 'manualReview' | 'keepOrder'
-
-export interface DepositScopeItem {
-  id: string
-  productId: string
-  productName: string
-  routeId: string
-  routeName: string
-  roomTypes: string[]
-}
 
 interface DepositConfigFields {
   chargeDeposit: boolean
@@ -55,7 +47,7 @@ interface DepositRule {
   name: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
   status: RuleStatus
-  scopeItems: DepositScopeItem[]
+  dealerGroupIds: string[]
   config: DepositConfigFields
   updatedBy: string
   updatedAt: string
@@ -132,32 +124,10 @@ function getTimeUnitLabel(unit: TimeUnit) {
   return timeUnitOptions.find((item) => item.value === unit)?.label || unit
 }
 
-function getProductRoomTypes(productId: string) {
-  const product = products.find((item) => item.id === productId)
-  if (!product) return []
-  return Array.from(new Set(product.pricing.map((item) => item.cabinType).filter(Boolean)))
-}
-
-function createScopeItem(productId: string, roomTypes: string[]): DepositScopeItem | null {
-  const product = products.find((item) => item.id === productId)
-  if (!product || roomTypes.length === 0) return null
-  const available = new Set(getProductRoomTypes(productId))
-  const matchedRoomTypes = roomTypes.filter((roomType) => available.has(roomType))
-  if (matchedRoomTypes.length === 0) return null
-  return {
-    id: product.id,
-    productId: product.id,
-    productName: product.name,
-    routeId: product.routeId,
-    routeName: product.routeName,
-    roomTypes: matchedRoomTypes,
-  }
-}
-
 const emptyForm: DepositRuleForm = {
   name: '',
   status: 'enabled',
-  scopeItems: [],
+  dealerGroupIds: [],
   config: { ...defaultConfigFields },
 }
 
@@ -175,37 +145,26 @@ function createDepositRule(form: DepositRuleForm): DepositRule {
 
 const initialSpecialRules: DepositRule[] = [
   createDepositRule({
-    name: '内宾巫山特殊房型定金',
+    name: 'A组核心分销商优惠定金',
     status: 'enabled',
-    scopeItems: [createScopeItem('prod01', ['套房', '阳台房'])!].filter(Boolean) as DepositScopeItem[],
-    config: { ...defaultConfigFields, amount: 500 },
+    dealerGroupIds: ['group_a'],
+    config: { ...defaultConfigFields, amount: 200 },
   }),
   createDepositRule({
-    name: '外宾日本旺季特殊定金',
+    name: 'D组与OTA专享全额保障定金',
     status: 'enabled',
-    scopeItems: [createScopeItem('prod02', ['套房'])!].filter(Boolean) as DepositScopeItem[],
+    dealerGroupIds: ['group_d', 'group_ota'],
     config: {
       ...defaultConfigFields,
       calculationType: 'percent',
-      amount: 20,
+      amount: 30,
       feeScope: 'orderTotal',
-      deadlineType: 'beforeSail',
-      deadlineValue: 20,
-      deadlineTimeUnit: 'day',
+      deadlineType: 'afterBooking',
+      deadlineValue: 12,
+      deadlineTimeUnit: 'hour',
     },
   }),
 ]
-
-function formatScopeSummary(items: DepositScopeItem[]) {
-  if (items.length === 0) return '未配置'
-  const roomCount = items.reduce((sum, item) => sum + item.roomTypes.length, 0)
-  return `${items.length}个产品 / ${roomCount}个房型`
-}
-
-function formatScopeDetail(items: DepositScopeItem[]) {
-  if (items.length === 0) return '未配置'
-  return items.map((item) => `${item.productName}（${item.routeName} / ${item.roomTypes.join('、')}）`).join('\n')
-}
 
 function formatDeadline(fields: DepositConfigFields) {
   const prefix = fields.deadlineType === 'beforeSail' ? '开航前' : '预定后'
@@ -332,37 +291,6 @@ function DepositConfigFieldsEditor({
 }
 
 
-function ScopeCartList({
-  items,
-  onRemove,
-  showRemove = false,
-}: {
-  items: DepositScopeItem[]
-  onRemove?: (id: string) => void
-  showRemove?: boolean
-}) {
-  if (items.length === 0) {
-    return <div className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-400">尚未添加适用范围</div>
-  }
-
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
-          <div className="min-w-0 text-sm">
-            <div className="font-medium text-gray-900">{item.productName}</div>
-            <div className="mt-0.5 text-xs text-gray-500">{item.routeName} · {item.roomTypes.join('、')}</div>
-          </div>
-          {showRemove && (
-            <button type="button" onClick={() => onRemove?.(item.id)} className="inline-flex shrink-0 items-center gap-1 text-xs text-red-500 hover:text-red-600">
-              <Trash2 className="h-3.5 w-3.5" /> 移除
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 function NumberStepper({
   value,
@@ -406,21 +334,10 @@ export default function DepositRulePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<DepositRuleForm>(emptyForm)
 
-  const [scopeProductIds, setScopeProductIds] = useState<string[]>([])
-  const [scopeRoomTypes, setScopeRoomTypes] = useState<string[]>([])
-
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<DepositRule | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmId, setConfirmId] = useState('')
-
-  const scopeRoomTypeOptions = useMemo(() => {
-    const roomTypes = new Set<string>()
-    scopeProductIds.forEach((productId) => {
-      getProductRoomTypes(productId).forEach((roomType) => roomTypes.add(roomType))
-    })
-    return Array.from(roomTypes)
-  }, [scopeProductIds])
 
   const filteredRecords = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
@@ -433,11 +350,6 @@ export default function DepositRulePage() {
 
   const pageSize = 10
   const pagedRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
-
-  const resetScopeSelector = () => {
-    setScopeProductIds([])
-    setScopeRoomTypes([])
-  }
 
   const openDefaultEdit = () => {
     const { id: _id, approvalStatus: _approvalStatus, updatedBy: _updatedBy, updatedAt: _updatedAt, ...nextForm } = defaultRule
@@ -464,20 +376,18 @@ export default function DepositRulePage() {
   const openCreate = () => {
     setEditingId(null)
     setForm({ ...emptyForm, config: { ...defaultConfigFields } })
-    resetScopeSelector()
     setFormOpen(true)
   }
 
   const openEdit = (record: DepositRule) => {
     const { id: _id, approvalStatus: _approvalStatus, updatedBy: _updatedBy, updatedAt: _updatedAt, createdAt: _createdAt, ...nextForm } = record
     setEditingId(record.id)
-    setForm({ ...nextForm, config: { ...nextForm.config }, scopeItems: nextForm.scopeItems.map((item) => ({ ...item, roomTypes: [...item.roomTypes] })) })
-    resetScopeSelector()
+    setForm({ ...nextForm, config: { ...nextForm.config }, dealerGroupIds: [...nextForm.dealerGroupIds] })
     setFormOpen(true)
   }
 
   const handleSubmit = () => {
-    if (!form.name.trim() || form.scopeItems.length === 0) return
+    if (!form.name.trim() || form.dealerGroupIds.length === 0) return
     const now = new Date().toISOString()
     if (editingId) {
       setRecords((prev) => prev.map((item) => item.id === editingId ? { ...item, ...form, updatedBy: '当前用户', updatedAt: now } : item))
@@ -503,41 +413,6 @@ export default function DepositRulePage() {
     setConfirmOpen(false)
   }
 
-  const toggleScopeProduct = (productId: string) => {
-    setScopeProductIds((prev) => {
-      const next = prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
-      const available = new Set(next.flatMap((id) => getProductRoomTypes(id)))
-      setScopeRoomTypes((rooms) => rooms.filter((room) => available.has(room)))
-      return next
-    })
-  }
-
-  const toggleScopeRoomType = (roomType: string) => {
-    setScopeRoomTypes((prev) => prev.includes(roomType) ? prev.filter((item) => item !== roomType) : [...prev, roomType])
-  }
-
-  const addScopeToConfig = () => {
-    if (scopeProductIds.length === 0 || scopeRoomTypes.length === 0) return
-    const nextItems = [...form.scopeItems]
-    scopeProductIds.forEach((productId) => {
-      const created = createScopeItem(productId, scopeRoomTypes)
-      if (!created) return
-      const existingIndex = nextItems.findIndex((item) => item.productId === productId)
-      if (existingIndex >= 0) {
-        const merged = Array.from(new Set([...nextItems[existingIndex].roomTypes, ...created.roomTypes]))
-        nextItems[existingIndex] = { ...nextItems[existingIndex], roomTypes: merged }
-      } else {
-        nextItems.push(created)
-      }
-    })
-    setForm({ ...form, scopeItems: nextItems })
-    resetScopeSelector()
-  }
-
-  const removeScopeItem = (id: string) => {
-    setForm({ ...form, scopeItems: form.scopeItems.filter((item) => item.id !== id) })
-  }
-
   const updateConfigField = <K extends keyof DepositConfigFields>(field: K, value: DepositConfigFields[K]) => {
     setForm({ ...form, config: { ...form.config, [field]: value } })
   }
@@ -552,7 +427,9 @@ export default function DepositRulePage() {
 
   const columns = [
     { key: 'name', title: '规则名称', dataIndex: 'name' as keyof DepositRule },
-    { key: 'scope', title: '适用范围', render: (r: DepositRule) => formatScopeSummary(r.scopeItems) },
+    { key: 'scope', title: '适用范围', render: (r: DepositRule) => (
+      <span className="font-medium text-gray-900">{formatDealerGroupSummary(r.dealerGroupIds)}</span>
+    ) },
     { key: 'amount', title: '定金标准', render: (r: DepositRule) => formatAmount(r.config) },
     { key: 'approvalStatus', title: '审批状态', render: (r: DepositRule) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'status', title: '状态', render: (r: DepositRule) => (
@@ -573,7 +450,7 @@ export default function DepositRulePage() {
 
   return (
     <div>
-      <PageHeader title="定金规则管理" description="维护定金收取方式、支付节点与逾期处理；默认规则兜底，特殊规则按产品-航线-房型覆盖" />
+      <PageHeader title="定金规则管理" description="维护定金收取方式、支付节点与逾期处理；默认规则全局兜底，特殊规则按分销商分组生效（不关联产品）" />
 
       <div className="mx-9 mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-4">
@@ -585,7 +462,7 @@ export default function DepositRulePage() {
                 {defaultRule.status === 'enabled' ? '启用' : '关闭'}
               </span>
             </div>
-            <p className="mt-1 text-sm text-gray-500">对所有产品、航线、房型生效；未命中特殊规则时使用此配置</p>
+            <p className="mt-1 text-sm text-gray-500">对全部分销商、航线与订单生效；未命中特殊规则时默认执行此配置</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button onClick={toggleDefaultStatus} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
@@ -621,7 +498,7 @@ export default function DepositRulePage() {
       <FormDialog open={defaultFormOpen} title="编辑默认定金规则" width="max-w-3xl" onCancel={() => setDefaultFormOpen(false)} onSubmit={handleDefaultSubmit}>
         <div className="space-y-5">
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            默认定金规则全局唯一，对所有产品、航线、房型生效，无需选择适用范围。
+            默认定金规则全局唯一，对所有产品与渠道生效，无需指定分销商分组。
           </div>
           <div>
             <label className="mb-1 block text-sm text-gray-700">状态</label>
@@ -640,7 +517,7 @@ export default function DepositRulePage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="mb-1 block text-sm text-gray-700">规则名称 <span className="text-red-500">*</span></label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="请输入特殊规则名称" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm text-gray-700">状态</label>
@@ -651,74 +528,17 @@ export default function DepositRulePage() {
             </div>
           </div>
 
-          <div>
-            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">适用范围</h4>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">产品（可多选）</label>
-                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
-                    {products.map((item) => (
-                      <label key={item.id} className="flex items-start gap-2 text-sm text-gray-700">
-                        <input type="checkbox" checked={scopeProductIds.includes(item.id)} onChange={() => toggleScopeProduct(item.id)} className="mt-0.5" />
-                        <span>
-                          <span className="block font-medium text-gray-900">{item.name}</span>
-                          <span className="text-xs text-gray-400">{item.routeName}</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-gray-700">房型（可多选）</label>
-                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
-                    {scopeProductIds.length === 0 ? (
-                      <p className="text-xs text-gray-400">请先选择产品</p>
-                    ) : scopeRoomTypeOptions.length === 0 ? (
-                      <p className="text-xs text-gray-400">所选产品暂无房型</p>
-                    ) : scopeRoomTypeOptions.map((roomType) => (
-                      <label key={roomType} className="flex items-center gap-2 text-sm text-gray-700">
-                        <input type="checkbox" checked={scopeRoomTypes.includes(roomType)} onChange={() => toggleScopeRoomType(roomType)} />
-                        <span>{roomType}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-gray-500">可多选产品与房型，添加后进入下方购物车；多选房型共用同一套规则配置。</p>
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={addScopeToConfig}
-                  disabled={scopeProductIds.length === 0 || scopeRoomTypes.length === 0}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-                >
-                  添加至配置区
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* 适用范围（选择分销商分组，不关联产品）与已选范围 */}
+          <DealerGroupScopeSelector
+            selectedGroupIds={form.dealerGroupIds}
+            onChange={(ids) => setForm({ ...form, dealerGroupIds: ids })}
+          />
 
           <div>
-            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">配置区</h4>
-            {form.scopeItems.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-400">
-                请先选择产品与房型并添加至配置区
-              </div>
-            ) : (
-              <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div>
-                  <div className="mb-2 text-sm font-medium text-gray-800">已选范围（{formatScopeSummary(form.scopeItems)}）</div>
-                  <ScopeCartList items={form.scopeItems} onRemove={removeScopeItem} showRemove />
-                </div>
-                <div>
-                  <div className="mb-2 text-sm font-medium text-gray-800">规则配置（共用一套）</div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-4">
-                    <DepositConfigFieldsEditor fields={form.config} onChange={updateConfigField} />
-                  </div>
-                </div>
-              </div>
-            )}
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">规则配置（共用一套）</h4>
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <DepositConfigFieldsEditor fields={form.config} onChange={updateConfigField} />
+            </div>
           </div>
         </div>
       </FormDialog>
@@ -727,7 +547,24 @@ export default function DepositRulePage() {
         {detail && (<>
           <DetailCard title="基本信息">
             <DetailRow label="规则名称" value={detail.name} />
-            <DetailRow label="适用范围" value={<span className="whitespace-pre-line">{formatScopeDetail(detail.scopeItems)}</span>} />
+            <DetailRow
+              label="适用范围"
+              value={
+                detail.dealerGroupIds.length === 0 ? '未配置' : (
+                  <div className="space-y-1">
+                    {detail.dealerGroupIds.map((gid) => {
+                      const g = DEALER_RULE_GROUPS.find((item) => item.id === gid)
+                      return (
+                        <div key={gid} className="text-xs text-gray-700">
+                          • <span className="font-medium text-gray-900">{g?.name || gid}</span>
+                          {g?.description && <span className="text-gray-500">（{g.description}）</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              }
+            />
             <DetailRow label="审批状态" value={<StatusBadge status={detail.approvalStatus} />} />
             <DetailRow label="状态" value={detail.status === 'enabled' ? '启用' : '关闭'} />
           </DetailCard>
