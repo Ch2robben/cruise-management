@@ -37,6 +37,8 @@ export const adminModules: AdminModule[] = [
         label: '产品',
         children: [
           { key: 'product', label: '产品管理', path: '/resources/products' },
+          { key: 'route', label: '航线管理', path: '/resources/routes' },
+          { key: 'itinerary', label: '行程管理', path: '/resources/itineraries' },
           { key: 'ticket', label: '票类管理', path: '/resources/tickets' },
           { key: 'additional_product', label: '附加产品管理', path: '/resources/additional-products' },
         ],
@@ -47,8 +49,6 @@ export const adminModules: AdminModule[] = [
         children: [
           { key: 'port', label: '码头管理', path: '/resources/ports' },
           { key: 'attraction', label: '景点管理', path: '/resources/attractions' },
-          { key: 'route', label: '航线管理', path: '/resources/routes' },
-          { key: 'itinerary', label: '行程管理', path: '/resources/itineraries' },
           { key: 'ship', label: '船舶管理', path: '/resources/ships' },
           { key: 'cabin', label: '船舱管理', path: '/resources/cabins' },
           { key: 'room', label: '房间管理', path: '/resources/rooms' },
