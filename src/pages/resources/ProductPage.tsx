@@ -10,6 +10,7 @@ import { getRouteProductAutoFill } from '@/utils/itineraryPlanProduct'
 import { getEnabledSellRoomTypesByShip } from '@/mock/sellRoomTypeConfig'
 import { pickProductVoyageConfig, buildProductSegmentOptions, formatSegmentKeyLabel } from '@/utils/productVoyageConfig'
 import { initialAdditionalProducts } from '@/mock/additionalProducts'
+import { availableDepositRules, availablePaymentRules } from '@/mock/salesRules'
 import ProductVoyageConfigPanel, { emptyProductVoyageConfig, type ProductVoyageConfigValue } from '@/components/resources/ProductVoyageConfigPanel'
 import PageHeader from '@/components/common/PageHeader'
 import SearchPanel from '@/components/common/SearchPanel'
@@ -820,20 +821,55 @@ export default function ProductPage() {
                 </tbody>
               </table>
             </DetailCard>
-            <DetailCard title={`航次定金（${detail.deposits?.length || 0}项）`}>
-              {(detail.deposits || []).map((deposit) => (
-                <div key={deposit.id} className="flex flex-wrap gap-3 py-0.5 text-sm">
-                  <span className="text-gray-700">{formatSegmentKeyLabel(deposit.segmentKey, buildProductSegmentOptions(detail.segments))}</span>
-                  <span className="text-gray-500">· {deposit.roomType || '-'}</span>
-                  <span className="text-gray-500">¥{deposit.deposit}/人</span>
+            <DetailCard title="定金规则">
+              <DetailRow
+                label="对应定金规则"
+                value={availableDepositRules.find((r) => r.id === (detail.depositRuleId || detail.b2bDepositRuleId || 'dep_default'))?.name || '默认定金规则'}
+              />
+              {(detail.deposits || []).length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <div className="text-xs text-gray-500 mb-1">特定航段覆盖定金：</div>
+                  {(detail.deposits || []).map((deposit) => (
+                    <div key={deposit.id} className="flex flex-wrap gap-3 py-0.5 text-xs text-gray-600">
+                      <span>{formatSegmentKeyLabel(deposit.segmentKey, buildProductSegmentOptions(detail.segments))}</span>
+                      <span>· {deposit.roomType || '-'}</span>
+                      <span className="font-medium text-gray-900">¥{deposit.deposit}/人</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </DetailCard>
-            <DetailCard title="销售规则">
-              <DetailRow label="预售期" value={`${detail.presaleDays || 0}天`} />
-              <DetailRow label="截止售卖" value={`${detail.cutoffDays || 0}天前`} />
-              <DetailRow label="退改策略" value={detail.refundPolicy || '-'} />
-              <DetailRow label="物料需求" value={(detail.materialReq || []).join('、') || '-'} />
+            <DetailCard title="销售规则 (2B / 2C)">
+              <div className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                <span>2B 渠道销售规则</span>
+              </div>
+              <DetailRow
+                label="2B 定金规则"
+                value={availableDepositRules.find((r) => r.id === (detail.b2bDepositRuleId || detail.depositRuleId || 'dep_default'))?.name || '默认定金规则'}
+              />
+              <DetailRow
+                label="2B 船款规则"
+                value={availablePaymentRules.find((r) => r.id === (detail.b2bPaymentRuleId || 'pay_default'))?.name || '默认船款规则'}
+              />
+              <DetailRow label="2B 预售期" value={`${detail.b2bPresaleDays || detail.presaleDays || 90}天`} />
+              <DetailRow label="2B 截止售卖" value={`${detail.b2bCutoffDays || detail.cutoffDays || 3}天前`} />
+              <DetailRow label="2B 退改策略" value={detail.b2bRefundPolicy || detail.refundPolicy || '标准退改'} />
+
+              <div className="mt-2.5 pt-2.5 border-t border-gray-100 text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                <span>2C 散客直销规则</span>
+              </div>
+              <DetailRow
+                label="2C 船款规则"
+                value={availablePaymentRules.find((r) => r.id === (detail.b2cPaymentRuleId || 'pay_c_direct'))?.name || '直销散客即时付清规则'}
+              />
+              <DetailRow label="2C 预售期" value={`${detail.b2cPresaleDays || 60}天`} />
+              <DetailRow label="2C 截止售卖" value={`${detail.b2cCutoffDays || 1}天前`} />
+              <DetailRow label="2C 退改策略" value={detail.b2cRefundPolicy || '标准退改'} />
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <DetailRow label="物料需求" value={(detail.materialReq || []).join('、') || '-'} />
+              </div>
             </DetailCard>
             <DetailCard title={`小费（${detail.tips?.length || 0}项）`}>
               {(detail.tips || []).map((tip) => (

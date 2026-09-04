@@ -44,7 +44,30 @@ function normalizeTip(item: TemplateTip, defaultSegmentKey: string): TemplateTip
 }
 
 export function pickProductVoyageConfig(
-  product: Pick<Product, 'id' | 'deposits' | 'tips' | 'configuredRoomTypes' | 'privileges' | 'presaleDays' | 'cutoffDays' | 'refundPolicy' | 'materialReq' | 'segments' | 'additionalProductIds'>,
+  product: Pick<
+    Product,
+    | 'id'
+    | 'deposits'
+    | 'tips'
+    | 'configuredRoomTypes'
+    | 'privileges'
+    | 'presaleDays'
+    | 'cutoffDays'
+    | 'refundPolicy'
+    | 'materialReq'
+    | 'segments'
+    | 'additionalProductIds'
+    | 'depositRuleId'
+    | 'b2bDepositRuleId'
+    | 'b2bPaymentRuleId'
+    | 'b2bPresaleDays'
+    | 'b2bCutoffDays'
+    | 'b2bRefundPolicy'
+    | 'b2cPaymentRuleId'
+    | 'b2cPresaleDays'
+    | 'b2cCutoffDays'
+    | 'b2cRefundPolicy'
+  >,
 ): ProductVoyageConfigValue {
   const defaultSegmentKey = product.segments?.[0] ? getSegmentKey(product.segments[0]) : ''
   const associatedAps = product.additionalProductIds
@@ -55,11 +78,21 @@ export function pickProductVoyageConfig(
     tips: (product.tips || []).map((item) => normalizeTip(item, defaultSegmentKey)),
     configuredRoomTypes: [...(product.configuredRoomTypes || [])],
     privileges: (product.privileges || []).map((item) => ({ ...item })),
-    presaleDays: product.presaleDays || 0,
-    cutoffDays: product.cutoffDays || 0,
-    refundPolicy: product.refundPolicy || '',
-    materialReq: [...(product.materialReq || [])],
+    presaleDays: product.presaleDays || 90,
+    cutoffDays: product.cutoffDays || 3,
+    refundPolicy: product.refundPolicy || '标准退改',
+    materialReq: [...(product.materialReq || ['宣传册', '行程单'])],
     additionalProductIds: associatedAps,
+    depositRuleId: product.depositRuleId || 'dep_default',
+    b2bDepositRuleId: product.b2bDepositRuleId || product.depositRuleId || 'dep_default',
+    b2bPaymentRuleId: product.b2bPaymentRuleId || 'pay_default',
+    b2bPresaleDays: product.b2bPresaleDays ?? product.presaleDays ?? 90,
+    b2bCutoffDays: product.b2bCutoffDays ?? product.cutoffDays ?? 3,
+    b2bRefundPolicy: product.b2bRefundPolicy || product.refundPolicy || '标准退改',
+    b2cPaymentRuleId: product.b2cPaymentRuleId || 'pay_c_direct',
+    b2cPresaleDays: product.b2cPresaleDays ?? 60,
+    b2cCutoffDays: product.b2cCutoffDays ?? 1,
+    b2cRefundPolicy: product.b2cRefundPolicy || '标准退改',
   }
 }
 

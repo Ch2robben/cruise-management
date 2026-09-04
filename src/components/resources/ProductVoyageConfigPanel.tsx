@@ -5,6 +5,13 @@ import type { HierarchicalDictOption } from '@/utils/hierarchicalDict'
 import { loadHierarchicalDictOptions } from '@/utils/hierarchicalDict'
 import type { ProductSegmentOption } from '@/utils/productVoyageConfig'
 import { initialAdditionalProducts, additionalProductCategories, getAdditionalCategoryPath } from '@/mock/additionalProducts'
+import {
+  availableDepositRules,
+  availablePaymentRules,
+  type SalesDepositRule,
+  type SalesPaymentRule,
+} from '@/mock/salesRules'
+import { Building2, UserCheck, ShieldAlert, CheckCircle2, ChevronDown, ChevronRight, Info } from 'lucide-react'
 
 export interface ProductVoyageConfigValue {
   deposits: TemplateDeposit[]
@@ -16,9 +23,22 @@ export interface ProductVoyageConfigValue {
   refundPolicy: string
   materialReq: string[]
   additionalProductIds: string[]
+  // 定金规则对应项
+  depositRuleId?: string
+  // 2B 销售配置
+  b2bDepositRuleId?: string
+  b2bPaymentRuleId?: string
+  b2bPresaleDays?: number
+  b2bCutoffDays?: number
+  b2bRefundPolicy?: string
+  // 2C 销售配置
+  b2cPaymentRuleId?: string
+  b2cPresaleDays?: number
+  b2cCutoffDays?: number
+  b2cRefundPolicy?: string
 }
 
-const TABS = ['房型配置', '航次定金', '销售规则', '小费配置', '礼遇配置', '附加产品'] as const
+const TABS = ['房型配置', '定金规则', '销售规则', '小费配置', '礼遇配置', '附加产品'] as const
 const refundPolicies = ['标准退改', '严格退改', '灵活退改']
 const materialOptions = ['宣传册', '行程单', '保险单', '签证指南']
 
@@ -33,11 +53,21 @@ export const emptyProductVoyageConfig = (): ProductVoyageConfigValue => ({
   tips: [],
   configuredRoomTypes: [],
   privileges: [],
-  presaleDays: 0,
-  cutoffDays: 0,
-  refundPolicy: '',
-  materialReq: [],
+  presaleDays: 90,
+  cutoffDays: 3,
+  refundPolicy: '标准退改',
+  materialReq: ['宣传册', '行程单'],
   additionalProductIds: [],
+  depositRuleId: 'dep_default',
+  b2bDepositRuleId: 'dep_default',
+  b2bPaymentRuleId: 'pay_default',
+  b2bPresaleDays: 90,
+  b2bCutoffDays: 3,
+  b2bRefundPolicy: '标准退改',
+  b2cPaymentRuleId: 'pay_c_direct',
+  b2cPresaleDays: 60,
+  b2cCutoffDays: 1,
+  b2cRefundPolicy: '标准退改',
 })
 
 const toggleArray = (arr: string[], val: string): string[] =>
@@ -66,8 +96,20 @@ export default function ProductVoyageConfigPanel({
   const [privilegeOptions, setPrivilegeOptions] = useState<HierarchicalDictOption[]>([])
   const [apSearch, setApSearch] = useState('')
   const [apCategory, setApCategory] = useState('all')
+  const [salesSubTab, setSalesSubTab] = useState<'2b' | '2c'>('2b')
+  const [showSegmentOverrides, setShowSegmentOverrides] = useState(false)
+
   const defaultSegmentKey = segmentOptions[0]?.key || ''
   const configuredRoomTypes = value.configuredRoomTypes
+
+  // 确保有默认选中的规则ID
+  const selectedDepositRuleId = value.depositRuleId || value.b2bDepositRuleId || 'dep_default'
+  const selectedB2bPaymentRuleId = value.b2bPaymentRuleId || 'pay_default'
+  const selectedB2cPaymentRuleId = value.b2cPaymentRuleId || 'pay_c_direct'
+
+  const currentDepositRule = availableDepositRules.find((r) => r.id === selectedDepositRuleId) || availableDepositRules[0]
+  const currentB2bPaymentRule = availablePaymentRules.find((r) => r.id === selectedB2bPaymentRuleId) || availablePaymentRules[0]
+  const currentB2cPaymentRule = availablePaymentRules.find((r) => r.id === selectedB2cPaymentRuleId) || availablePaymentRules[2]
 
   useEffect(() => {
     loadHierarchicalDictOptions('PRIVILEGE_TYPE').then(setPrivilegeOptions)
@@ -86,10 +128,12 @@ export default function ProductVoyageConfigPanel({
     })
   }
 
-  const updateDep = (idx: number, field: keyof TemplateDeposit, fieldValue: string | number) => {
-    const deposits = [...value.deposits]
-    deposits[idx] = { ...deposits[idx], [field]: fieldValue }
-    onChange({ ...value, deposits })
+  const handleDepositRuleChange = (ruleId: string) => {
+    onChange({
+      ...value,
+      depositRuleId: ruleId,
+      b2bDepositRuleId: ruleId,
+    })
   }
 
   const updateTip = (idx: number, patch: Partial<TemplateTip>) => {
@@ -230,60 +274,374 @@ export default function ProductVoyageConfigPanel({
           </div>
         )
       case 1:
-        return renderSegmentRoomTable(
-          '航次定金',
-          '定金(元/人)',
-          value.deposits.map((item) => ({
-            id: item.id,
-            segmentKey: item.segmentKey,
-            roomType: item.roomType,
-            amount: item.deposit,
-          })),
-          () => onChange({ ...value, deposits: [...value.deposits, emptyDep(defaultSegmentKey)] }),
-          (id) => onChange({ ...value, deposits: value.deposits.filter((item) => item.id !== id) }),
-          (idx, patch) => {
-            const deposits = [...value.deposits]
-            deposits[idx] = {
-              ...deposits[idx],
-              ...(patch.segmentKey !== undefined ? { segmentKey: patch.segmentKey } : {}),
-              ...(patch.roomType !== undefined ? { roomType: patch.roomType } : {}),
-              ...(patch.amount !== undefined ? { deposit: patch.amount } : {}),
-            }
-            onChange({ ...value, deposits })
-          },
-        )
-      case 2:
+        // 定金规则 Tab：选择对应的定金规则
         return (
-          <div>
-            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">销售规则</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">预售期规则(天)</label>
-                <input type="number" value={value.presaleDays || ''} onChange={(event) => onChange({ ...value, presaleDays: Number(event.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <div className="space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">定金规则配置</h4>
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  选用已有定金规则模型
+                </span>
               </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">截止售卖点(天)</label>
-                <input type="number" value={value.cutoffDays || ''} onChange={(event) => onChange({ ...value, cutoffDays: Number(event.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">退改策略模板</label>
-                <select value={value.refundPolicy} onChange={(event) => onChange({ ...value, refundPolicy: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                  <option value="">选择</option>
-                  {refundPolicies.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">物料需求清单</label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {materialOptions.map((item) => (
-                    <label key={item} className={`cursor-pointer rounded border px-2 py-1 text-xs ${value.materialReq.includes(item) ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-600'}`}>
-                      <input type="checkbox" checked={value.materialReq.includes(item)} onChange={() => onChange({ ...value, materialReq: toggleArray(value.materialReq, item) })} className="sr-only" />
-                      {item}
-                    </label>
-                  ))}
+              <p className="text-sm text-gray-500 mb-4">
+                为本产品选定全局定金规则。选定后，2B 渠道分销下单将默认按该规则收取定金与执行超时阻断策略。
+              </p>
+
+              {/* 核心：选择已有定金规则 */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    选择对应定金规则 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedDepositRuleId}
+                    onChange={(e) => handleDepositRuleChange(e.target.value)}
+                    className="w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {availableDepositRules.map((rule) => (
+                      <option key={rule.id} value={rule.id}>
+                        {rule.name}（{rule.calculationType === 'fixed' ? `¥${rule.amount}/${rule.dimension}` : `${rule.amount}%比例`} · {rule.deadlineText}）
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {/* 所选定金规则详情卡片展示 */}
+                {currentDepositRule && (
+                  <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-semibold text-gray-900">{currentDepositRule.name}</span>
+                        <span className="text-[11px] rounded bg-emerald-50 px-2 py-0.5 text-emerald-700 font-medium">已启用</span>
+                      </div>
+                      <span className="text-xs text-gray-400">适用范围：{currentDepositRule.scopeText}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="rounded bg-gray-50 p-2.5">
+                        <span className="text-gray-500 block">收取标准</span>
+                        <span className="font-semibold text-gray-900 mt-1 block">
+                          {currentDepositRule.calculationType === 'fixed'
+                            ? `¥${currentDepositRule.amount} / ${currentDepositRule.dimension}`
+                            : `${currentDepositRule.amount}% (${currentDepositRule.dimension})`}
+                        </span>
+                      </div>
+                      <div className="rounded bg-gray-50 p-2.5">
+                        <span className="text-gray-500 block">收取时机</span>
+                        <span className="font-semibold text-gray-900 mt-1 block">{currentDepositRule.paymentTrigger}</span>
+                      </div>
+                      <div className="rounded bg-gray-50 p-2.5">
+                        <span className="text-gray-500 block">支付时限</span>
+                        <span className="font-semibold text-gray-900 mt-1 block">{currentDepositRule.deadlineText}</span>
+                      </div>
+                      <div className="rounded bg-gray-50 p-2.5">
+                        <span className="text-gray-500 block">超时动作</span>
+                        <span className="font-semibold text-red-600 mt-1 block">{currentDepositRule.overdueAction}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* 可选：特定航段×房型定金微调覆盖 */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowSegmentOverrides(!showSegmentOverrides)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900"
+                >
+                  {showSegmentOverrides ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  <span>特定航段 × 房型定金单独覆盖（选填，共 {value.deposits.length} 项）</span>
+                </button>
+                <span className="text-[11px] text-gray-400">如无特殊需求将直接继承上述全局定金规则</span>
+              </div>
+
+              {showSegmentOverrides && (
+                <div className="mt-3 rounded-lg border border-gray-200 p-4">
+                  {renderSegmentRoomTable(
+                    '航段 × 房型覆盖定金',
+                    '定金(元/人)',
+                    value.deposits.map((item) => ({
+                      id: item.id,
+                      segmentKey: item.segmentKey,
+                      roomType: item.roomType,
+                      amount: item.deposit,
+                    })),
+                    () => onChange({ ...value, deposits: [...value.deposits, emptyDep(defaultSegmentKey)] }),
+                    (id) => onChange({ ...value, deposits: value.deposits.filter((item) => item.id !== id) }),
+                    (idx, patch) => {
+                      const deposits = [...value.deposits]
+                      deposits[idx] = {
+                        ...deposits[idx],
+                        ...(patch.segmentKey !== undefined ? { segmentKey: patch.segmentKey } : {}),
+                        ...(patch.roomType !== undefined ? { roomType: patch.roomType } : {}),
+                        ...(patch.amount !== undefined ? { deposit: patch.amount } : {}),
+                      }
+                      onChange({ ...value, deposits })
+                    },
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      case 2:
+        // 销售规则 Tab：划分为 2B销售 与 2C销售
+        return (
+          <div className="space-y-4">
+            {/* 2B 与 2C 子Tab切换栏 */}
+            <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+              <button
+                type="button"
+                onClick={() => setSalesSubTab('2b')}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                  salesSubTab === '2b'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>2B 销售规则 (分销商/组团社)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSalesSubTab('2c')}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                  salesSubTab === '2c'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>2C 销售规则 (自营散客直销)</span>
+              </button>
+            </div>
+
+            {/* 2B 销售配置 */}
+            {salesSubTab === '2b' && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3.5 py-2.5 text-xs text-blue-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>2B 销售规则面向签约旅行社、渠道代理商及大客户，支持按定金与船款组合结算模式。</span>
+                </div>
+
+                {/* 1. 2B 规则绑定（定金规则与船款规则） */}
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+                  <h5 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">
+                    核心规则绑定（定金与船款）
+                  </h5>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 2B 定金规则选择 */}
+                    <div className="rounded-lg border border-gray-200 p-3 bg-gray-50/50 space-y-2">
+                      <label className="block text-xs font-medium text-gray-700">
+                        2B 定金规则 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={value.b2bDepositRuleId || selectedDepositRuleId}
+                        onChange={(e) => {
+                          onChange({
+                            ...value,
+                            b2bDepositRuleId: e.target.value,
+                            depositRuleId: e.target.value, // 同步全局定金规则
+                          })
+                        }}
+                        className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        {availableDepositRules.map((rule) => (
+                          <option key={rule.id} value={rule.id}>
+                            {rule.name}
+                          </option>
+                        ))}
+                      </select>
+                      {currentDepositRule && (
+                        <div className="text-[11px] text-gray-500 space-y-0.5 pt-1">
+                          <div>• 收取标准：<span className="text-gray-800 font-medium">{currentDepositRule.calculationType === 'fixed' ? `¥${currentDepositRule.amount}/${currentDepositRule.dimension}` : `${currentDepositRule.amount}%比例`}</span></div>
+                          <div>• 支付时限：<span className="text-gray-800">{currentDepositRule.deadlineText}</span></div>
+                          <div>• 超时动作：<span className="text-red-600">{currentDepositRule.overdueAction}</span></div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2B 船款规则选择 */}
+                    <div className="rounded-lg border border-gray-200 p-3 bg-gray-50/50 space-y-2">
+                      <label className="block text-xs font-medium text-gray-700">
+                        2B 船款规则 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedB2bPaymentRuleId}
+                        onChange={(e) => onChange({ ...value, b2bPaymentRuleId: e.target.value })}
+                        className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        {availablePaymentRules.map((rule) => (
+                          <option key={rule.id} value={rule.id}>
+                            {rule.name}
+                          </option>
+                        ))}
+                      </select>
+                      {currentB2bPaymentRule && (
+                        <div className="text-[11px] text-gray-500 space-y-0.5 pt-1">
+                          <div>• 付清时限：<span className="text-gray-800 font-medium">开航前 {currentB2bPaymentRule.deadlineDays} 天付清</span>（提前{currentB2bPaymentRule.collectionStartDays}天催缴）</div>
+                          <div>• 定金抵扣：<span className="text-emerald-700">{currentB2bPaymentRule.deductDeposit ? '自动抵扣已收定金' : '不抵扣'}</span></div>
+                          <div>• 超时动作：<span className="text-red-600">{currentB2bPaymentRule.overdueActionText}</span></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 2B 售卖参数 */}
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+                  <h5 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">
+                    2B 销售参数与物料
+                  </h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">预售期规则(天)</label>
+                      <input
+                        type="number"
+                        value={value.b2bPresaleDays ?? value.presaleDays ?? ''}
+                        onChange={(e) => {
+                          const val = Number(e.target.value)
+                          onChange({ ...value, b2bPresaleDays: val, presaleDays: val })
+                        }}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        placeholder="默认 90 天"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">截止售卖点(天)</label>
+                      <input
+                        type="number"
+                        value={value.b2bCutoffDays ?? value.cutoffDays ?? ''}
+                        onChange={(e) => {
+                          const val = Number(e.target.value)
+                          onChange({ ...value, b2bCutoffDays: val, cutoffDays: val })
+                        }}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        placeholder="默认开航前 3 天截单"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">退改策略模板</label>
+                      <select
+                        value={value.b2bRefundPolicy ?? value.refundPolicy}
+                        onChange={(e) => onChange({ ...value, b2bRefundPolicy: e.target.value, refundPolicy: e.target.value })}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      >
+                        {refundPolicies.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">物料需求清单</label>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {materialOptions.map((item) => (
+                          <label
+                            key={item}
+                            className={`cursor-pointer rounded border px-2 py-1 text-xs ${
+                              value.materialReq.includes(item) ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-600'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={value.materialReq.includes(item)}
+                              onChange={() => onChange({ ...value, materialReq: toggleArray(value.materialReq, item) })}
+                              className="sr-only"
+                            />
+                            {item}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2C 销售配置 */}
+            {salesSubTab === '2c' && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-amber-100 bg-amber-50/50 px-3.5 py-2.5 text-xs text-amber-900 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>2C 直销散客采用即时付清船款模式，无需配置定金规则，仅需选择船款支付与超时取消规则。</span>
+                </div>
+
+                {/* 1. 2C 船款规则选择 */}
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                  <h5 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">
+                    2C 船款规则 <span className="text-red-500">*</span>
+                  </h5>
+                  <div className="max-w-md">
+                    <select
+                      value={selectedB2cPaymentRuleId}
+                      onChange={(e) => onChange({ ...value, b2cPaymentRuleId: e.target.value })}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {availablePaymentRules.map((rule) => (
+                        <option key={rule.id} value={rule.id}>
+                          {rule.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {currentB2cPaymentRule && (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-3 text-xs space-y-1">
+                      <div className="font-medium text-gray-900">{currentB2cPaymentRule.name}</div>
+                      <div className="text-gray-600">• 付款要求：{currentB2cPaymentRule.lateBookingPolicyText}</div>
+                      <div className="text-gray-600">• 超时动作：<span className="text-red-600">{currentB2cPaymentRule.overdueActionText}</span></div>
+                      <div className="text-gray-500 text-[11px] pt-1">说明：散客在线选座下单后，需在规定时效内完成线上全额支付，超时未付将自动释放锁定客房。</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. 2C 售卖参数 */}
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+                  <h5 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">
+                    2C 散客售卖控制参数
+                  </h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">预售期规则(天)</label>
+                      <input
+                        type="number"
+                        value={value.b2cPresaleDays ?? 60}
+                        onChange={(e) => onChange({ ...value, b2cPresaleDays: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        placeholder="默认 60 天"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">截止售卖点(天)</label>
+                      <input
+                        type="number"
+                        value={value.b2cCutoffDays ?? 1}
+                        onChange={(e) => onChange({ ...value, b2cCutoffDays: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        placeholder="默认开航前 1 天截单"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-gray-700">退改策略模板</label>
+                      <select
+                        value={value.b2cRefundPolicy ?? '标准退改'}
+                        onChange={(e) => onChange({ ...value, b2cRefundPolicy: e.target.value })}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      >
+                        {refundPolicies.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
       case 3:
@@ -401,32 +759,32 @@ export default function ProductVoyageConfigPanel({
           onChange({ ...value, additionalProductIds: nextIds })
         }
 
-        const filteredAps = initialAdditionalProducts.filter((item) => {
-          const matchKey = !apSearch.trim() || item.name.includes(apSearch.trim()) || (item.externalCode && item.externalCode.includes(apSearch.trim()))
-          const matchCat = apCategory === 'all' || item.categoryId === apCategory
-          return matchKey && matchCat
+        const filteredAps = initialAdditionalProducts.filter((ap) => {
+          const matchesSearch = !apSearch || ap.name.includes(apSearch) || (ap.externalCode || '').includes(apSearch)
+          const matchesCategory = apCategory === 'all' || ap.categoryId === apCategory
+          return matchesSearch && matchesCategory
         })
 
         return (
-          <div>
-            <div className="mb-3 flex items-center justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">附加产品配置</h4>
-                <p className="mt-1 text-sm text-gray-500">点选附加产品直接为本产品关联/取消关联增值服务、餐食及门票。</p>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">附加产品管理</h4>
+                <p className="mt-1 text-sm text-gray-500">点选勾选要关联到当前产品的附加消费项（餐饮包、VIP包厢、讲解等）。</p>
               </div>
-              <div className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
-                已点选关联 <span className="font-bold text-blue-900">{associatedIds.length}</span> 项附加产品
-              </div>
+              <span className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full font-medium">
+                已关联 {associatedIds.length} 项附加产品
+              </span>
             </div>
 
-            {/* 检索过滤面板 */}
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50/60 p-3">
+            {/* 搜索与分类筛选栏 */}
+            <div className="flex items-center gap-3">
               <input
                 type="text"
+                placeholder="搜索附加产品名称 / 编号..."
                 value={apSearch}
                 onChange={(e) => setApSearch(e.target.value)}
-                placeholder="搜索附加产品名称/编码..."
-                className="w-56 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm"
+                className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
               />
               <select
                 value={apCategory}
@@ -546,7 +904,9 @@ export default function ProductVoyageConfigPanel({
               key={label}
               type="button"
               onClick={() => onTabChange(index)}
-              className={`-mb-px border-b-2 px-4 py-2 text-sm transition-colors ${tab === index ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm transition-colors ${
+                tab === index ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
             >
               {label}
             </button>

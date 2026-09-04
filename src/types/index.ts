@@ -520,6 +520,19 @@ export interface Product {
   materialReq: string[]
   /** 关联的附加产品ID列表 */
   additionalProductIds?: string[]
+  /** 对应定金规则ID */
+  depositRuleId?: string
+  /** 2B销售定金规则与船款规则 */
+  b2bDepositRuleId?: string
+  b2bPaymentRuleId?: string
+  b2bPresaleDays?: number
+  b2bCutoffDays?: number
+  b2bRefundPolicy?: string
+  /** 2C销售船款规则 */
+  b2cPaymentRuleId?: string
+  b2cPresaleDays?: number
+  b2cCutoffDays?: number
+  b2cRefundPolicy?: string
   approvalStatus?: string
   approvalTimeline?: ApprovalStep[]
   publishStatus?: 'published' | 'unpublished'
